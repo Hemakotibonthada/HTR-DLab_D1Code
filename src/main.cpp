@@ -6,7 +6,11 @@
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
 #include <time.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
+// Pin Definitions
 #define RELAY1 2
 #define RELAY2 15
 #define RELAY3 16
@@ -19,474 +23,398 @@
 #define DHTTYPE DHT11
 #define STATUS_LED 23
 
+// Configuration
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 19800; // GMT+5:30
 const int daylightOffset_sec = 0;
-
-DHT dht(DHTPIN, DHTTYPE);
-WebServer server(80);
-
-float temperature;
-float humidity;
-bool relayStates[8] = {false, false, false, false, false, false, false, false};
-
 const int EEPROM_SIZE = 512;
 const int RELAY_ADDR = 0;
+
+// Global Objects
+DHT dht(DHTPIN, DHTTYPE);
+WebServer server(80);
+WiFiManager wifiManager;
+
+// Global Variables
+float temperature = 0.0;
+float humidity = 0.0;
+bool relayStates[8] = {false, false, false, false, false, false, false, false};
 String logBuffer = "";
+unsigned long lastSensorRead = 0;
+const unsigned long sensorInterval = 2000; // 2 seconds
 
-String getINIValue(String filePath, String key, String defaultValue) {
-  File file = SPIFFS.open(filePath, "r");
-  if (!file) return defaultValue;
+// Function Declarations
+void setupOTA();
+void addLog(String entry);
+void handleRoot();
+void handleToggle();
+void handleSensor();
+void handleRelayStatus();
+void handleLogs();
+void handleNotFound();
+void updateSensorData();
+void saveRelayStates();
+void loadRelayStates();
+void setupWiFi();
 
-  while (file.available()) {
-    String line = file.readStringUntil('\n');
-    int separatorIndex = line.indexOf("=");
-    if (separatorIndex != -1) {
-      String lineKey = line.substring(0, separatorIndex);
-      lineKey.trim();
-      if (lineKey == key) {
-        String value = line.substring(separatorIndex + 1);
-        value.trim();
-        return value;
-      }
-    }
+void setup() {
+  Serial.begin(115200);
+  pinMode(STATUS_LED, OUTPUT);
+  digitalWrite(STATUS_LED, LOW);
+
+  // Initialize components
+  dht.begin();
+  EEPROM.begin(EEPROM_SIZE);
+  SPIFFS.begin(true); // Initialize SPIFFS with format if needed
+
+  // Load saved relay states
+  loadRelayStates();
+
+  // Initialize relay pins
+  int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
+  for (int i = 0; i < 8; i++) {
+    pinMode(relayPins[i], OUTPUT);
+    digitalWrite(relayPins[i], relayStates[i] ? HIGH : LOW);
   }
-  return defaultValue;
+
+  // Setup WiFi
+  setupWiFi();
+
+  // Configure time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Setup OTA
+  setupOTA();
+
+  // Setup Web Server
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/toggle", HTTP_GET, handleToggle);
+  server.on("/sensor", HTTP_GET, handleSensor);
+  server.on("/relayStatus", HTTP_GET, handleRelayStatus);
+  server.on("/logs", HTTP_GET, handleLogs);
+  server.onNotFound(handleNotFound);
+  server.begin();
+
+  // Start mDNS
+  if (!MDNS.begin("iot-garage")) {
+    Serial.println("Error setting up MDNS responder!");
+  }
+
+  Serial.println("HTTP server started");
+  digitalWrite(STATUS_LED, HIGH);
+  addLog("System initialized");
 }
 
-void loadConfig() {
-  String staticIP = getINIValue("/config.ini", "static_ip", "192.168.1.100");
-  String gateway = getINIValue("/config.ini", "gateway", "192.168.1.1");
-  String subnet = getINIValue("/config.ini", "subnet", "255.255.255.0");
-  String dns = getINIValue("/config.ini", "dns", "8.8.8.8");
-
-  IPAddress ip, gw, sn, dn;
-  ip.fromString(staticIP);
-  gw.fromString(gateway);
-  sn.fromString(subnet);
-  dn.fromString(dns);
-
-  WiFi.config(ip, gw, sn, dn);
+void loop() {
+  ArduinoOTA.handle();
+  server.handleClient();
+  
+  // Update sensor data periodically
+  if (millis() - lastSensorRead >= sensorInterval) {
+    updateSensorData();
+    lastSensorRead = millis();
+  }
 }
 
+// OTA Setup Function
+void setupOTA() {
+  ArduinoOTA.setHostname("iot-garage-controller");
+  
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else { // U_SPIFFS
+      type = "filesystem";
+      SPIFFS.end();
+    }
+    addLog("OTA Update Started: " + type);
+    digitalWrite(STATUS_LED, LOW);
+  });
+  
+  ArduinoOTA.onEnd([]() {
+    addLog("OTA Update Finished");
+    digitalWrite(STATUS_LED, HIGH);
+  });
+  
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) addLog("OTA Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) addLog("OTA Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) addLog("OTA Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) addLog("OTA Receive Failed");
+    else if (error == OTA_END_ERROR) addLog("OTA End Failed");
+    digitalWrite(STATUS_LED, HIGH);
+  });
+  
+  ArduinoOTA.begin();
+  addLog("OTA Update Service Ready");
+}
+
+// WiFi Setup Function
+void setupWiFi() {
+  wifiManager.setConfigPortalTimeout(180);
+  wifiManager.setConnectTimeout(30);
+  wifiManager.setDebugOutput(true);
+  
+  if (!wifiManager.autoConnect("HemaController")) {
+    Serial.println("Failed to connect and hit timeout");
+    delay(3000);
+    ESP.restart();
+  }
+  
+  addLog("Connected to WiFi: " + WiFi.localIP().toString());
+}
+
+// Update Sensor Data
+void updateSensorData() {
+  float newTemp = dht.readTemperature();
+  float newHum = dht.readHumidity();
+  
+  if (!isnan(newTemp)) temperature = newTemp;
+  if (!isnan(newHum)) humidity = newHum;
+  
+  // Log significant changes
+  static float lastLoggedTemp = 0, lastLoggedHum = 0;
+  if (abs(temperature - lastLoggedTemp) > 0.5 || abs(humidity - lastLoggedHum) > 1.0) {
+    addLog("Sensor Update - Temp: " + String(temperature) + "°C, Hum: " + String(humidity) + "%");
+    lastLoggedTemp = temperature;
+    lastLoggedHum = humidity;
+  }
+}
+
+// Save/Load Relay States
+void saveRelayStates() {
+  for (int i = 0; i < 8; i++) {
+    EEPROM.write(RELAY_ADDR + i, relayStates[i]);
+  }
+  EEPROM.commit();
+}
+
+void loadRelayStates() {
+  for (int i = 0; i < 8; i++) {
+    relayStates[i] = EEPROM.read(RELAY_ADDR + i);
+  }
+}
+
+// Logging Function
 void addLog(String entry) {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time");
+    logBuffer += "[TimeError] " + entry + "\n";
     return;
   }
+  
   char timestamp[25];
-  strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
+  strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &timeinfo);
   logBuffer += "[" + String(timestamp) + "] " + entry + "\n";
+  
+  // Keep log buffer manageable
+  if (logBuffer.length() > 4096) {
+    logBuffer = logBuffer.substring(logBuffer.length() - 4096);
+  }
+  
   Serial.println(entry);
 }
 
+// Web Server Handlers
 void handleRoot() {
   String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Telugu IoT Garage Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoT Garage Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f0f7f7;
-      color: #333;
+    :root {
+      --primary: #00796B;
+      --secondary: #00A5A8;
+      --error: #F44336;
+      --bg: #f5f5f5;
+      --card-bg: #fff;
     }
-
-    header {
-      background-color: #00796B;
-      color: white;
-      padding: 1rem;
-      text-align: center;
-      font-size: 1.8rem;
-      font-weight: bold;
-    }
-
-    #controls {
-      display: flex;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      background: white;
-      border: 1px solid #00796B;
-      padding: 0.5rem 1rem;
-      cursor: pointer;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      min-width: 60px;
-      text-align: center;
-    }
-
-    .btn.active, .btn:hover {
-      background: #00796B;
-      color: white;
-    }
-
-    #chart-controls {
-      display: flex;
-      justify-content: center;
-      gap: 1rem;
-      margin: 1rem;
-      align-items: center;
-    }
-
-    #relays {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 1rem;
-      padding: 1rem;
-      background: white;
-      margin: 1rem auto;
-      max-width: 900px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 60px;
-      height: 34px;
-      margin: 0.5rem;
-    }
-
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #ccc;
-      transition: .4s;
-      border-radius: 34px;
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 26px;
-      width: 26px;
-      left: 4px;
-      bottom: 4px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-
-    input:checked + .slider {
-      background-color: #00A5A8;
-    }
-
-    input:checked + .slider:before {
-      transform: translateX(26px);
-    }
-
-    .relay-label {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 0.9rem;
-      color: #444;
-      min-width: 80px;
-    }
-
-    #chart-container {
-      padding: 1rem;
-      margin: 0 auto;
-      max-width: 900px;
-      height: 400px;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-
-    #logs {
-      background: #ffffff;
-      padding: 1rem;
-      margin: 1rem auto;
-      max-width: 900px;
-      border: 1px solid #ccc;
-      white-space: pre-wrap;
-      font-family: monospace;
-      font-size: 0.9rem;
-      border-radius: 8px;
-    }
-
-    #logBtn {
-      display: block;
-      margin: 1rem auto;
-      padding: 0.5rem 1rem;
-      background-color: #00796B;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-
-    #logBtn:hover {
-      background-color: #00665A;
-    }
-
-    .info-panel {
-      display: flex;
-      justify-content: center;
-      gap: 2rem;
-      margin: 1rem;
-      font-size: 1.2rem;
-    }
-
-    .info-item {
-      background: white;
-      padding: 0.5rem 1rem;
-      border-radius: 5px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-
-    .chart-selector {
-      background: white;
-      border: 1px solid #00796B;
-      padding: 0.5rem;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      cursor: pointer;
-    }
-
-    .relay-title {
-      text-align: center;
-      margin: 1rem 0 0 0;
-      font-weight: bold;
-      color: #00796B;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #333; line-height: 1.6; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header { background: var(--primary); color: white; padding: 1rem; text-align: center; margin-bottom: 2rem; }
+    .card { background: var(--card-bg); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 1.5rem; margin-bottom: 2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+    .sensor-display { display: flex; justify-content: space-between; }
+    .sensor-value { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+    .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+    .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background: var(--secondary); }
+    input:checked + .slider:before { transform: translateX(26px); }
+    .relay-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+    .relay-item { display: flex; flex-direction: column; align-items: center; padding: 1rem; }
+    #chart-container { height: 400px; width: 100%; }
+    #logs { background: #f9f9f9; padding: 1rem; border-radius: 4px; margin-top: 1rem; white-space: pre-wrap; display: none; }
+    .ota-section { margin-top: 2rem; border-top: 1px solid #eee; padding-top: 1rem; }
   </style>
 </head>
 <body>
-
-  <header>Telugu IoT Garage Dashboard</header>
-
-  <div class="info-panel">
-    <div class="info-item">Temperature: <span id="currentTemp">--</span>°C</div>
-    <div class="info-item">Humidity: <span id="currentHum">--</span>%</div>
+  <header>
+    <h1>IoT Garage Dashboard</h1>
+  </header>
+  
+  <div class="container">
+    <div class="grid">
+      <div class="card">
+        <h2>Sensor Data</h2>
+        <div class="sensor-display">
+          <div>
+            <div>Temperature</div>
+            <div class="sensor-value" id="temperature">--°C</div>
+          </div>
+          <div>
+            <div>Humidity</div>
+            <div class="sensor-value" id="humidity">--%</div>
+          </div>
+        </div>
+        
+        <div class="btn-group">
+          <button class="btn btn-primary active" data-range="live">Live</button>
+          <button class="btn btn-outline" data-range="1h">1H</button>
+          <button class="btn btn-outline" data-range="1d">1D</button>
+          <button class="btn btn-outline" data-range="7d">7D</button>
+        </div>
+        
+        <div id="chart-container">
+          <canvas id="sensorChart"></canvas>
+        </div>
+      </div>
+      
+      <div class="card">
+        <h2>Relay Controls</h2>
+        <div class="relay-grid" id="relays">
+          <!-- Relay switches will be inserted here -->
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h2>System Logs</h2>
+      <button class="btn btn-primary" id="logBtn">Show Logs</button>
+      <pre id="logs"></pre>
+    </div>
+    
+    <div class="card ota-section">
+      <h2>OTA Update</h2>
+      <div id="ota-status">Ready for updates</div>
+      <div id="ota-progress" style="margin-top: 1rem; display: none;">
+        <progress value="0" max="100" style="width: 100%;"></progress>
+        <div id="ota-progress-text">0%</div>
+      </div>
+    </div>
   </div>
-
-  <div id="controls">
-    <button class="btn active" data-range="live">LIVE</button>
-    <button class="btn" data-range="1h">1H</button>
-    <button class="btn" data-range="1d">1D</button>
-    <button class="btn" data-range="7d">7D</button>
-    <button class="btn" data-range="15d">15D</button>
-  </div>
-
-  <div id="chart-controls">
-    <select class="chart-selector" id="chartType">
-      <option value="temperature">Temperature (°C)</option>
-      <option value="humidity">Humidity (%)</option>
-    </select>
-  </div>
-
-  <h3 class="relay-title">Relay Controls</h3>
-  <div id="relays">
-    <!-- Switches will be populated here -->
-  </div>
-
-  <div id="chart-container">
-    <canvas id="sensorChart"></canvas>
-  </div>
-
-  <button id="logBtn" onclick="showLogs()">Show Logs</button>
-  <pre id="logs"></pre>
 
   <script>
-    const STORAGE_KEY = 'sensorData';
-    const fetchInterval = 2000; // 2 seconds
-    let allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    let chart, ctx;
-    let lastTempValue = null;
-    let lastHumValue = null;
-
-    function initChart() {
-      ctx = document.getElementById('sensorChart').getContext('2d');
-      chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          datasets: [{
-            label: 'Temperature (°C)',
-            data: [],
-            tension: 0.4,
-            pointRadius: function(context) {
-              // Only show points when value changes
-              const index = context.dataIndex;
-              if (index === 0) return 3;
-              const current = context.dataset.data[index].y;
-              const previous = context.dataset.data[index-1].y;
-              return Math.abs(current - previous) > 0.1 ? 3 : 0;
-            },
-            borderColor: '#00A5A8',
-            backgroundColor: '#00A5A8',
-            fill: false
-          }, {
-            label: 'Humidity (%)',
-            data: [],
-            tension: 0.4,
-            pointRadius: function(context) {
-              // Only show points when value changes
-              const index = context.dataIndex;
-              if (index === 0) return 3;
-              const current = context.dataset.data[index].y;
-              const previous = context.dataset.data[index-1].y;
-              return Math.abs(current - previous) > 0.5 ? 3 : 0;
-            },
-            borderColor: '#FF6B6B',
-            backgroundColor: '#FF6B6B',
-            fill: false,
-            hidden: true
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: {
-            mode: 'index',
-            intersect: false
-          },
-          plugins: {
-            legend: {
-              labels: {
-                color: '#333',
-                font: {
-                  size: 14
-                }
-              }
+    // DOM Elements
+    const tempEl = document.getElementById('temperature');
+    const humEl = document.getElementById('humidity');
+    const relaysEl = document.getElementById('relays');
+    const logBtn = document.getElementById('logBtn');
+    const logsEl = document.getElementById('logs');
+    const otaStatus = document.getElementById('ota-status');
+    const otaProgress = document.getElementById('ota-progress');
+    const otaProgressText = document.getElementById('ota-progress-text');
+    
+    // Chart Initialization
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: 'Temperature (°C)',
+          data: [],
+          borderColor: '#00796B',
+          backgroundColor: 'rgba(0, 121, 107, 0.1)',
+          tension: 0.4,
+          pointRadius: 3
+        }, {
+          label: 'Humidity (%)',
+          data: [],
+          borderColor: '#00A5A8',
+          backgroundColor: 'rgba(0, 165, 168, 0.1)',
+          tension: 0.4,
+          pointRadius: 3,
+          hidden: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              tooltipFormat: 'MMM d, HH:mm:ss'
             }
           },
-          scales: {
-            x: {
-              type: 'time',
-              time: {
-                displayFormats: {
-                  second: 'HH:mm:ss',
-                  minute: 'HH:mm',
-                  hour: 'HH:mm',
-                  day: 'MMM dd'
-                },
-                tooltipFormat: 'yyyy-MM-dd HH:mm:ss'
-              },
-              title: {
-                display: true,
-                text: 'Time',
-                color: '#555'
-              },
-              ticks: {
-                color: '#666'
-              },
-              grid: {
-                display: false
-              }
-            },
-            y: {
-              beginAtZero: false,
-              title: {
-                display: true,
-                text: 'Value',
-                color: '#555'
-              },
-              ticks: {
-                color: '#666',
-                padding: 10
-              },
-              grid: {
-                display: false
-              }
-            }
-          },
-          layout: {
-            padding: {
-              left: 20,
-              right: 20,
-              top: 20,
-              bottom: 20
-            }
+          y: {
+            beginAtZero: false
           }
         }
-      });
-    }
-
-    async function fetchSensor() {
-      try {
-        const res = await fetch('/sensor');
-        const data = await res.json();
+      }
+    });
+    
+    // WebSocket for real-time updates
+    let socket;
+    function initWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUri = protocol + '//' + window.location.host + '/ws';
+      socket = new WebSocket(wsUri);
+      
+      socket.onopen = function(e) {
+        console.log('WebSocket connected');
+      };
+      
+      socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
         
-        // Update current readings
-        document.getElementById('currentTemp').textContent = data.temperature.toFixed(1);
-        document.getElementById('currentHum').textContent = data.humidity.toFixed(1);
-        
-        const now = new Date().toISOString();
-        allData.push({ 
-          x: now, 
-          temp: data.temperature,
-          hum: data.humidity
-        });
-        
-        // Keep only the last 5000 points to prevent memory issues
-        if (allData.length > 5000) {
-          allData = allData.slice(-5000);
+        // Update sensor values
+        if (data.temperature !== undefined) {
+          tempEl.textContent = data.temperature.toFixed(1) + '°C';
+        }
+        if (data.humidity !== undefined) {
+          humEl.textContent = data.humidity.toFixed(1) + '%';
         }
         
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
-      } catch(e) { console.error(e); }
+        // Update chart
+        const now = new Date();
+        if (chart.data.datasets[0].data.length > 100) {
+          chart.data.datasets[0].data.shift();
+          chart.data.datasets[1].data.shift();
+        }
+        chart.data.datasets[0].data.push({x: now, y: data.temperature});
+        chart.data.datasets[1].data.push({x: now, y: data.humidity});
+        chart.update();
+      };
+      
+      socket.onclose = function(event) {
+        console.log('WebSocket disconnected, reconnecting...');
+        setTimeout(initWebSocket, 1000);
+      };
+      
+      socket.onerror = function(error) {
+        console.log('WebSocket error:', error);
+      };
     }
-
-    function updateChart(range) {
-      const now = Date.now();
-      let cutoff;
-      switch(range) {
-        case '1h': cutoff = now - 3600e3; break;
-        case '1d': cutoff = now - 24*3600e3; break;
-        case '7d': cutoff = now - 7*24*3600e3; break;
-        case '15d': cutoff = now - 15*24*3600e3; break;
-        case 'live': default: cutoff = now - 5*fetchInterval; break;
-      }
-      
-      const filtered = allData.filter(pt => new Date(pt.x).getTime() >= cutoff);
-      
-      // Get selected chart type
-      const chartType = document.getElementById('chartType').value;
-      
-      if (chartType === 'temperature') {
-        chart.data.datasets[0].hidden = false;
-        chart.data.datasets[1].hidden = true;
-        chart.options.scales.y.title.text = 'Temperature (°C)';
-        chart.data.datasets[0].data = filtered.map(pt => ({x: pt.x, y: pt.temp}));
-      } else {
-        chart.data.datasets[0].hidden = true;
-        chart.data.datasets[1].hidden = false;
-        chart.options.scales.y.title.text = 'Humidity (%)';
-        chart.data.datasets[1].data = filtered.map(pt => ({x: pt.x, y: pt.hum}));
-      }
-      
-      chart.update();
-    }
-
+    
+    // Update relay switches
     function updateRelays() {
       fetch('/relayStatus')
         .then(res => res.json())
@@ -494,56 +422,75 @@ void handleRoot() {
           let html = '';
           for (let i = 0; i < 8; i++) {
             html += `
-              <label class="relay-label">
-                Relay ${i + 1}
+              <div class="relay-item">
+                <div>Relay ${i+1}</div>
                 <label class="switch">
-                  <input type="checkbox" ${states[i] ? 'checked' : ''} onclick="toggleRelay(${i})">
+                  <input type="checkbox" ${states[i] ? 'checked' : ''} onchange="toggleRelay(${i})">
                   <span class="slider"></span>
                 </label>
-              </label>
+              </div>
             `;
           }
-          document.getElementById('relays').innerHTML = html;
+          relaysEl.innerHTML = html;
         });
     }
-
-    function toggleRelay(id) {
-      fetch('/toggle?relay=' + id).then(updateRelays);
+    
+    // Toggle relay
+    function toggleRelay(relayNum) {
+      fetch(`/toggle?relay=${relayNum}`)
+        .then(() => updateRelays());
     }
-
-    function showLogs() {
-      fetch('/logs')
-        .then(res => res.text())
-        .then(text => {
-          document.getElementById('logs').innerText = text;
-        });
-    }
-
-    // Initialize the UI
+    
+    // Toggle logs visibility
+    logBtn.addEventListener('click', function() {
+      if (logsEl.style.display === 'none' || !logsEl.style.display) {
+        fetch('/logs')
+          .then(res => res.text())
+          .then(text => {
+            logsEl.textContent = text;
+            logsEl.style.display = 'block';
+            logBtn.textContent = 'Hide Logs';
+          });
+      } else {
+        logsEl.style.display = 'none';
+        logBtn.textContent = 'Show Logs';
+      }
+    });
+    
+    // Time range buttons
     document.querySelectorAll('[data-range]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        updateChart(btn.dataset.range);
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('[data-range]').forEach(b => {
+          b.classList.remove('active');
+          b.classList.remove('btn-primary');
+          b.classList.add('btn-outline');
+        });
+        this.classList.add('active');
+        this.classList.add('btn-primary');
+        this.classList.remove('btn-outline');
+        
+        // Here you would update the chart based on the selected time range
+        // For now we'll just keep showing live data
       });
     });
-
-    // Chart type selector
-    document.getElementById('chartType').addEventListener('change', () => {
-      const activeBtn = document.querySelector('[data-range].active');
-      updateChart(activeBtn.dataset.range);
-    });
-
-    initChart();
+    
+    // Initialize
     updateRelays();
-    updateChart('live');
-
-    // Set up periodic updates
-    setInterval(async () => {
-      await fetchSensor();
-      const activeBtn = document.querySelector('[data-range].active');
-      updateChart(activeBtn.dataset.range);
-    }, fetchInterval);
+    initWebSocket();
+    
+    // OTA Update handling
+    const otaSocket = new WebSocket('ws://' + window.location.host + '/ota');
+    otaSocket.onmessage = function(event) {
+      const data = JSON.parse(event.data);
+      if (data.status) {
+        otaStatus.textContent = data.status;
+      }
+      if (data.progress !== undefined) {
+        otaProgress.style.display = 'block';
+        document.querySelector('#ota-progress progress').value = data.progress;
+        otaProgressText.textContent = data.progress + '%';
+      }
+    };
   </script>
 </body>
 </html>
@@ -558,8 +505,7 @@ void handleToggle() {
       relayStates[relay] = !relayStates[relay];
       int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
       digitalWrite(relayPins[relay], relayStates[relay] ? HIGH : LOW);
-      EEPROM.write(RELAY_ADDR + relay, relayStates[relay]);
-      EEPROM.commit();
+      saveRelayStates();
       addLog("Relay " + String(relay + 1) + (relayStates[relay] ? " ON" : " OFF"));
     }
   }
@@ -567,21 +513,19 @@ void handleToggle() {
 }
 
 void handleSensor() {
-  temperature = dht.readTemperature();
-  humidity = dht.readHumidity();
-
-  StaticJsonDocument<100> doc;
-  doc["temperature"] = isnan(temperature) ? 0.0 : temperature;
-  doc["humidity"] = isnan(humidity) ? 0.0 : humidity;
-
+  JsonDocument doc;
+  doc["temperature"] = temperature;
+  doc["humidity"] = humidity;
+  
   String output;
   serializeJson(doc, output);
   server.send(200, "application/json", output);
 }
 
 void handleRelayStatus() {
-  StaticJsonDocument<200> doc;
+  JsonDocument doc;
   for (int i = 0; i < 8; i++) doc[i] = relayStates[i];
+  
   String output;
   serializeJson(doc, output);
   server.send(200, "application/json", output);
@@ -591,43 +535,19 @@ void handleLogs() {
   server.send(200, "text/plain", logBuffer);
 }
 
-void setup() {
-  Serial.begin(115200);
-  pinMode(STATUS_LED, OUTPUT);
-  dht.begin();
-  EEPROM.begin(EEPROM_SIZE);
-  SPIFFS.begin();
-  loadConfig();
-
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
-  int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
-  for (int i = 0; i < 8; i++) {
-    pinMode(relayPins[i], OUTPUT);
-    relayStates[i] = EEPROM.read(RELAY_ADDR + i);
-    digitalWrite(relayPins[i], relayStates[i] ? HIGH : LOW);
+void handleNotFound() {
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
-
-  WiFiManager wm;
-  wm.setConfigPortalTimeout(180);
-  bool res = wm.autoConnect("HemaController");
-  if (!res) {
-    Serial.println("Failed to connect. Restarting...");
-    delay(3000);
-    ESP.restart();
-  }
-
-  addLog("Connected to WiFi: " + WiFi.localIP().toString());
-  digitalWrite(STATUS_LED, HIGH);
-
-  server.on("/", HTTP_GET, handleRoot);
-  server.on("/toggle", HTTP_GET, handleToggle);
-  server.on("/sensor", HTTP_GET, handleSensor);
-  server.on("/relayStatus", HTTP_GET, handleRelayStatus);
-  server.on("/logs", HTTP_GET, handleLogs);
-  server.begin();
-}
-
-void loop() {
-  server.handleClient();
+  
+  server.send(404, "text/plain", message);
 }
