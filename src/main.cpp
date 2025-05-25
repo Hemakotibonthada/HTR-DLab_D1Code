@@ -83,7 +83,7 @@ void addLog(String entry) {
 
 void handleRoot() {
   String html = R"rawliteral(
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -110,12 +110,49 @@ void handleRoot() {
       font-weight: bold;
     }
 
+    #controls {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: white;
+      border: 1px solid #00796B;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .btn.active, .btn:hover {
+      background: #00796B;
+      color: white;
+    }
+
+    #chart-controls {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin: 1rem;
+      align-items: center;
+    }
+
     #relays {
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
       gap: 1rem;
       padding: 1rem;
+      background: white;
+      margin: 1rem auto;
+      max-width: 900px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
     .switch {
@@ -123,6 +160,7 @@ void handleRoot() {
       display: inline-block;
       width: 60px;
       height: 34px;
+      margin: 0.5rem;
     }
 
     .switch input {
@@ -134,8 +172,10 @@ void handleRoot() {
     .slider {
       position: absolute;
       cursor: pointer;
-      top: 0; left: 0;
-      right: 0; bottom: 0;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       background-color: #ccc;
       transition: .4s;
       border-radius: 34px;
@@ -144,8 +184,10 @@ void handleRoot() {
     .slider:before {
       position: absolute;
       content: "";
-      height: 26px; width: 26px;
-      left: 4px; bottom: 4px;
+      height: 26px;
+      width: 26px;
+      left: 4px;
+      bottom: 4px;
       background-color: white;
       transition: .4s;
       border-radius: 50%;
@@ -165,6 +207,7 @@ void handleRoot() {
       align-items: center;
       font-size: 0.9rem;
       color: #444;
+      min-width: 80px;
     }
 
     #chart-container {
@@ -172,6 +215,9 @@ void handleRoot() {
       margin: 0 auto;
       max-width: 900px;
       height: 400px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 
     #logs {
@@ -183,6 +229,7 @@ void handleRoot() {
       white-space: pre-wrap;
       font-family: monospace;
       font-size: 0.9rem;
+      border-radius: 8px;
     }
 
     #logBtn {
@@ -200,12 +247,64 @@ void handleRoot() {
     #logBtn:hover {
       background-color: #00665A;
     }
+
+    .info-panel {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin: 1rem;
+      font-size: 1.2rem;
+    }
+
+    .info-item {
+      background: white;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .chart-selector {
+      background: white;
+      border: 1px solid #00796B;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    .relay-title {
+      text-align: center;
+      margin: 1rem 0 0 0;
+      font-weight: bold;
+      color: #00796B;
+    }
   </style>
 </head>
 <body>
 
   <header>Telugu IoT Garage Dashboard</header>
 
+  <div class="info-panel">
+    <div class="info-item">Temperature: <span id="currentTemp">--</span>°C</div>
+    <div class="info-item">Humidity: <span id="currentHum">--</span>%</div>
+  </div>
+
+  <div id="controls">
+    <button class="btn active" data-range="live">LIVE</button>
+    <button class="btn" data-range="1h">1H</button>
+    <button class="btn" data-range="1d">1D</button>
+    <button class="btn" data-range="7d">7D</button>
+    <button class="btn" data-range="15d">15D</button>
+  </div>
+
+  <div id="chart-controls">
+    <select class="chart-selector" id="chartType">
+      <option value="temperature">Temperature (°C)</option>
+      <option value="humidity">Humidity (%)</option>
+    </select>
+  </div>
+
+  <h3 class="relay-title">Relay Controls</h3>
   <div id="relays">
     <!-- Switches will be populated here -->
   </div>
@@ -218,26 +317,51 @@ void handleRoot() {
   <pre id="logs"></pre>
 
   <script>
-    let chart;
-    const data = {
-      labels: [],
-      datasets: [{
-        label: 'Temperature (°C)',
-        borderColor: '#00A5A8',
-        backgroundColor: '#00A5A8',
-        data: [],
-        tension: 0.4,
-        fill: false,
-        pointRadius: 4,
-        pointHoverRadius: 6
-      }]
-    };
+    const STORAGE_KEY = 'sensorData';
+    const fetchInterval = 2000; // 2 seconds
+    let allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let chart, ctx;
+    let lastTempValue = null;
+    let lastHumValue = null;
 
     function initChart() {
-      const ctx = document.getElementById('sensorChart').getContext('2d');
+      ctx = document.getElementById('sensorChart').getContext('2d');
       chart = new Chart(ctx, {
         type: 'line',
-        data: data,
+        data: {
+          datasets: [{
+            label: 'Temperature (°C)',
+            data: [],
+            tension: 0.4,
+            pointRadius: function(context) {
+              // Only show points when value changes
+              const index = context.dataIndex;
+              if (index === 0) return 3;
+              const current = context.dataset.data[index].y;
+              const previous = context.dataset.data[index-1].y;
+              return Math.abs(current - previous) > 0.1 ? 3 : 0;
+            },
+            borderColor: '#00A5A8',
+            backgroundColor: '#00A5A8',
+            fill: false
+          }, {
+            label: 'Humidity (%)',
+            data: [],
+            tension: 0.4,
+            pointRadius: function(context) {
+              // Only show points when value changes
+              const index = context.dataIndex;
+              if (index === 0) return 3;
+              const current = context.dataset.data[index].y;
+              const previous = context.dataset.data[index-1].y;
+              return Math.abs(current - previous) > 0.5 ? 3 : 0;
+            },
+            borderColor: '#FF6B6B',
+            backgroundColor: '#FF6B6B',
+            fill: false,
+            hidden: true
+          }]
+        },
         options: {
           responsive: true,
           maintainAspectRatio: false,
@@ -260,7 +384,10 @@ void handleRoot() {
               type: 'time',
               time: {
                 displayFormats: {
-                  second: 'HH:mm:ss'
+                  second: 'HH:mm:ss',
+                  minute: 'HH:mm',
+                  hour: 'HH:mm',
+                  day: 'MMM dd'
                 },
                 tooltipFormat: 'yyyy-MM-dd HH:mm:ss'
               },
@@ -273,29 +400,94 @@ void handleRoot() {
                 color: '#666'
               },
               grid: {
-                color: '#e0e0e0'
+                display: false
               }
             },
             y: {
-              beginAtZero: true,
+              beginAtZero: false,
               title: {
                 display: true,
-                text: 'Temperature (°C)',
+                text: 'Value',
                 color: '#555'
               },
               ticks: {
-                color: '#666'
+                color: '#666',
+                padding: 10
               },
               grid: {
-                color: '#e0e0e0'
+                display: false
               }
+            }
+          },
+          layout: {
+            padding: {
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: 20
             }
           }
         }
       });
     }
 
-    function updateUI() {
+    async function fetchSensor() {
+      try {
+        const res = await fetch('/sensor');
+        const data = await res.json();
+        
+        // Update current readings
+        document.getElementById('currentTemp').textContent = data.temperature.toFixed(1);
+        document.getElementById('currentHum').textContent = data.humidity.toFixed(1);
+        
+        const now = new Date().toISOString();
+        allData.push({ 
+          x: now, 
+          temp: data.temperature,
+          hum: data.humidity
+        });
+        
+        // Keep only the last 5000 points to prevent memory issues
+        if (allData.length > 5000) {
+          allData = allData.slice(-5000);
+        }
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allData));
+      } catch(e) { console.error(e); }
+    }
+
+    function updateChart(range) {
+      const now = Date.now();
+      let cutoff;
+      switch(range) {
+        case '1h': cutoff = now - 3600e3; break;
+        case '1d': cutoff = now - 24*3600e3; break;
+        case '7d': cutoff = now - 7*24*3600e3; break;
+        case '15d': cutoff = now - 15*24*3600e3; break;
+        case 'live': default: cutoff = now - 5*fetchInterval; break;
+      }
+      
+      const filtered = allData.filter(pt => new Date(pt.x).getTime() >= cutoff);
+      
+      // Get selected chart type
+      const chartType = document.getElementById('chartType').value;
+      
+      if (chartType === 'temperature') {
+        chart.data.datasets[0].hidden = false;
+        chart.data.datasets[1].hidden = true;
+        chart.options.scales.y.title.text = 'Temperature (°C)';
+        chart.data.datasets[0].data = filtered.map(pt => ({x: pt.x, y: pt.temp}));
+      } else {
+        chart.data.datasets[0].hidden = true;
+        chart.data.datasets[1].hidden = false;
+        chart.options.scales.y.title.text = 'Humidity (%)';
+        chart.data.datasets[1].data = filtered.map(pt => ({x: pt.x, y: pt.hum}));
+      }
+      
+      chart.update();
+    }
+
+    function updateRelays() {
       fetch('/relayStatus')
         .then(res => res.json())
         .then(states => {
@@ -313,25 +505,10 @@ void handleRoot() {
           }
           document.getElementById('relays').innerHTML = html;
         });
-
-      fetch('/sensor')
-        .then(res => res.json())
-        .then(dataPoint => {
-          const now = new Date();
-          data.labels.push(now);
-          data.datasets[0].data.push({ x: now, y: dataPoint.temperature });
-
-          if (data.labels.length > 30) {
-            data.labels.shift();
-            data.datasets[0].data.shift();
-          }
-
-          chart.update();
-        });
     }
 
     function toggleRelay(id) {
-      fetch('/toggle?relay=' + id).then(updateUI);
+      fetch('/toggle?relay=' + id).then(updateRelays);
     }
 
     function showLogs() {
@@ -342,13 +519,34 @@ void handleRoot() {
         });
     }
 
+    // Initialize the UI
+    document.querySelectorAll('[data-range]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        updateChart(btn.dataset.range);
+      });
+    });
+
+    // Chart type selector
+    document.getElementById('chartType').addEventListener('change', () => {
+      const activeBtn = document.querySelector('[data-range].active');
+      updateChart(activeBtn.dataset.range);
+    });
+
     initChart();
-    setInterval(updateUI, 5000);
-    updateUI();
+    updateRelays();
+    updateChart('live');
+
+    // Set up periodic updates
+    setInterval(async () => {
+      await fetchSensor();
+      const activeBtn = document.querySelector('[data-range].active');
+      updateChart(activeBtn.dataset.range);
+    }, fetchInterval);
   </script>
 </body>
 </html>
-
   )rawliteral";
   server.send(200, "text/html", html);
 }
