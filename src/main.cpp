@@ -5,6 +5,7 @@
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 #include <SPIFFS.h>
+#include <time.h>
 
 #define RELAY1 2
 #define RELAY2 15
@@ -17,6 +18,10 @@
 #define DHTPIN 4
 #define DHTTYPE DHT11
 #define STATUS_LED 23
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 19800; // GMT+5:30
+const int daylightOffset_sec = 0;
 
 DHT dht(DHTPIN, DHTTYPE);
 WebServer server(80);
@@ -65,94 +70,285 @@ void loadConfig() {
 }
 
 void addLog(String entry) {
-  String timestamp = String(millis() / 1000);
-  logBuffer += "[" + timestamp + "s] " + entry + "\n";
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+  char timestamp[25];
+  strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S%z", &timeinfo);
+  logBuffer += "[" + String(timestamp) + "] " + entry + "\n";
   Serial.println(entry);
 }
 
 void handleRoot() {
   String html = R"rawliteral(
   <!DOCTYPE html>
-  <html>
-  <head>
-    <title>HT Research Labs</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-      body { font-family: Arial; text-align: center; background: #f2f2f2; }
-      h2 { color: #333; }
-      button {
-        width: 80px; height: 50px; margin: 10px;
-        font-size: 16px; border-radius: 8px; border: none;
-      }
-      .on { background: #4CAF50; color: white; }
-      .off { background: #f44336; color: white; }
-    </style>
-  </head>
-  <body>
-    <h2>HT Research Labs</h2>
-    <div id="relays"></div>
-    <canvas id="sensorChart" width="400" height="200"></canvas><br>
-    <button onclick="showLogs()">Logs</button>
-    <pre id="logs" style="text-align:left;"></pre>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Telugu IoT Garage Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f7f7;
+      color: #333;
+    }
 
-    <script>
-      let chart;
-      const data = { labels: [], datasets: [
-        { label: 'Temperature (°C)', borderColor: 'red', data: [], fill: false },
-        { label: 'Humidity (%)', borderColor: 'blue', data: [], fill: false }
-      ]};
+    header {
+      background-color: #00796B;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.8rem;
+      font-weight: bold;
+    }
 
-      function initChart() {
-        const ctx = document.getElementById('sensorChart').getContext('2d');
-        chart = new Chart(ctx, {
-          type: 'line', data,
-          options: { responsive: true, scales: {
-            x: { title: { display: true, text: 'Time (s)' } },
-            y: { beginAtZero: true, title: { display: true, text: 'Value' } }
-          }}
-        });
-      }
+    #relays {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      padding: 1rem;
+    }
 
-      function updateUI() {
-        fetch('/relayStatus').then(res => res.json()).then(states => {
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 60px;
+      height: 34px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0;
+      right: 0; bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 34px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 26px; width: 26px;
+      left: 4px; bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #00A5A8;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+
+    .relay-label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 0.9rem;
+      color: #444;
+    }
+
+    #chart-container {
+      padding: 1rem;
+      margin: 0 auto;
+      max-width: 900px;
+      height: 400px;
+    }
+
+    #logs {
+      background: #ffffff;
+      padding: 1rem;
+      margin: 1rem auto;
+      max-width: 900px;
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+
+    #logBtn {
+      display: block;
+      margin: 1rem auto;
+      padding: 0.5rem 1rem;
+      background-color: #00796B;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    #logBtn:hover {
+      background-color: #00665A;
+    }
+  </style>
+</head>
+<body>
+
+  <header>Telugu IoT Garage Dashboard</header>
+
+  <div id="relays">
+    <!-- Switches will be populated here -->
+  </div>
+
+  <div id="chart-container">
+    <canvas id="sensorChart"></canvas>
+  </div>
+
+  <button id="logBtn" onclick="showLogs()">Show Logs</button>
+  <pre id="logs"></pre>
+
+  <script>
+    let chart;
+    const data = {
+      labels: [],
+      datasets: [{
+        label: 'Temperature (°C)',
+        borderColor: '#00A5A8',
+        backgroundColor: '#00A5A8',
+        data: [],
+        tension: 0.4,
+        fill: false,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    };
+
+    function initChart() {
+      const ctx = document.getElementById('sensorChart').getContext('2d');
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              labels: {
+                color: '#333',
+                font: {
+                  size: 14
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                displayFormats: {
+                  second: 'HH:mm:ss'
+                },
+                tooltipFormat: 'yyyy-MM-dd HH:mm:ss'
+              },
+              title: {
+                display: true,
+                text: 'Time',
+                color: '#555'
+              },
+              ticks: {
+                color: '#666'
+              },
+              grid: {
+                color: '#e0e0e0'
+              }
+            },
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Temperature (°C)',
+                color: '#555'
+              },
+              ticks: {
+                color: '#666'
+              },
+              grid: {
+                color: '#e0e0e0'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateUI() {
+      fetch('/relayStatus')
+        .then(res => res.json())
+        .then(states => {
           let html = '';
           for (let i = 0; i < 8; i++) {
-            html += `<button class="${states[i] ? 'on' : 'off'}" onclick="toggleRelay(${i})">Relay ${i + 1}</button>`;
+            html += `
+              <label class="relay-label">
+                Relay ${i + 1}
+                <label class="switch">
+                  <input type="checkbox" ${states[i] ? 'checked' : ''} onclick="toggleRelay(${i})">
+                  <span class="slider"></span>
+                </label>
+              </label>
+            `;
           }
           document.getElementById('relays').innerHTML = html;
         });
 
-        fetch('/sensor').then(res => res.json()).then(data => {
-          const timestamp = (Date.now() / 1000).toFixed(1);
-          chart.data.labels.push(timestamp);
-          chart.data.datasets[0].data.push(data.temperature);
-          chart.data.datasets[1].data.push(data.humidity);
-          if (chart.data.labels.length > 20) {
-            chart.data.labels.shift();
-            chart.data.datasets[0].data.shift();
-            chart.data.datasets[1].data.shift();
+      fetch('/sensor')
+        .then(res => res.json())
+        .then(dataPoint => {
+          const now = new Date();
+          data.labels.push(now);
+          data.datasets[0].data.push({ x: now, y: dataPoint.temperature });
+
+          if (data.labels.length > 30) {
+            data.labels.shift();
+            data.datasets[0].data.shift();
           }
+
           chart.update();
         });
-      }
+    }
 
-      function toggleRelay(id) {
-        fetch('/toggle?relay=' + id).then(updateUI);
-      }
+    function toggleRelay(id) {
+      fetch('/toggle?relay=' + id).then(updateUI);
+    }
 
-      function showLogs() {
-        fetch('/logs').then(res => res.text()).then(text => {
+    function showLogs() {
+      fetch('/logs')
+        .then(res => res.text())
+        .then(text => {
           document.getElementById('logs').innerText = text;
         });
-      }
+    }
 
-      initChart();
-      setInterval(updateUI, 5000);
-      updateUI();
-    </script>
-  </body>
-  </html>
+    initChart();
+    setInterval(updateUI, 5000);
+    updateUI();
+  </script>
+</body>
+</html>
+
   )rawliteral";
   server.send(200, "text/html", html);
 }
@@ -162,8 +358,8 @@ void handleToggle() {
     int relay = server.arg("relay").toInt();
     if (relay >= 0 && relay < 8) {
       relayStates[relay] = !relayStates[relay];
-      int pin = RELAY1 + (relay == 0 ? 0 : relay == 1 ? 13 : relay == 2 ? 14 : relay == 3 ? 15 : relay == 4 ? 16 : relay == 5 ? 17 : relay == 6 ? 19 : 20); // Adjust pin logic based on mapping
-      digitalWrite(pin, relayStates[relay] ? HIGH : LOW);
+      int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
+      digitalWrite(relayPins[relay], relayStates[relay] ? HIGH : LOW);
       EEPROM.write(RELAY_ADDR + relay, relayStates[relay]);
       EEPROM.commit();
       addLog("Relay " + String(relay + 1) + (relayStates[relay] ? " ON" : " OFF"));
@@ -188,7 +384,6 @@ void handleSensor() {
 void handleRelayStatus() {
   StaticJsonDocument<200> doc;
   for (int i = 0; i < 8; i++) doc[i] = relayStates[i];
-
   String output;
   serializeJson(doc, output);
   server.send(200, "application/json", output);
@@ -205,6 +400,8 @@ void setup() {
   EEPROM.begin(EEPROM_SIZE);
   SPIFFS.begin();
   loadConfig();
+
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
   for (int i = 0; i < 8; i++) {
