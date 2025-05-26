@@ -1,175 +1,576 @@
-# inih (INI Not Invented Here)
 
-[![Tests](https://github.com/benhoyt/inih/actions/workflows/tests.yml/badge.svg)](https://github.com/benhoyt/inih/actions/workflows/tests.yml)
+# WiFiManager
 
-**inih (INI Not Invented Here)** is a simple [.INI file](http://en.wikipedia.org/wiki/INI_file) parser written in C. It's only a couple of pages of code, and it was designed to be _small and simple_, so it's good for embedded systems. It's also more or less compatible with Python's [ConfigParser](http://docs.python.org/library/configparser.html) style of .INI files, including RFC 822-style multi-line syntax and `name: value` entries.
+Espressif ESPx WiFi Connection manager with fallback web configuration portal
 
-To use it, just give `ini_parse()` an INI file, and it will call a callback for every `name=value` pair parsed, giving you strings for the section, name, and value. It's done this way ("SAX style") because it works well on low-memory embedded systems, but also because it makes for a KISS implementation.
+:warning: This Documentation is out of date, see notes below
 
-You can also call `ini_parse_file()` to parse directly from a `FILE*` object, `ini_parse_string()` to parse data from a string, or `ini_parse_stream()` to parse using a custom fgets-style reader function for custom I/O.
+<a name="release"></a>
+[![Release](https://img.shields.io/github/v/release/tzapu/WiFiManager?include_prereleases)](#release)
 
-Download a release, browse the source, or read about [how to use inih in a DRY style](http://blog.brush.co.nz/2009/08/xmacros/) with X-Macros.
+[![Build CI Status](https://github.com/tzapu/WiFiManager/actions/workflows/compile_library.yml/badge.svg)](https://github.com/tzapu/WiFiManager/actions/workflows/compile_library.yml)
 
+[![Build CI Status Examples](https://github.com/tzapu/WiFiManager/actions/workflows/compile_examples.yaml/badge.svg)](https://github.com/tzapu/WiFiManager/actions/workflows/compile_examples.yaml)
 
-## Compile-time options ##
+[![arduino-library-badge](https://www.ardu-badge.com/badge/WiFiManager.svg?)](https://www.ardu-badge.com/WiFiManager)
 
-You can control various aspects of inih using preprocessor defines:
+[![Build with PlatformIO](https://img.shields.io/badge/PlatformIO-Library-orange?)](https://platformio.org/lib/show/567/WiFiManager/installation)
 
-### Syntax options ###
+[![ESP8266](https://img.shields.io/badge/ESP-8266-000000.svg?longCache=true&style=flat&colorA=CC101F)](https://www.espressif.com/en/products/socs/esp8266)
 
-  * **Multi-line entries:** By default, inih supports multi-line entries in the style of Python's ConfigParser. To disable, add `-DINI_ALLOW_MULTILINE=0`.
-  * **UTF-8 BOM:** By default, inih allows a UTF-8 BOM sequence (0xEF 0xBB 0xBF) at the start of INI files. To disable, add `-DINI_ALLOW_BOM=0`.
-  * **Inline comments:** By default, inih allows inline comments with the `;` character. To disable, add `-DINI_ALLOW_INLINE_COMMENTS=0`. You can also specify which character(s) start an inline comment using `INI_INLINE_COMMENT_PREFIXES`.
-  * **Start-of-line comments:** By default, inih allows both `;` and `#` to start a comment at the beginning of a line. You can override this by changing `INI_START_COMMENT_PREFIXES`.
-  * **Allow no value:** By default, inih treats a name with no value (no `=` or `:` on the line) as an error. To allow names with no values, add `-DINI_ALLOW_NO_VALUE=1`, and inih will call your handler function with value set to NULL.
+[![ESP32](https://img.shields.io/badge/ESP-32-000000.svg?longCache=true&style=flat&colorA=CC101F)](https://www.espressif.com/en/products/socs/esp32)
+[![ESP32](https://img.shields.io/badge/ESP-32S2-000000.svg?longCache=true&style=flat&colorA=CC101F)](https://www.espressif.com/en/products/socs/esp32-s2)
+[![ESP32](https://img.shields.io/badge/ESP-32C3-000000.svg?longCache=true&style=flat&colorA=CC101F)](https://www.espressif.com/en/products/socs/esp32-c3)
+[![ESP32](https://img.shields.io/badge/ESP-32S3-000000.svg?longCache=true&style=flat&colorA=CC101F)](https://www.espressif.com/en/products/socs/esp32-S3)
 
-### Parsing options ###
+Member to Member Support / Chat
 
-  * **Stop on first error:** By default, inih keeps parsing the rest of the file after an error. To stop parsing on the first error, add `-DINI_STOP_ON_FIRST_ERROR=1`.
-  * **Report line numbers:** By default, the `ini_handler` callback doesn't receive the line number as a parameter. If you need that, add `-DINI_HANDLER_LINENO=1`.
-  * **Call handler on new section:** By default, inih only calls the handler on each `name=value` pair. To detect new sections (e.g., the INI file has multiple sections with the same name), add `-DINI_CALL_HANDLER_ON_NEW_SECTION=1`. Your handler function will then be called each time a new section is encountered, with `section` set to the new section name but `name` and `value` set to NULL.
+ [![Join the chat at https://gitter.im/tablatronix/WiFiManager](https://badges.gitter.im/tablatronix/WiFiManager.svg)](https://gitter.im/tablatronix/WiFiManager?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+ 
+[![Discord](https://img.shields.io/badge/Discord-WiFiManager-%237289da.svg?logo=discord)](https://discord.gg/nS5WGkaQH5)
+The configuration portal is of the captive variety, so on various devices it will present the configuration dialogue as soon as you connect to the created access point.
 
-### Memory options ###
+Works with the [ESP8266 Arduino](https://github.com/esp8266/Arduino) and [ESP32 Arduino](https://github.com/espressif/arduino-esp32) platforms.
 
-  * **Stack vs heap:** By default, inih creates a fixed-sized line buffer on the stack. To allocate on the heap using `malloc` instead, specify `-DINI_USE_STACK=0`.
-  * **Maximum line length:** The default maximum line length (for stack or heap) is 200 bytes. To override this, add something like `-DINI_MAX_LINE=1000`. Note that `INI_MAX_LINE` must be 3 more than the longest line (due to `\r`, `\n`, and the NUL).
-  * **Initial malloc size:** `INI_INITIAL_ALLOC` specifies the initial malloc size when using the heap. It defaults to 200 bytes.
-  * **Allow realloc:** By default when using the heap (`-DINI_USE_STACK=0`), inih allocates a fixed-sized buffer of `INI_INITIAL_ALLOC` bytes. To allow this to grow to `INI_MAX_LINE` bytes, doubling if needed, set `-DINI_ALLOW_REALLOC=1`.
-  * **Custom allocator:** By default when using the heap, the standard library's `malloc`, `free`, and `realloc` functions are used; to use a custom allocator, specify `-DINI_CUSTOM_ALLOCATOR=1` (and `-DINI_USE_STACK=0`). You must define and link functions named `ini_malloc`, `ini_free`, and (if `INI_ALLOW_REALLOC` is set) `ini_realloc`, which must have the same signatures as the `stdlib.h` memory allocation functions.
+### Known Issues
 
-## Simple example in C ##
+* Documentation needs to be updated, see [https://github.com/tzapu/WiFiManager/issues/500](https://github.com/tzapu/WiFiManager/issues/500)
+-------
 
-```c
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "../ini.h"
-
-typedef struct
-{
-    int version;
-    const char* name;
-    const char* email;
-} configuration;
-
-static int handler(void* user, const char* section, const char* name,
-                   const char* value)
-{
-    configuration* pconfig = (configuration*)user;
-
-    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-    if (MATCH("protocol", "version")) {
-        pconfig->version = atoi(value);
-    } else if (MATCH("user", "name")) {
-        pconfig->name = strdup(value);
-    } else if (MATCH("user", "email")) {
-        pconfig->email = strdup(value);
-    } else {
-        return 0;  /* unknown section/name, error */
-    }
-    return 1;
-}
-
-int main(int argc, char* argv[])
-{
-    configuration config;
-
-    if (ini_parse("test.ini", handler, &config) < 0) {
-        printf("Can't load 'test.ini'\n");
-        return 1;
-    }
-    printf("Config loaded from 'test.ini': version=%d, name=%s, email=%s\n",
-        config.version, config.name, config.email);
-    return 0;
-}
-```
+## Contents
+ - [How it works](#how-it-works)
+ - [Wishlist](#wishlist)
+ - [Quick start](#quick-start)
+   - Installing
+     - [Arduino - Through Library Manager](#install-through-library-manager)
+     - [Arduino - From Github](#checkout-from-github)
+     - [PlatformIO](#install-using-platformio)
+   - [Using](#using)
+ - [Documentation](#documentation)
+   - [Access Point Password](#password-protect-the-configuration-access-point)
+   - [Callbacks](#callbacks)
+   - [Configuration Portal Timeout](#configuration-portal-timeout)
+   - [On Demand Configuration](#on-demand-configuration-portal)
+   - [Custom Parameters](#custom-parameters)
+   - [Custom IP Configuration](#custom-ip-configuration)
+   - [Filter Low Quality Networks](#filter-networks)
+   - [Debug Output](#debug)
+ - [Troubleshooting](#troubleshooting)
+ - [Releases](#releases)
+ - [Contributors](#contributions-and-thanks)
 
 
-## C++ example ##
+## How It Works
+- When your ESP starts up, it sets it up in Station mode and tries to connect to a previously saved Access Point
+- if this is unsuccessful (or no previous network saved) it moves the ESP into Access Point mode and spins up a DNS and WebServer (default ip 192.168.4.1)
+- using any wifi enabled device with a browser (computer, phone, tablet) connect to the newly created Access Point
+- because of the Captive Portal and the DNS server you will either get a 'Join to network' type of popup or get any domain you try to access redirected to the configuration portal
+- choose one of the access points scanned, enter password, click save
+- ESP will try to connect. If successful, it relinquishes control back to your app. If not, reconnect to AP and reconfigure.
+- There are options to change this behavior or manually start the configportal and webportal independantly as well as run them in non blocking mode.
 
-If you're into C++ and the STL, there is also an easy-to-use [INIReader class](https://github.com/benhoyt/inih/blob/master/cpp/INIReader.h) that stores values in a `map` and lets you `Get()` them:
+## How It Looks
+![ESP8266 WiFi Captive Portal Homepage](http://i.imgur.com/YPvW9eql.png) ![ESP8266 WiFi Captive Portal Configuration](http://i.imgur.com/oicWJ4gl.png)
 
+## Wishlist
+- [x] remove dependency on EEPROM library
+- [x] move HTML Strings to PROGMEM
+- [x] cleanup and streamline code (although this is ongoing)
+- [x] if timeout is set, extend it when a page is fetched in AP mode
+- [x] add ability to configure more parameters than ssid/password
+- [x] maybe allow setting ip of ESP after reboot
+- [x] add to Arduino Library Manager
+- [x] add to PlatformIO
+- [ ] add multiple sets of network credentials
+- [x] allow users to customize CSS
+- [ ] rewrite documentation for simplicity, based on scenarios/goals
+
+### Development
+- [x] ESP32 support
+- [x] rely on the SDK's built in auto connect more than forcing a connect
+- [x] add non blocking mode
+- [x] easy customization of strings
+- [x] hostname support
+- [x] fix various bugs and workarounds for esp SDK issues
+- [x] additional info page items
+- [x] last status display / faiilure reason
+- [x] customizeable menu
+- [x] seperate custom params page
+- [x] ondemand webportal
+- [x] complete refactor of code to segment functions
+- [x] wiif scan icons or percentage display
+- [x] invert class for dark mode
+- [x] more template tokens
+- [x] progmem for all strings
+- [ ] new callbacks
+- [ ] new callouts / filters
+- [ ] shared web server instance
+- [x] latest esp idf/sdk support
+- [x] wm is now non persistent, will not erase or change stored esp config on esp8266
+- [x] tons of debugging output / levels
+- [ ] disable captiveportal
+- [ ] preload wiifscans, faster page loads
+- [ ] softap stability fixes when sta is not connected
+
+
+## Quick Start
+
+### Installing
+You can either install through the Arduino Library Manager or checkout the latest changes or a release from github
+
+#### Install through Library Manager
+__Currently version 0.8+ works with release 2.4.0 or newer of the [ESP8266 core for Arduino](https://github.com/esp8266/Arduino)__
+ - in Arduino IDE got to Sketch/Include Library/Manage Libraries
+  ![Manage Libraries](http://i.imgur.com/9BkEBkR.png)
+
+ - search for WiFiManager
+  ![WiFiManager package](http://i.imgur.com/18yIai8.png)
+
+ - click Install and start [using it](#using)
+
+####  Checkout from github
+__Github version works with release 2.4.0 or newer of the [ESP8266 core for Arduino](https://github.com/esp8266/Arduino)__
+- Checkout library to your Arduino libraries folder
+
+### Using
+- Include in your sketch
 ```cpp
-#include <iostream>
-#include "INIReader.h"
+#include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
+```
 
-int main()
-{
-    INIReader reader("../examples/test.ini");
+- Initialize library, in your setup function add, NOTEif you are using non blocking you will make sure you create this in global scope or handle appropriatly , it will not work if in setup and using non blocking mode.
+```cpp
+WiFiManager wifiManager;
+```
 
-    if (reader.ParseError() < 0) {
-        std::cout << "Can't load 'test.ini'\n";
-        return 1;
-    }
-    std::cout << "Config loaded from 'test.ini': version="
-              << reader.GetInteger("protocol", "version", -1) << ", name="
-              << reader.Get("user", "name", "UNKNOWN") << ", email="
-              << reader.Get("user", "email", "UNKNOWN") << ", pi="
-              << reader.GetReal("user", "pi", -1) << ", active="
-              << reader.GetBoolean("user", "active", true) << "\n";
-    return 0;
+- Also in the setup function add
+```cpp
+//first parameter is name of access point, second is the password
+wifiManager.autoConnect("AP-NAME", "AP-PASSWORD");
+```
+if you just want an unsecured access point
+```cpp
+wifiManager.autoConnect("AP-NAME");
+```
+or if you want to use and auto generated name from 'ESP' and the esp's Chip ID use
+```cpp
+wifiManager.autoConnect();
+```
+
+After you write your sketch and start the ESP, it will try to connect to WiFi. If it fails it starts in Access Point mode.
+While in AP mode, connect to it then open a browser to the gateway IP, default 192.168.4.1, configure wifi, save and it should reboot and connect.
+
+Also see [examples](https://github.com/tzapu/WiFiManager/tree/master/examples).
+
+#### Install Using PlatformIO
+
+[PlatformIO](https://platformio.org/) is an emerging ecosystem for IoT development, and 
+is an alternative to using the Arduino IDE. Install `WiFiManager`
+using the platformio [library manager](https://docs.platformio.org/en/latest/librarymanager/index.html#librarymanager) in your editor, 
+or using the [PlatformIO Core CLI](https://docs.platformio.org/en/latest/core/index.html),
+or by adding it to your `platformio.ini` as shown below (recommended approach).
+
+The simplest way is to open the `platformio.ini` file at the root of your project, and `WifiManager` to the common top-level env
+`lib_deps` key like so:
+
+```
+[env]
+lib_deps =
+	WiFiManager
+```
+
+
+```
+[env]
+lib_deps =
+	https://github.com/tzapu/WiFiManager.git
+```
+
+## Documentation
+
+#### Password protect the configuration Access Point
+You can and should password protect the configuration access point.  Simply add the password as a second parameter to `autoConnect`.
+A short password seems to have unpredictable results so use one that's around 8 characters or more in length.
+The guidelines are that a wifi password must consist of 8 to 63 ASCII-encoded characters in the range of 32 to 126 (decimal)
+```cpp
+wifiManager.autoConnect("AutoConnectAP", "password")
+```
+
+#### Callbacks
+##### Enter Config mode
+Use this if you need to do something when your device enters configuration mode on failed WiFi connection attempt.
+Before `autoConnect()`
+```cpp
+wifiManager.setAPCallback(configModeCallback);
+```
+`configModeCallback` declaration and example
+```cpp
+void configModeCallback (WiFiManager *myWiFiManager) {
+  Serial.println("Entered config mode");
+  Serial.println(WiFi.softAPIP());
+
+  Serial.println(myWiFiManager->getConfigPortalSSID());
 }
 ```
 
-This simple C++ API works fine, but it's not very fully-fledged. I'm not planning to work more on the C++ API at the moment, so if you want a bit more power (for example `GetSections()` and `GetFields()` functions), see these forks:
-
-  * https://github.com/Blandinium/inih
-  * https://github.com/OSSystems/inih
+##### Save settings
+This gets called when custom parameters have been set **AND** a connection has been established. Use it to set a flag, so when all the configuration finishes, you can save the extra parameters somewhere.
 
 
-## Differences from ConfigParser ##
+IF YOU NEED TO SAVE PARAMETERS EVEN ON WIFI FAIL OR EMPTY, you must set `setBreakAfterConfig` to true, or else saveConfigCallback will not be called.
 
-Some differences between inih and Python's [ConfigParser](http://docs.python.org/library/configparser.html) standard library module:
+```C++
+//if this is set, it will exit after config, even if connection is unsuccessful.
+    void          setBreakAfterConfig(boolean shouldBreak);
+```
 
-* INI name=value pairs given above any section headers are treated as valid items with no section (section name is an empty string). In ConfigParser having no section is an error.
-* Line continuations are handled with leading whitespace on continued lines (like ConfigParser). However, instead of concatenating continued lines together, they are treated as separate values for the same key (unlike ConfigParser).
+See [AutoConnectWithFSParameters Example](https://github.com/tzapu/WiFiManager/tree/master/examples/Parameters/SPIFFS/AutoConnectWithFSParameters).
+```cpp
+wifiManager.setSaveConfigCallback(saveConfigCallback);
+```
+`saveConfigCallback` declaration and example
+```cpp
+//flag for saving data
+bool shouldSaveConfig = false;
 
-
-## Platform-specific notes ##
-
-* Windows/Win32 uses UTF-16 filenames natively, so to handle Unicode paths you need to call `_wfopen()` to open a file and then `ini_parse_file()` to parse it; inih does not include `wchar_t` or Unicode handling.
-
-## Meson notes ##
-
-* The `meson.build` file is not required to use or compile inih, its main purpose is for distributions.
-* By default Meson is set up for distro installation, but this behavior can be configured for embedded use cases:
-  * with `-Ddefault_library=static` static libraries are built.
-  * with `-Ddistro_install=false` libraries, headers and pkg-config files won't be installed.
-  * with `-Dwith_INIReader=false` you can disable building the C++ library.
-* All compile-time options are implemented in Meson as well, you can take a look at [meson_options.txt](https://github.com/benhoyt/inih/blob/master/meson_options.txt) for their definition. These won't work if `distro_install` is set to `true`.
-* If you want to use inih for programs which may be shipped in a distro, consider linking against the shared libraries. The pkg-config entries are `inih` and `INIReader`.
-* In case you use inih as a Meson subproject, you can use the `inih_dep` and `INIReader_dep` dependency variables. You might want to set `default_library=static` and `distro_install=false` for the subproject. An official Wrap is provided on [WrapDB](https://wrapdb.mesonbuild.com/inih).
-* For packagers: if you want to tag the version in the pkg-config file, you will need to do this downstream. Add `version : '<version_as_int>',` after the `license` tag in the `project()` function and `version : meson.project_version(),` after the `soversion` tag in both `library()` functions.
-
-## Using inih with tipi.build
-
-`inih` can be easily used in [tipi.build](https://tipi.build) projects simply by adding the following entry to your `.tipi/deps` (replace `r56` with the latest version tag):
-
-```json
-{
-    "benhoyt/inih": { "@": "r56" }
+//callback notifying us of the need to save config
+void saveConfigCallback () {
+  Serial.println("Should save config");
+  shouldSaveConfig = true;
 }
 ```
 
-The required include path in your project is:
+#### Configuration Portal Timeout
+If you need to set a timeout so the ESP doesn't hang waiting to be configured, for instance after a power failure, you can add
+```cpp
+wifiManager.setConfigPortalTimeout(180);
+```
+which will wait 3 minutes (180 seconds). When the time passes, the autoConnect function will return, no matter the outcome.
+Check for connection and if it's still not established do whatever is needed (on some modules I restart them to retry, on others I enter deep sleep)
 
-```c
-#include <ini.h>
+#### On Demand Configuration Portal
+If you would rather start the configuration portal on demand rather than automatically on a failed connection attempt, then this is for you.
+
+Instead of calling `autoConnect()` which does all the connecting and failover configuration portal setup for you, you need to use `startConfigPortal()`. __Do not use BOTH.__
+
+Example usage
+```cpp
+void loop() {
+  // is configuration portal requested?
+  if ( digitalRead(TRIGGER_PIN) == LOW ) {
+    WiFiManager wifiManager;
+    wifiManager.startConfigPortal("OnDemandAP");
+    Serial.println("connected...yeey :)");
+  }
+}
+```
+See example for a more complex version. [OnDemandConfigPortal](https://github.com/tzapu/WiFiManager/tree/master/examples/OnDemand/OnDemandConfigPortal)
+
+#### Exiting from the Configuration Portal
+Normally, once entered, the configuration portal will continue to loop until WiFi credentials have been successfully entered or a timeout is reached.
+If you'd prefer to exit without joining a WiFi network, say becuase you're going to put the ESP into AP mode, then press the "Exit" button
+on the main webpage.
+If started via `autoConnect` or `startConfigPortal` then it will return `false (portalAbortResult)`
+
+#### Custom Parameters
+You can use WiFiManager to collect more parameters than just SSID and password.
+This could be helpful for configuring stuff like MQTT host and port, [blynk](http://www.blynk.cc) or [emoncms](http://emoncms.org) tokens, just to name a few.
+**You are responsible for saving and loading these custom values.** The library just collects and displays the data for you as a convenience.
+Usage scenario would be:
+- load values from somewhere (EEPROM/FS) or generate some defaults
+- add the custom parameters to WiFiManager using
+```cpp
+ // id/name, placeholder/prompt, default, length
+ WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqtt_server, 40);
+ wifiManager.addParameter(&custom_mqtt_server);
+
+```
+- if connection to AP fails, configuration portal starts and you can set /change the values (or use on demand configuration portal)
+- once configuration is done and connection is established save config callback() is called
+- once WiFiManager returns control to your application, read and save the new values using the `WiFiManagerParameter` object.
+```cpp
+ mqtt_server = custom_mqtt_server.getValue();
+```  
+This feature is a lot more involved than all the others, so here are some examples to fully show how it is done.
+You should also take a look at adding custom HTML to your form.
+
+- Save and load custom parameters to file system in json form [AutoConnectWithFSParameters](https://github.com/tzapu/WiFiManager/tree/master/examples/Parameters/SPIFFS/AutoConnectWithFSParameters)
+- *Save and load custom parameters to EEPROM* (not done yet)
+
+#### Custom IP Configuration
+You can set a custom IP for both AP (access point, config mode) and STA (station mode, client mode, normal project state)
+
+##### Custom Access Point IP Configuration
+This will set your captive portal to a specific IP should you need/want such a feature. Add the following snippet before `autoConnect()`
+```cpp
+//set custom ip for portal
+wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
 ```
 
-## Building from vcpkg ##
+##### Custom Station (client) Static IP Configuration
+This will make use the specified IP configuration instead of using DHCP in station mode.
+```cpp
+wifiManager.setSTAStaticIPConfig(IPAddress(192,168,0,99), IPAddress(192,168,0,1), IPAddress(255,255,255,0)); // optional DNS 4th argument
+```
+There are a couple of examples in the examples folder that show you how to set a static IP and even how to configure it through the web configuration portal.
 
-You can build and install inih using [vcpkg](https://github.com/microsoft/vcpkg/) dependency manager:
+NOTE: You should fill DNS server if you have HTTP requests with hostnames or syncronize time (NTP). It's the same as gateway ip or a popular (Google DNS: 8.8.8.8).
 
-    git clone https://github.com/Microsoft/vcpkg.git
-    cd vcpkg
-    ./bootstrap-vcpkg.sh
-    ./vcpkg integrate install
-    ./vcpkg install inih
+#### Custom HTML, CSS, Javascript
+There are various ways in which you can inject custom HTML, CSS or Javascript into the configuration portal.
+The options are:
+- inject custom head element
+You can use this to any html bit to the head of the configuration portal. If you add a `<style>` element, bare in mind it overwrites the included css, not replaces.
+```cpp
+wifiManager.setCustomHeadElement("<style>html{filter: invert(100%); -webkit-filter: invert(100%);}</style>");
+```
+- inject a custom bit of html in the configuration/param form
+```cpp
+WiFiManagerParameter custom_text("<p>This is just a text paragraph</p>");
+wifiManager.addParameter(&custom_text);
+```
+- inject a custom bit of html in a configuration form element
+Just add the bit you want added as the last parameter to the custom parameter constructor.
+```cpp
+WiFiManagerParameter custom_mqtt_server("server", "mqtt server", "iot.eclipse", 40, " readonly");
+wifiManager.addParameter(&custom_mqtt_server);
+```
 
-The inih port in vcpkg is kept up to date by microsoft team members and community contributors.
-If the version is out of date, please [create an issue or pull request](https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+#### Theming
+You can customize certain elements of the default template with some builtin classes
+```CPP
+wifiManager.setClass("invert"); // dark theme
+wifiManager.setScanDispPerc(true); // display percentages instead of graphs for RSSI
+```
+There are additional classes in the css you can use in your custom html , see the example template.
 
-## Related links ##
+#### Filter Networks
+You can filter networks based on signal quality and show/hide duplicate networks.
 
-* [Conan package for inih](https://github.com/mohamedghita/conan-inih) (Conan is a C/C++ package manager)
+- If you would like to filter low signal quality networks you can tell WiFiManager to not show networks below an arbitrary quality %;
+```cpp
+wifiManager.setMinimumSignalQuality(10);
+```
+will not show networks under 10% signal quality. If you omit the parameter it defaults to 8%;
+
+- You can also remove or show duplicate networks (default is remove).
+Use this function to show (or hide) all networks.
+```cpp
+wifiManager.setRemoveDuplicateAPs(false);
+```
+
+#### Debug
+Debug is enabled by default on `Serial` in non-stable releases. To disable add before autoConnect/startConfigPortal
+```cpp
+wifiManager.setDebugOutput(false);
+```
+
+You can pass in a custom stream via constructor 
+```CPP
+WiFiManager wifiManager(Serial1);
+```
+
+You can customize the debug level by changing `_debugLevel` in source
+options are:
+* DEBUG_ERROR
+* DEBUG_NOTIFY
+* DEBUG_VERBOSE
+* DEBUG_DEV
+* DEBUG_MAX
+
+## Troubleshooting
+If you get compilation errors, more often than not, you may need to install a newer version of the ESP8266 core for Arduino.
+
+Changes added on 0.8 should make the latest trunk work without compilation errors. Tested down to ESP8266 core 2.0.0. **Please update to version 0.8**
+
+I am trying to keep releases working with release versions of the core, so they can be installed through boards manager, but if you checkout the latest version directly from github, sometimes, the library will only work if you update the ESP8266 core to the latest version because I am using some newly added function.
+
+If you connect to the created configuration Access Point but the configuration portal does not show up, just open a browser and type in the IP of the web portal, by default `192.168.4.1`.
+
+If trying to connect ends up in an endless loop, try to add `setConnectTimeout(60)` before `autoConnect();`. The parameter is timeout to try connecting in seconds.
+
+I get stuck in ap mode when the power goes out or modem resets, try a setConfigPortalTimeout(seconds). This will cause the configportal to close after no activity, and you can reboot or attempt reconnection in your code.
+
+## Releases
+### 1.0.1
+
+### Development Overview
+
+#### Added Public Methods
+`setConfigPortalBlocking`
+
+`setShowStaticFields`
+
+`setCaptivePortalEnable`
+
+`setRestorePersistent`
+
+`setCaptivePortalClientCheck`
+
+`setWebPortalClientCheck`
+
+`startWebPortal`
+
+`stopWebPortal`
+
+`process`
+
+`disconnect`
+
+`erase`
+
+` debugSoftAPConfig`
+
+` debugPlatformInfo`
+
+`setScanDispPerc`
+
+`setHostname`
+
+`setMenu(menu_page_t[])`
+
+`setWiFiAutoReconnect`
+
+` setSTAStaticIPConfig(..,dns)`
+
+`setShowDnsFields`
+
+`getLastConxResult`
+
+`getWLStatusString`
+
+`getModeString`
+
+`getWiFiIsSaved`
+
+`setShowInfoErase`
+
+`setEnableConfigPortal`
+
+`setCountry`
+
+`setClass`
+
+`htmleEtities`
+
+
+#### WiFiManagerParameter
+`WiFiManagerParameter(id,label)`
+
+`WiFiManagerParameter.setValue(value,length)`
+
+`getParameters`
+
+`getParametersCount`
+
+
+#### Constructors
+`WiFiManager(Stream& consolePort)`
+
+#### define flags
+❗️  **Defines cannot be set in user sketches**
+`#define WM_MDNS       // use MDNS`
+
+`#define WM_FIXERASECONFIG // use erase flash fix, esp8266 2.4.0`
+
+`#define WM_ERASE_NVS // esp32 erase(true) will erase NVS`
+
+`#include <rom/rtc.h> // esp32 info page will show last reset reasons if this file is included`
+
+#### Changes Overview
+- ESP32 support ( fairly stable )
+- complete refactor of strings `strings_en.h`
+- adds new tokens for wifiscan, and some classes (left , invert icons, MSG color)
+- adds status callout panel default, primary, special colors
+-  adds tons of info on info page, and erase capability
+- adds signal icons, replaces percentage ( has hover titles )
+- adds labels to all inputs (replaces placeholders)
+- all html ( and eventually all strings except debug) moved to `strings_en.h`
+- added additional debugging, compressed debug lines, debuglevels
+- persistent disabled, and restored via de/con-stuctor (uses `setRestorePersistent`)
+- should retain all user modes including AP, should not overwrite or persist user modes or configs,even STA (`storeSTAmode`) (BUGGY)
+- ⚠️ return values may have changed depending on portal abort, or timeout ( `portalTimeoutResult`,`portalAbortResult`)
+- params memory is auto allocated by increment of `WIFI_MANAGER_MAX_PARAMS(5)` when exceeded, user no longer needs to specify this at all.
+- addparameter now returns bool, and it returns false if param ID is not alphanum [0-9,A-Z,a-z,_]
+- param field ids allow {I} token to use param_n instead of string in case someones wants to change this due to i18n or character issues
+- provides `#DEFINE FIXERASECONFIG` to help deal with https://github.com/esp8266/Arduino/pull/3635
+- failure reason reporting on portal
+- set esp8266 sta hostname, esp32 sta+ap hostname ( DHCP client id)
+- pass in debug stream in constructor WiFiManager(Stream& consolePort)
+- you can force ip fields off with showxfields(false) if you set _disableIpFields=true
+- param menu/page (setup) added to separate params from wifi page, handled automatically by setMenu
+- set custom root menu
+- disable configportal on autoconnect
+- wm parameters init is now protected, allowing child classes, example included
+- wifiscans are precached and async for faster page loads, refresh forces rescan
+- adds esp32 gettemperature ( currently commented out, useful for relative measurement only )
+
+#### 0.12
+- removed 204 header response
+- fixed incompatibility with other libs using isnan and other std:: functions without namespace
+
+##### 0.11
+- a lot more reliable reconnecting to networks
+- custom html in custom parameters (for read only params)
+- custom html in custom parameter form (like labels)
+- custom head element (like custom css)
+- sort networks based on signal quality
+- remove duplicate networks
+
+##### 0.10
+- some css changes
+- bug fixes and speed improvements
+- added an alternative to waitForConnectResult() for debugging
+- changed `setTimeout(seconds)` to `setConfigPortalTimeout(seconds)`
+
+### Contributions and thanks
+The support and help I got from the community has been nothing short of phenomenal. I can't thank you guys enough. This is my first real attept in developing open source stuff and I must say, now I understand why people are so dedicated to it, it is because of all the wonderful people involved.
+
+__THANK YOU__
+
+The esp8266 and esp32 arduino and idf maintainers!
+
+[Shawn A aka tablatronix](https://github.com/tablatronix)
+
+[liebman](https://github.com/liebman)
+
+[Evgeny Dontsov](https://github.com/dontsovcmc)
+
+[Chris Marrin](https://github.com/cmarrin)
+
+[bbx10](https://github.com/bbx10)
+
+[kentaylor](https://github.com/kentaylor)
+
+[Maximiliano Duarte](https://github.com/domonetic)
+
+[alltheblinkythings](https://github.com/alltheblinkythings)
+
+[Niklas Wall](https://github.com/niklaswall)
+
+[Jakub Piasecki](https://github.com/zaporylie)
+
+[Peter Allan](https://github.com/alwynallan)
+
+[John Little](https://github.com/j0hnlittle)
+
+[markaswift](https://github.com/markaswift)
+
+[franklinvv](https://github.com/franklinvv)
+
+[Alberto Ricci Bitti](https://github.com/riccibitti)
+
+[SebiPanther](https://github.com/SebiPanther)
+
+[jonathanendersby](https://github.com/jonathanendersby)
+
+[walthercarsten](https://github.com/walthercarsten)
+
+And countless others
+
+#### Inspiration
+ * http://www.esp8266.com/viewtopic.php?f=29&t=2520
+ * https://github.com/chriscook8/esp-arduino-apboot
+ * https://github.com/esp8266/Arduino/tree/master/libraries/DNSServer/examples/CaptivePortalAdvanced
+ * Built by AlexT https://github.com/tzapu
+
