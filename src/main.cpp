@@ -54,6 +54,38 @@ int dataCount = 0;
 float currentTemp = NAN;
 float currentHum = NAN;
 
+void addLog(const String& entry); // <--- ADD THIS LINE HERE
+
+// --- Add session management for login/logout ---
+String sessionToken = "";
+
+String generateSessionToken() {
+  String token = "";
+  for (int i = 0; i < 16; i++) token += String(random(0, 16), HEX);
+  return token;
+}
+
+bool isLoggedIn() {
+  if (server.hasHeader("Cookie")) {
+    String cookie = server.header("Cookie");
+    int idx = cookie.indexOf("ESPSESSIONID=");
+    if (idx != -1) {
+      String token = cookie.substring(idx + 13);
+      int semi = token.indexOf(';');
+      if (semi != -1) token = token.substring(0, semi);
+      return token == sessionToken && sessionToken.length() > 0;
+    }
+  }
+  return false;
+}
+
+void requireLogin() {
+  if (!isLoggedIn()) {
+    server.sendHeader("Location", "/login");
+    server.send(302, "text/plain", "Redirecting to login");
+  }
+}
+
 // Helper Functions
 
 // Read INI-like config file from SPIFFS
@@ -80,6 +112,55 @@ String getINIValue(const String& filePath, const String& key, const String& defa
   }
   file.close();
   return defaultValue;
+}
+
+// Helper to remove quotes from config values
+String stripQuotes(const String& s) {
+  if (s.length() >= 2 && s.startsWith("\"") && s.endsWith("\"")) {
+    return s.substring(1, s.length() - 1);
+  }
+  return s;
+}
+
+// Connect to WiFi using ONLY static IP and credentials from config.ini
+void connectStaticWiFi() {
+  String ssid = stripQuotes(getINIValue("/config.ini", "wifi_ssid", ""));
+  String pass = stripQuotes(getINIValue("/config.ini", "wifi_password", ""));
+  String staticIP = getINIValue("/config.ini", "static_ip", "");
+  String gateway = getINIValue("/config.ini", "gateway", "");
+  String subnet = getINIValue("/config.ini", "subnet", "");
+  String dns = getINIValue("/config.ini", "dns", "");
+
+  if (ssid == "" || pass == "" || staticIP == "" || gateway == "" || subnet == "") {
+    Serial.println("Missing WiFi/static IP config in config.ini");
+    while (1) delay(1000);
+  }
+
+  IPAddress ip, gw, sn, dn;
+  ip.fromString(staticIP);
+  gw.fromString(gateway);
+  sn.fromString(subnet);
+  dn.fromString(dns.length() > 0 ? dns : gateway);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.config(ip, gw, sn, dn);
+
+  WiFi.begin(ssid.c_str(), pass.c_str());
+  Serial.print("Connecting to WiFi (static IP)...");
+  int retry = 0;
+  while (WiFi.status() != WL_CONNECTED && retry < 30) {
+    delay(500);
+    Serial.print(".");
+    retry++;
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
+    addLog("Connected to WiFi (static IP): " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\nFailed to connect to WiFi with static IP.");
+    addLog("Failed to connect to WiFi with static IP.");
+    while (1) delay(1000);
+  }
 }
 
 // Load network config and apply static IP if any
@@ -266,17 +347,176 @@ bool checkAuth() {
 
 // Web Handlers
 
-void handleRoot() {
-  if (!checkAuth()) return;
+void handleLogin() {
+  if (server.method() == HTTP_GET) {
+    String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IoT Dashboard Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: linear-gradient(135deg, #00796B 0%, #00A5A8 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .login-container {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      padding: 2.5rem 2rem 2rem 2rem;
+      width: 100%;
+      max-width: 350px;
+      animation: fadeIn 0.7s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px);}
+      to { opacity: 1; transform: translateY(0);}
+    }
+    .login-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #00796B;
+      margin-bottom: 1.5rem;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+    .input-group {
+      margin-bottom: 1.2rem;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #00796B;
+      font-weight: 500;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 0.7rem 1rem;
+      border: 1px solid #b2dfdb;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+    .input-group input:focus {
+      border-color: #00A5A8;
+      outline: none;
+    }
+    .login-btn {
+      width: 100%;
+      padding: 0.8rem;
+      background: linear-gradient(90deg, #00A5A8 60%, #00796B 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      transition: background 0.2s;
+    }
+    .login-btn:hover {
+      background: linear-gradient(90deg, #00796B 60%, #00A5A8 100%);
+    }
+    .error-message {
+      color: #e74c3c;
+      background: #ffebee;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+      margin-top: 1rem;
+      text-align: center;
+      display: none;
+      animation: shake 0.4s;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0);}
+      20%, 60% { transform: translateX(-8px);}
+      40%, 80% { transform: translateX(8px);}
+    }
+    .footer {
+      margin-top: 2rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <form class="login-container" id="loginForm" method="POST" action="/login">
+    <div class="login-title">IoT Dashboard</div>
+    <div class="input-group">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" required>
+    </div>
+    <div class="input-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+    </div>
+    <button class="login-btn" type="submit">Login</button>
+    <div class="error-message" id="errorMsg">Invalid username or password</div>
+    <div class="footer">© 2024 IoT Dashboard</div>
+  </form>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      fetch('/login', {
+        method: 'POST',
+        body: formData
+      }).then(resp => {
+        if (resp.redirected) {
+          window.location.href = resp.url;
+        } else {
+          document.getElementById('errorMsg').style.display = 'block';
+          setTimeout(() => { document.getElementById('errorMsg').style.display = 'none'; }, 2000);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+)rawliteral";
+    server.send(200, "text/html", html);
+  } else if (server.method() == HTTP_POST) {
+    String username = server.arg("username");
+    String password = server.arg("password");
+    if (username == savedUsername && password == savedPassword) {
+      sessionToken = generateSessionToken();
+      server.sendHeader("Set-Cookie", "ESPSESSIONID=" + sessionToken + "; Path=/; HttpOnly");
+      server.sendHeader("Location", "/");
+      server.send(302, "text/plain", "Login successful");
+      addLog("User logged in");
+    } else {
+      server.send(401, "text/html", ""); // JS will show error
+      addLog("Failed login attempt");
+    }
+  }
+}
 
-  // Force password change if default creds
+void handleLogout() {
+  sessionToken = "";
+  server.sendHeader("Set-Cookie", "ESPSESSIONID=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly");
+  server.sendHeader("Location", "/login");
+  server.send(302, "text/plain", "Logged out");
+  addLog("User logged out");
+}
+
+// --- Dashboard Handler (with Logout Button) ---
+void handleRoot() {
+  requireLogin();
+  if (!isLoggedIn()) return; // <--- Add this line after requireLogin()
+
   if (savedUsername == "admin" && savedPassword == "admin") {
     server.sendHeader("Location", "/changepass");
     server.send(302, "text/plain", "Redirecting to password change");
     return;
   }
-
-  // Serve the complete dashboard page
   String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -289,7 +529,14 @@ void handleRoot() {
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
 <style>
   body { font-family: 'Segoe UI', sans-serif; margin:0; padding:0; background:#f0f7f7; color:#333;}
-  header { background:#00796B; color:#fff; padding:1rem; text-align:center; font-size:1.8rem; font-weight:bold;}
+  header { background:#00796B; color:#fff; padding:1rem; text-align:center; font-size:1.8rem; font-weight:bold; position:relative;}
+  .logout-btn {
+    position: absolute; right: 1.5rem; top: 1.1rem;
+    background: #e74c3c; color: #fff; border: none; border-radius: 5px;
+    padding: 0.4rem 1.1rem; font-size: 1rem; font-weight: 500; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .logout-btn:hover { background: #c0392b; }
   #relays { display:flex; flex-wrap:wrap; justify-content:center; gap:1rem; padding:1rem;}
   .relay-label { display:flex; flex-direction:column; align-items:center; font-size:0.9rem; color:#444; }
   .switch { position:relative; display:inline-block; width:60px; height:34px; }
@@ -305,7 +552,7 @@ void handleRoot() {
   #logs { background:#fff; padding:1rem; margin:1rem auto; max-width:900px; border:1px solid #ccc; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; height:150px; overflow-y:auto;}
   #logBtn { display:block; margin: 1rem auto; padding:0.5rem 1rem; background:#00796B; color:#fff; border:none; border-radius:5px; font-size:1rem; cursor:pointer; }
   #logBtn:hover { background:#00665A; }
-  .dashboard-section { background:#fff; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin:1rem; padding:1rem;}
+  .dashboard-section { background:#fff; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin:1rem; padding: 1rem;}
   .current-readings { display:flex; justify-content:center; gap:2rem; margin-bottom:1rem;}
   .reading { text-align:center;}
   .reading-value { font-size:1.5rem; font-weight:bold; color:#00796B;}
@@ -313,8 +560,10 @@ void handleRoot() {
 </style>
 </head>
 <body>
-<header>IoT Dashboard</header>
-
+<header>
+  IoT Dashboard
+  <button class="logout-btn" onclick="window.location.href='/logout'">Logout</button>
+</header>
 <div class="dashboard-section">
   <div class="current-readings">
     <div class="reading">
@@ -327,12 +576,10 @@ void handleRoot() {
     </div>
   </div>
 </div>
-
 <div class="dashboard-section">
   <h3 style="text-align:center;">Relay Controls</h3>
   <div id="relays"></div>
 </div>
-
 <div class="dashboard-section">
   <div id="controls">
     <button class="filter-btn active" data-filter="LIVE">LIVE</button>
@@ -340,15 +587,12 @@ void handleRoot() {
     <button class="filter-btn" data-filter="1D">1D</button>
     <button class="filter-btn" data-filter="1W">1W</button>
   </div>
-
   <div id="chart-container">
     <canvas id="sensorChart"></canvas>
   </div>
 </div>
-
 <button id="logBtn" onclick="showLogs()">Show Logs</button>
 <pre id="logs"></pre>
-
 <script>
   let chart;
   const data = {
@@ -380,7 +624,6 @@ void handleRoot() {
       }
     ]
   };
-
   const options = {
     responsive: true,
     maintainAspectRatio: false,
@@ -414,7 +657,6 @@ void handleRoot() {
       }
     }
   };
-
   function createRelaysUI() {
     const relaysDiv = document.getElementById('relays');
     relaysDiv.innerHTML = '';
@@ -428,13 +670,11 @@ void handleRoot() {
       document.getElementById(`relay${i}`).addEventListener('change', e => toggleRelay(i, e.target.checked));
     }
   }
-
   function toggleRelay(relayNum, state) {
     fetch(`/relay?num=${relayNum}&state=${state ? 1 : 0}`).then(resp => resp.json()).then(data => {
       if (!data.success) alert('Failed to toggle relay');
     });
   }
-
   function fetchRelayStates() {
     fetch('/relaystates').then(resp => resp.json()).then(states => {
       for (let i = 1; i <= 8; i++) {
@@ -442,14 +682,12 @@ void handleRoot() {
       }
     });
   }
-
   function fetchCurrentReadings() {
     fetch('/current').then(resp => resp.json()).then(data => {
       document.getElementById('current-temp').textContent = data.temperature.toFixed(1) + ' °C';
       document.getElementById('current-hum').textContent = data.humidity.toFixed(1) + ' %';
     });
   }
-
   function fetchSensorData(filter='LIVE') {
     fetch(`/sensordata?filter=${filter}`).then(resp => resp.json()).then(points => {
       chart.data.labels = points.map(p => new Date(p.timestamp * 1000));
@@ -458,7 +696,6 @@ void handleRoot() {
       chart.update();
     });
   }
-
   function showLogs() {
     fetch('/logs').then(resp => resp.text()).then(text => {
       const logsEl = document.getElementById('logs');
@@ -466,7 +703,6 @@ void handleRoot() {
       logsEl.scrollTop = logsEl.scrollHeight;
     });
   }
-
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -474,21 +710,16 @@ void handleRoot() {
       fetchSensorData(btn.getAttribute('data-filter'));
     });
   });
-
   window.onload = () => {
     createRelaysUI();
     fetchRelayStates();
     fetchCurrentReadings();
-    
     chart = new Chart(document.getElementById('sensorChart').getContext('2d'), {
       type: 'line',
       data: data,
       options: options
     });
-    
     fetchSensorData();
-    
-    // Set up periodic updates
     setInterval(() => {
       fetchRelayStates();
       fetchCurrentReadings();
@@ -500,48 +731,105 @@ void handleRoot() {
 </body>
 </html>
 )rawliteral";
-
   server.send(200, "text/html", html);
 }
 
+// --- Add missing handler function declarations and implementations ---
+
 void handleChangePassGet() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   String html = R"rawliteral(
-  <html><body>
-  <h3>Change Username and Password</h3>
-  <form method="POST" action="/changepass">
-    New Username:<br><input name="username" required><br>
-    New Password:<br><input name="password" type="password" required><br><br>
-    <input type="submit" value="Save">
-  </form>
-  </body></html>
-  )rawliteral";
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Change Credentials</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { background: #f5f7fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .changepass-container { background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; padding: 40px; text-align: center; }
+    .changepass-title { color: #2c3e50; font-size: 22px; font-weight: 600; margin-bottom: 30px; }
+    .input-group { margin-bottom: 20px; text-align: left; }
+    .input-group label { display: block; margin-bottom: 8px; color: #2c3e50; font-size: 14px; font-weight: 500; }
+    .input-group input { width: 100%; padding: 12px 15px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; transition: border-color 0.3s; }
+    .input-group input:focus { outline: none; border-color: #3498db; }
+    .changepass-button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background-color 0.3s; }
+    .changepass-button:hover { background-color: #2980b9; }
+    .footer { margin-top: 20px; color: #7f8c8d; font-size: 12px; }
+    .error-message { color: #e74c3c; font-size: 14px; margin-top: 15px; display: none; animation: shake 0.5s; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+  </style>
+</head>
+<body>
+  <div class="changepass-container">
+    <div class="changepass-title">Change Username and Password</div>
+    <form id="changepassForm" method="POST" action="/changepass">
+      <div class="input-group">
+        <label for="username">New Username</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="input-group">
+        <label for="password">New Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="changepass-button">Save</button>
+      <div id="errorMessage" class="error-message">
+        Username and password cannot be empty
+      </div>
+    </form>
+    <div class="footer">
+      © 2024 IoT Dashboard
+    </div>
+  </div>
+  <script>
+    document.getElementById('changepassForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const errorMessage = document.getElementById('errorMessage');
+      fetch('/changepass', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (response.redirected) {
+          window.location.href = response.url;
+        } else {
+          errorMessage.style.display = 'block';
+          setTimeout(() => {
+            errorMessage.style.display = 'none';
+          }, 3000);
+        }
+      })
+      .catch(error => {
+        errorMessage.style.display = 'block';
+        setTimeout(() => {
+          errorMessage.style.display = 'none';
+        }, 3000);
+      });
+    });
+  </script>
+</body>
+</html>
+)rawliteral";
   server.send(200, "text/html", html);
 }
 
 void handleChangePassPost() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   if (!server.hasArg("username") || !server.hasArg("password") ||
       server.arg("username").length() == 0 || server.arg("password").length() == 0) {
     server.send(400, "text/plain", "Username and password cannot be empty");
     return;
   }
-
   String newUser = server.arg("username");
   String newPass = server.arg("password");
-
   saveCredentials(newUser, newPass);
-
   server.sendHeader("Location", "/");
   server.send(302, "text/plain", "Credentials updated. Redirecting...");
 }
 
 void handleRelayToggle() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   if (!server.hasArg("num") || !server.hasArg("state")) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing parameters\"}");
     return;
@@ -560,8 +848,7 @@ void handleRelayToggle() {
 }
 
 void handleRelayStates() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   StaticJsonDocument<64> jsonDoc;
   JsonArray arr = jsonDoc.to<JsonArray>();
   for (int i = 0; i < 8; i++) {
@@ -573,8 +860,7 @@ void handleRelayStates() {
 }
 
 void handleCurrentReadings() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   StaticJsonDocument<64> jsonDoc;
   jsonDoc["temperature"] = currentTemp;
   jsonDoc["humidity"] = currentHum;
@@ -584,8 +870,7 @@ void handleCurrentReadings() {
 }
 
 void handleSensorData() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   String filter = server.hasArg("filter") ? server.arg("filter") : "LIVE";
   time_t now;
   time(&now);
@@ -621,25 +906,26 @@ void handleSensorData() {
 }
 
 void handleLogs() {
-  if (!checkAuth()) return;
-
+  requireLogin();
   server.send(200, "text/plain", logBuffer);
 }
 
+// --- Add this to setup() and routes ---
 void setup() {
   Serial.begin(115200);
-
-  // Initialize EEPROM
   EEPROM.begin(EEPROM_SIZE);
 
-  // Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("Failed to mount SPIFFS");
     addLog("Failed to mount SPIFFS");
   } else {
-    // Load config file from SPIFFS
-    loadConfig();
-    addLog("Config file loaded from SPIFFS");
+    Serial.println("SPIFFS mounted. Files:");
+    File root = SPIFFS.open("/");
+    File file = root.openNextFile();
+    while (file) {
+        Serial.println(file.name());
+        file = root.openNextFile();
+    }
   }
 
   // Initialize relay pins
@@ -660,15 +946,8 @@ void setup() {
   loadCredentials();
   loadRelayStates();
 
-  // Connect to WiFi
-  WiFiManager wm;
-  if (!wm.autoConnect("IoT-Garage-AP")) {
-    Serial.println("Failed to connect and hit timeout");
-    ESP.restart();
-  }
-
-  Serial.println("Connected to WiFi");
-  addLog("System started. Connected to WiFi: " + WiFi.localIP().toString());
+  // Connect to WiFi using ONLY static IP from config.ini
+  connectStaticWiFi();
 
   // Configure time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -687,6 +966,9 @@ void setup() {
   server.on("/current", HTTP_GET, handleCurrentReadings);
   server.on("/sensordata", HTTP_GET, handleSensorData);
   server.on("/logs", HTTP_GET, handleLogs);
+  server.on("/login", HTTP_GET, handleLogin);
+  server.on("/login", HTTP_POST, handleLogin);
+  server.on("/logout", HTTP_GET, handleLogout);
 
   server.begin();
   addLog("HTTP server started");
