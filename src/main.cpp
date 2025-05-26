@@ -31,6 +31,9 @@ const int daylightOffset_sec = 0;
 #define RELAY_ADDR 64
 #define BIRTHDAY_ADDR 96 // after relay states
 
+// Session timeout (30 minutes)
+#define SESSION_TIMEOUT 1800000
+
 // Sensor Data Configuration
 #define MAX_DATA_POINTS 3000
 
@@ -44,6 +47,8 @@ String savedBirthday;
 bool relayStates[8] = {false, false, false, false, false, false, false, false};
 const int relayPins[8] = {RELAY1, RELAY2, RELAY3, RELAY4, RELAY5, RELAY6, RELAY7, RELAY8};
 String logBuffer = "";
+unsigned long lastActivityTime = 0;
+String sessionToken = "";
 
 struct SensorDataPoint {
   time_t timestamp;
@@ -237,13 +242,233 @@ void loadRelayStates() {
   EEPROM.end();
 }
 
+String generateSessionToken() {
+  String token = "";
+  for (int i = 0; i < 32; i++) {
+    token += char(random(65, 90));
+  }
+  return token;
+}
+
+bool isAuthenticated() {
+  if (millis() - lastActivityTime > SESSION_TIMEOUT) {
+    sessionToken = "";
+    addLog("Session expired due to inactivity");
+    return false;
+  }
+  
+  if (server.hasHeader("Cookie")) {
+    String cookie = server.header("Cookie");
+    if (cookie.indexOf("ESPSESSIONID=" + sessionToken) != -1) {
+      lastActivityTime = millis();
+      return true;
+    }
+  }
+  return false;
+}
+
 // Web Handlers
+void handleLoginGet() {
+  if (isAuthenticated()) {
+    server.sendHeader("Location", "/");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f7fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-container {
+      background-color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      width: 350px;
+      padding: 40px;
+      text-align: center;
+    }
+    .login-title {
+      color: #2c3e50;
+      font-size: 24px;
+      margin-bottom: 30px;
+      font-weight: 600;
+    }
+    .input-group {
+      margin-bottom: 20px;
+      text-align: left;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #2c3e50;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+      box-sizing: border-box;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #3498db;
+    }
+    .login-button {
+      width: 100%;
+      padding: 12px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    .login-button:hover {
+      background-color: #2980b9;
+    }
+    .error-message {
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 15px;
+      display: none;
+    }
+    .footer {
+      margin-top: 20px;
+      color: #7f8c8d;
+      font-size: 12px;
+    }
+    .forgot-pass {
+      display: block;
+      margin-top: 15px;
+      color: #3498db;
+      text-decoration: none;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-title">IoT Dashboard Login</div>
+    <form id="loginForm" method="POST" action="/login">
+      <div class="input-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="login-button">Login</button>
+      <div id="errorMessage" class="error-message">
+        Invalid username or password
+      </div>
+      <a href="/resetpass" class="forgot-pass">Forgot Password?</a>
+    </form>
+    <div class="footer">
+      © 2024 IoT Dashboard
+    </div>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const formData = new FormData(this);
+      const errorMessage = document.getElementById('errorMessage');
+      
+      fetch('/login', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      })
+      .then(response => {
+        if (response.redirected) {
+          window.location.href = response.url;
+        } else {
+          errorMessage.style.display = 'block';
+          setTimeout(() => {
+            errorMessage.style.display = 'none';
+          }, 3000);
+        }
+      })
+      .catch(error => {
+        errorMessage.style.display = 'block';
+        setTimeout(() => {
+          errorMessage.style.display = 'none';
+        }, 3000);
+      });
+    });
+  </script>
+</body>
+</html>
+)rawliteral";
+  server.send(200, "text/html", html);
+}
+
+void handleLoginPost() {
+  if (server.hasArg("username") && server.hasArg("password")) {
+    String username = server.arg("username");
+    String password = server.arg("password");
+    
+    if (username == savedUsername && password == savedPassword) {
+      sessionToken = generateSessionToken();
+      lastActivityTime = millis();
+      
+      String cookie = "ESPSESSIONID=" + sessionToken + "; HttpOnly; SameSite=Strict; Path=/";
+      server.sendHeader("Set-Cookie", cookie);
+      server.sendHeader("Location", "/");
+      server.sendHeader("Cache-Control", "no-cache");
+      server.send(302, "text/plain", "Login successful");
+      addLog("User logged in: " + username);
+      return;
+    }
+  }
+  
+  server.sendHeader("Location", "/login?error=1");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(302, "text/plain", "Login failed");
+}
+
+void handleLogout() {
+  sessionToken = "";
+  String cookie = "ESPSESSIONID=; HttpOnly; SameSite=Strict; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  server.sendHeader("Set-Cookie", cookie);
+  server.sendHeader("Location", "/login");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(302, "text/plain", "Logged out");
+  addLog("User logged out");
+}
+
 void handleRoot() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
 
   if (savedUsername == "admin" && savedPassword == "admin") {
     server.sendHeader("Location", "/changepass");
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
+    server.sendHeader("Cache-Control", "no-cache");
     server.send(302, "text/plain", "Redirecting to password change");
     return;
   }
@@ -281,6 +506,14 @@ void handleRoot() {
   .reading { text-align:center;}
   .reading-value { font-size:1.5rem; font-weight:bold; color:#00796B;}
   .reading-label { font-size:0.9rem; color:#666;}
+  .header-btns {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 10px;
+  }
   .header-btn {
     background: #e74c3c;
     color: #fff;
@@ -290,7 +523,6 @@ void handleRoot() {
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
-    margin-left: 0.5rem;
     transition: background 0.2s;
   }
   .header-btn:first-child {
@@ -304,6 +536,10 @@ void handleRoot() {
 <body>
 <header>
   IoT Dashboard
+  <div class="header-btns">
+    <button class="header-btn" onclick="location.href='/changepass'">Change Password</button>
+    <button class="header-btn" onclick="logout()">Logout</button>
+  </div>
 </header>
 <div class="dashboard-section">
   <div class="current-readings">
@@ -454,6 +690,12 @@ void handleRoot() {
         logsEl.scrollTop = logsEl.scrollHeight;
       });
   }
+  function logout() {
+    fetch('/logout', { credentials: 'include' })
+      .then(() => {
+        window.location.href = '/login';
+      });
+  }
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -482,12 +724,17 @@ void handleRoot() {
 </body>
 </html>
 )rawliteral";
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "text/html", html);
 }
 
 void handleChangePassGet() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -508,24 +755,42 @@ void handleChangePassGet() {
     .footer { margin-top: 20px; color: #7f8c8d; font-size: 12px; }
     .error-message { color: #e74c3c; font-size: 14px; margin-top: 15px; display: none; animation: shake 0.5s; }
     @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+    .back-btn { 
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .back-btn:hover {
+      background: #6c7a7d;
+    }
   </style>
 </head>
 <body>
+  <button class="back-btn" onclick="window.location.href='/'">Back</button>
   <div class="changepass-container">
-    <div class="changepass-title">Change Username and Password</div>
+    <div class="changepass-title">Change Password</div>
     <form id="changepassForm" method="POST" action="/changepass">
       <div class="input-group">
-        <label for="username">New Username</label>
-        <input type="text" id="username" name="username" required>
+        <label for="currentPassword">Current Password</label>
+        <input type="password" id="currentPassword" name="currentPassword" required>
       </div>
       <div class="input-group">
-        <label for="password">New Password</label>
-        <input type="password" id="password" name="password" required>
+        <label for="newPassword">New Password</label>
+        <input type="password" id="newPassword" name="newPassword" required>
       </div>
-      <button type="submit" class="changepass-button">Save</button>
-      <div id="errorMessage" class="error-message">
-        Username and password cannot be empty
+      <div class="input-group">
+        <label for="confirmPassword">Confirm New Password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" required>
       </div>
+      <button type="submit" class="changepass-button">Change Password</button>
+      <div id="errorMessage" class="error-message"></div>
     </form>
     <div class="footer">
       ©️ 2024 IoT Dashboard
@@ -534,8 +799,22 @@ void handleChangePassGet() {
   <script>
     document.getElementById('changepassForm').addEventListener('submit', function(e) {
       e.preventDefault();
-      const formData = new FormData(this);
+      const currentPass = document.getElementById('currentPassword').value;
+      const newPass = document.getElementById('newPassword').value;
+      const confirmPass = document.getElementById('confirmPassword').value;
       const errorMessage = document.getElementById('errorMessage');
+      
+      if (newPass !== confirmPass) {
+        errorMessage.textContent = "New passwords don't match";
+        errorMessage.style.display = 'block';
+        setTimeout(() => { errorMessage.style.display = 'none'; }, 3000);
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('currentPassword', currentPass);
+      formData.append('newPassword', newPass);
+      
       fetch('/changepass', {
         method: 'POST',
         body: formData,
@@ -545,57 +824,73 @@ void handleChangePassGet() {
         if (response.redirected) {
           window.location.href = response.url;
         } else {
-          errorMessage.style.display = 'block';
-          setTimeout(() => {
-            errorMessage.style.display = 'none';
-          }, 3000);
+          return response.text().then(text => {
+            errorMessage.textContent = text || 'Password change failed';
+            errorMessage.style.display = 'block';
+            setTimeout(() => { errorMessage.style.display = 'none'; }, 3000);
+          });
         }
       })
       .catch(error => {
+        errorMessage.textContent = 'An error occurred';
         errorMessage.style.display = 'block';
-        setTimeout(() => {
-          errorMessage.style.display = 'none';
-        }, 3000);
+        setTimeout(() => { errorMessage.style.display = 'none'; }, 3000);
       });
     });
   </script>
 </body>
 </html>
 )rawliteral";
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "text/html", html);
 }
 
 void handleChangePassPost() {
-  if (!server.hasArg("username") || !server.hasArg("password") ||
-      server.arg("username").length() == 0 || server.arg("password").length() == 0) {
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
-    server.send(400, "text/plain", "Username and password cannot be empty");
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
     return;
   }
-  String newUser = server.arg("username");
-  String newPass = server.arg("password");
-  saveCredentials(newUser, newPass);
+
+  if (!server.hasArg("currentPassword") || !server.hasArg("newPassword")) {
+    server.send(400, "text/plain", "Missing fields");
+    return;
+  }
+
+  String currentPass = server.arg("currentPassword");
+  String newPass = server.arg("newPassword");
+
+  if (currentPass != savedPassword) {
+    server.send(401, "text/plain", "Current password is incorrect");
+    return;
+  }
+
+  if (newPass.length() < 4) {
+    server.send(400, "text/plain", "New password must be at least 4 characters");
+    return;
+  }
+
+  saveCredentials(savedUsername, newPass, savedBirthday);
   server.sendHeader("Location", "/");
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
-  server.send(302, "text/plain", "Credentials updated. Redirecting...");
+  server.sendHeader("Cache-Control", "no-cache");
+  server.send(302, "text/plain", "Password changed. Redirecting...");
 }
 
 void handleRelayToggle() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   if (!server.hasArg("num") || !server.hasArg("state")) {
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing parameters\"}");
     return;
   }
   int num = server.arg("num").toInt();
   int state = server.arg("state").toInt();
   if (num < 1 || num > 8) {
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid relay number\"}");
     return;
   }
@@ -603,12 +898,17 @@ void handleRelayToggle() {
   digitalWrite(relayPins[num - 1], relayStates[num - 1] ? HIGH : LOW);
   saveRelayStates();
   addLog("Relay " + String(num) + (relayStates[num - 1] ? " ON" : " OFF"));
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "application/json", "{\"success\":true}");
 }
 
 void handleRelayStates() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   StaticJsonDocument<64> jsonDoc;
   JsonArray arr = jsonDoc.to<JsonArray>();
   for (int i = 0; i < 8; i++) {
@@ -616,23 +916,33 @@ void handleRelayStates() {
   }
   String json;
   serializeJson(arr, json);
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "application/json", json);
 }
 
 void handleCurrentReadings() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   StaticJsonDocument<64> jsonDoc;
   jsonDoc["temperature"] = currentTemp;
   jsonDoc["humidity"] = currentHum;
   String json;
   serializeJson(jsonDoc, json);
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "application/json", json);
 }
 
 void handleSensorData() {
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   String filter = server.hasArg("filter") ? server.arg("filter") : "LIVE";
   time_t now;
   time(&now);
@@ -664,14 +974,17 @@ void handleSensorData() {
   
   String json;
   serializeJson(arr, json);
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "application/json", json);
 }
 
 void handleLogs() {
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
+  if (!isAuthenticated()) {
+    server.sendHeader("Location", "/login");
+    server.sendHeader("Cache-Control", "no-cache");
+    server.send(302, "text/plain", "");
+    return;
+  }
+
   server.send(200, "text/plain", logBuffer);
 }
 
@@ -696,9 +1009,25 @@ void handleResetPassGet() {
     .footer { margin-top: 20px; color: #7f8c8d; font-size: 12px; }
     .error-message { color: #e74c3c; font-size: 14px; margin-top: 15px; display: none; animation: shake 0.5s; }
     @keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+    .back-btn { 
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .back-btn:hover {
+      background: #6c7a7d;
+    }
   </style>
 </head>
 <body>
+  <button class="back-btn" onclick="window.location.href='/login'">Back to Login</button>
   <div class="resetpass-container">
     <div class="resetpass-title">Reset Password</div>
     <form id="resetpassForm" method="POST" action="/resetpass">
@@ -753,15 +1082,11 @@ void handleResetPassGet() {
 </body>
 </html>
 )rawliteral";
-  server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-  server.sendHeader("Access-Control-Allow-Credentials", "true");
   server.send(200, "text/html", html);
 }
 
 void handleResetPassPost() {
   if (!server.hasArg("username") || !server.hasArg("birthday") || !server.hasArg("password")) {
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
     server.send(400, "text/plain", "Missing fields");
     return;
   }
@@ -771,13 +1096,10 @@ void handleResetPassPost() {
   if (username == savedUsername && birthday == savedBirthday && newPass.length() > 0) {
     saveCredentials(savedUsername, newPass, savedBirthday);
     server.sendHeader("Location", "/login");
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
+    server.sendHeader("Cache-Control", "no-cache");
     server.send(302, "text/plain", "Password reset. Redirecting...");
     addLog("Password reset via birthday verification");
   } else {
-    server.sendHeader("Access-Control-Allow-Origin", "https://www.htresearchlab.com");
-    server.sendHeader("Access-Control-Allow-Credentials", "true");
     server.send(401, "text/plain", "Invalid details");
   }
 }
@@ -837,6 +1159,9 @@ void setup() {
 
   // Set up web server routes
   server.on("/", HTTP_GET, handleRoot);
+  server.on("/login", HTTP_GET, handleLoginGet);
+  server.on("/login", HTTP_POST, handleLoginPost);
+  server.on("/logout", HTTP_GET, handleLogout);
   server.on("/changepass", HTTP_GET, handleChangePassGet);
   server.on("/changepass", HTTP_POST, handleChangePassPost);
   server.on("/relay", HTTP_GET, handleRelayToggle);
