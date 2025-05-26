@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Change Password</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="centered-bg">
+  <div class="card login-card">
+    <h2>Change Password</h2>
+    <form method="POST" action="/changepass">
+      <div class="input-group">
+        <label for="currentPassword">Current Password</label>
+        <input id="currentPassword" name="currentPassword" type="password" required>
+      </div>
+      <div class="input-group">
+        <label for="newPassword">New Password</label>
+        <input id="newPassword" name="newPassword" type="password" required minlength="8">
+      </div>
+      <button type="submit" class="btn-3d">Change Password</button>
+    </form>
+    <a href="/" class="link">Back to Dashboard</a>
+  </div>
+</body>
+</html>

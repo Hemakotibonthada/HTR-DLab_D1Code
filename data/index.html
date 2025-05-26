@@ -1,142 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>ESP32 IoT Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  body { font-family: Arial; margin: 20px;}
-  #charts { display:flex; gap:20px; flex-wrap: wrap; }
-  canvas { background:#f5f5f5; border:1px solid #ddd; }
-  #relayToggle { margin-top: 10px; }
-  button.timeFilter { margin-right: 5px; }
-</style>
+  <meta charset="UTF-8">
+  <title>Dashboard - Home Automation</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<h1>Welcome, %USERNAME%</h1>
-<div id="charts">
-  <div>
-    <h3>Temperature (°C)</h3>
-    <canvas id="tempChart" width="400" height="200"></canvas>
+  <nav class="navbar">
+    <span class="logo">🏠 Home Automation</span>
+    <a href="/changepass" class="nav-link">Change Password</a>
+    <a href="/logout" class="nav-link">Logout</a>
+  </nav>
+  <div class="container">
+    <div class="card shadow">
+      <h2>Relay Controls</h2>
+      <div id="relays" class="relay-grid"></div>
+    </div>
+    <div class="card shadow">
+      <h2>Sensor Readings</h2>
+      <div id="sensor-data">
+        <p>Temperature: <span id="temp">--</span> °C</p>
+        <p>Humidity: <span id="hum">--</span> %</p>
+      </div>
+    </div>
   </div>
-  <div>
-    <h3>Humidity (%)</h3>
-    <canvas id="humChart" width="400" height="200"></canvas>
-  </div>
-</div>
-
-<div>
-  <h3>Relay Control</h3>
-  <label>
-    <input type="checkbox" id="relayToggle" %RELAYSTATE% /> Relay ON/OFF
-  </label>
-</div>
-
-<div>
-  <h3>Time Filter:</h3>
-  <button class="timeFilter" data-filter="LIVE">LIVE</button>
-  <button class="timeFilter" data-filter="1H">1H</button>
-  <button class="timeFilter" data-filter="1D">1D</button>
-  <button class="timeFilter" data-filter="1W">1W</button>
-</div>
-
-<script>
-let tempChartCtx = document.getElementById('tempChart').getContext('2d');
-let humChartCtx = document.getElementById('humChart').getContext('2d');
-
-let tempData = [];
-let humData = [];
-let labels = [];
-
-const tempChart = new Chart(tempChartCtx, {
-  type: 'line',
-  data: {
-    labels: labels,
-    datasets: [{
-      label: 'Temperature °C',
-      borderColor: 'red',
-      fill: false,
-      data: tempData,
-      tension: 0.3,
-      pointRadius: 2,
-      borderWidth: 2
-    }]
-  },
-  options: {
-    scales: {
-      x: { display: false },
-      y: { beginAtZero: true }
-    },
-    plugins: {
-      legend: { display: true }
-    },
-    elements: { line: { borderWidth: 2 } },
-    animation: false
-  }
-});
-
-const humChart = new Chart(humChartCtx, {
-  type: 'line',
-  data: {
-    labels: labels,
-    datasets: [{
-      label: 'Humidity %',
-      borderColor: 'blue',
-      fill: false,
-      data: humData,
-      tension: 0.3,
-      pointRadius: 2,
-      borderWidth: 2
-    }]
-  },
-  options: {
-    scales: {
-      x: { display: false },
-      y: { beginAtZero: true, max: 100 }
-    },
-    plugins: {
-      legend: { display: true }
-    },
-    animation: false
-  }
-});
-
-function fetchData() {
-  fetch('/sensordata')
-    .then(resp => resp.json())
-    .then(data => {
-      tempData.length = 0;
-      humData.length = 0;
-      labels.length = 0;
-
-      for(let i = 0; i < data.temperature.length; i++) {
-        tempData.push(data.temperature[i]);
-        humData.push(data.humidity[i]);
-        // For simplicity, label with seconds elapsed or index
-        labels.push(i);
-      }
-      tempChart.update();
-      humChart.update();
-    });
-}
-
-document.getElementById('relayToggle').addEventListener('change', function() {
-  const state = this.checked ? "1" : "0";
-  fetch('/relay', {
-    method: 'POST',
-    body: 'state=' + state,
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'}
-  }).then(() => console.log('Relay toggled'));
-});
-
-document.querySelectorAll('.timeFilter').forEach(btn => {
-  btn.addEventListener('click', () => {
-    alert('Time filter feature is not implemented in this basic demo yet.');
-  });
-});
-
-setInterval(fetchData, 2000);
-fetchData();
-</script>
+  <script src="/main.js"></script>
 </body>
 </html>
