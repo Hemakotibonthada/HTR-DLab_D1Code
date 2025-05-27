@@ -526,6 +526,7 @@ void handleRoot() {
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
   body { font-family: 'Segoe UI', sans-serif; margin:0; padding:0; background:#f0f7f7; color:#333;}
   header { background:#00796B; color:#fff; padding:1rem; text-align:center; font-size:1.8rem; font-weight:bold; position:relative;}
@@ -645,38 +646,79 @@ void handleRoot() {
     ]
   };
   const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { labels: { color: '#333', font: { size: 14 } } }
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: {
+      labels: {
+        color: '#333',
+        font: { size: 14 }
+      }
     },
-    scales: {
-      x: {
-        type: 'time',
-        time: { tooltipFormat: 'yyyy-MM-dd HH:mm:ss', displayFormats: { second: 'HH:mm:ss', minute:'HH:mm', hour:'HH:mm' } },
-        title: { display: true, text: 'Time', color: '#555' },
-        ticks: { color: '#666', maxRotation: 0, autoSkipPadding: 20 },
-        grid: { display: false }
+    datalabels: {
+      display: true,
+      align: 'top',
+      color: '#444',
+      font: {
+        weight: 'bold'
       },
-      y: {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        title: { display: true, text: 'Temperature (°C)', color: '#555' },
-        ticks: { color: '#666' },
-        grid: { display: false }
-      },
-      y1: {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        title: { display: true, text: 'Humidity (%)', color: '#555' },
-        ticks: { color: '#666' },
-        grid: { display: false }
+      formatter: function(value, context) {
+        return value.toFixed(1);
       }
     }
-  };
+  },
+  scales: {
+    x: {
+      type: 'time',
+      time: {
+        tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+        displayFormats: {
+          second: 'HH:mm:ss',
+          minute: 'HH:mm',
+          hour: 'HH:mm'
+        }
+      },
+      title: {
+        display: true,
+        text: 'Time',
+        color: '#333'
+      },
+      grid: {
+        display: false
+      },
+      ticks: {
+        color: '#666',
+        maxRotation: 0
+      },
+      border: {
+        display: true,
+        color: '#333'
+      }
+    },
+    y: {
+      type: 'linear',
+      position: 'left',
+      title: {
+        display: true,
+        text: 'Value',
+        color: '#333'
+      },
+      min: 0,
+      grid: {
+        display: false
+      },
+      ticks: {
+        color: '#666'
+      },
+      border: {
+        display: true,
+        color: '#333'
+      }
+    }
+  }
+};
+
   function createRelaysUI() {
     const relaysDiv = document.getElementById('relays');
     relaysDiv.innerHTML = '';
@@ -747,7 +789,8 @@ void handleRoot() {
     chart = new Chart(document.getElementById('sensorChart').getContext('2d'), {
       type: 'line',
       data: data,
-      options: options
+      options: options,
+      plugins: [ChartDataLabels]
     });
     fetchSensorData();
     setInterval(() => {
