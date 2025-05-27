@@ -515,292 +515,392 @@ void handleLogout() {
 
 void handleRoot() {
   requireLogin();
-
   String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>IoT Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<style>
-  body { font-family: 'Segoe UI', sans-serif; margin:0; padding:0; background:#f0f7f7; color:#333;}
-  header { background:#00796B; color:#fff; padding:1rem; text-align:center; font-size:1.8rem; font-weight:bold; position:relative;}
-  .logout-btn {
-    position: absolute; right: 1.5rem; top: 1.1rem;
-    background: #e74c3c; color: #fff; border: none; border-radius: 5px;
-    padding: 0.4rem 1.1rem; font-size: 1rem; font-weight: 500; cursor: pointer;
-    transition: background 0.2s;
-  }
-  .logout-btn:hover { background: #c0392b; }
-  #relays { display:flex; flex-wrap:wrap; justify-content:center; gap:1rem; padding:1rem;}
-  .relay-label { display:flex; flex-direction:column; align-items:center; font-size:0.9rem; color:#444; }
-  .switch { position:relative; display:inline-block; width:60px; height:34px; }
-  .switch input { opacity:0; width:0; height:0; }
-  .slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background:#ccc; transition:.4s; border-radius:34px;}
-  .slider:before { position:absolute; content:""; height:26px; width:26px; left:4px; bottom:4px; background:#fff; transition:.4s; border-radius:50%; }
-  input:checked + .slider { background:#00A5A8; }
-  input:checked + .slider:before { transform: translateX(26px); }
-  #chart-container { max-width:900px; height:400px; margin: 0 auto; padding: 1rem; }
-  #controls { text-align:center; margin-bottom: 1rem; }
-  button.filter-btn { background:#00796B; color:#fff; border:none; padding: 0.5rem 1rem; margin: 0 0.3rem; border-radius:4px; cursor:pointer; font-weight:bold;}
-  button.filter-btn.active { background:#004d40; }
-  #logs { background:#fff; padding:1rem; margin:1rem auto; max-width:900px; border:1px solid #ccc; white-space: pre-wrap; font-family: monospace; font-size: 0.9rem; height:150px; overflow-y:auto;}
-  #logBtn { display:block; margin: 1rem auto; padding:0.5rem 1rem; background:#00796B; color:#fff; border:none; border-radius:5px; font-size:1rem; cursor:pointer; }
-  #logBtn:hover { background:#00665A; }
-  .dashboard-section { background:#fff; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); margin:1rem; padding: 1rem;}
-  .current-readings { display:flex; justify-content:center; gap:2rem; margin-bottom:1rem;}
-  .reading { text-align:center;}
-  .reading-value { font-size:1.5rem; font-weight:bold; color:#00796B;}
-  .reading-label { font-size:0.9rem; color:#666;}
-  .header-btn {
-    background: #e74c3c;
-    color: #fff;
-    border: none;
-    border-radius: 5px;
-    padding: 0.4rem 1.1rem;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    margin-left: 0.5rem;
-    transition: background 0.2s;
-  }
-  .header-btn:first-child {
-    background: #3498db;
-  }
-  .header-btn:hover {
-    filter: brightness(0.9);
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Home Control</title>
+  <link href="https://fonts.googleapis.com/css?family=Segoe+UI:400,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f4f7fb;
+      margin: 0;
+      padding: 0;
+      color: #222;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 24px 0 10px 0;
+    }
+    .header-title {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      background: #2ecc40;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    .tabs {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .tab {
+      background: #fff;
+      border-radius: 8px 8px 0 0;
+      padding: 10px 28px;
+      font-weight: 600;
+      color: #0072ff;
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-size: 1.1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      transition: background 0.2s, color 0.2s;
+    }
+    .tab.active, .tab:hover {
+      background: #eaf3ff;
+      color: #222;
+    }
+    .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      padding: 28px 24px 20px 24px;
+      flex: 1 1 260px;
+      min-width: 260px;
+      max-width: 340px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+    }
+    .card .material-icons {
+      font-size: 2.2rem;
+      color: #0072ff;
+      margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-value {
+      font-size: 2.1rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #222;
+    }
+    .slider {
+      width: 100%;
+      margin: 10px 0 0 0;
+    }
+    .slider input[type=range] {
+      width: 100%;
+      accent-color: #0072ff;
+      height: 4px;
+      border-radius: 2px;
+      background: #eaf3ff;
+      outline: none;
+      margin: 0;
+    }
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.95rem;
+      color: #888;
+      margin-top: 2px;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 28px;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider-toggle {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc;
+      transition: .4s;
+      border-radius: 28px;
+    }
+    .slider-toggle:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background: #fff;
+      transition: .4s;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .toggle-switch input:checked + .slider-toggle {
+      background: #0072ff;
+    }
+    .toggle-switch input:checked + .slider-toggle:before {
+      transform: translateX(20px);
+    }
+    .card-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .btn {
+      background: #0072ff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 22px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+    .btn:active, .btn:hover {
+      background: #005fcc;
+    }
+    .btn.locked {
+      background: #e74c3c;
+    }
+    .btn.unlocked {
+      background: #2ecc40;
+    }
+    .status-label {
+      font-size: 0.98rem;
+      color: #888;
+      margin-left: 8px;
+    }
+    .scene-cards {
+      display: flex;
+      gap: 18px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+    .scene-btn {
+      flex: 1 1 120px;
+      min-width: 120px;
+      background: #f6f8fc;
+      border-radius: 12px;
+      padding: 18px 0;
+      text-align: center;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      border: none;
+      margin-bottom: 8px;
+    }
+    .scene-btn.night { background: #3b3b98; }
+    .scene-btn.morning { background: #f6b93b; color: #fff; }
+    .scene-btn.movie { background: #6a89cc; }
+    .scene-btn.away { background: #38ada9; }
+    @media (max-width: 900px) {
+      .cards { flex-direction: column; }
+      .scene-cards { flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
-<header>
-  IoT Dashboard
-  <div style="position:absolute; right:1.5rem; top:1.1rem;">
-    <button class="header-btn" onclick="window.location.href='/changepass'">Change Password</button>
-    <button class="header-btn" onclick="window.location.href='/logout'">Logout</button>
-  </div>
-</header>
-<div class="dashboard-section">
-  <div class="current-readings">
-    <div class="reading">
-      <div class="reading-label">Temperature</div>
-      <div class="reading-value" id="current-temp">--.- °C</div>
+  <div class="container">
+    <div class="header">
+      <div class="header-title">
+        <span class="status-dot"></span> Smart Home Control
+      </div>
+      <div>
+        <button class="btn" onclick="window.location.href='/changepass'">Change Password</button>
+        <button class="btn" onclick="window.location.href='/logout'">Logout</button>
+      </div>
     </div>
-    <div class="reading">
-      <div class="reading-label">Humidity</div>
-      <div class="reading-value" id="current-hum">--.- %</div>
+    <div class="tabs">
+      <button class="tab active" onclick="showRoom('living')">Living Room</button>
+      <button class="tab" onclick="showRoom('kitchen')">Kitchen</button>
+      <button class="tab" onclick="showRoom('bedroom')">Bedroom</button>
+      <button class="tab" onclick="showRoom('bathroom')">Bathroom</button>
+      <button class="tab" onclick="showRoom('garage')">Garage</button>
+    </div>
+    <div id="room-living" class="cards room-tab">
+      <div class="card">
+        <span class="material-icons">wb_incandescent</span>
+        <div class="card-title">Main Light
+          <label class="toggle-switch">
+            <input type="checkbox" id="mainLight" onchange="toggleLight(this)">
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div class="slider">
+          <input type="range" min="0" max="100" value="80" id="lightSlider" oninput="updateBrightness(this.value)">
+          <div class="slider-labels">
+            <span>0%</span>
+            <span>80%</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="material-icons">thermostat</span>
+        <div class="card-title">Temperature</div>
+        <div class="card-row">
+          <button class="btn" onclick="changeTemp(-1)">-</button>
+          <div class="card-value" id="tempValue">22°C</div>
+          <button class="btn" onclick="changeTemp(1)">+</button>
+        </div>
+        <div>
+          <button class="btn" onclick="setMode('cool')">Cool</button>
+          <button class="btn" onclick="setMode('auto')">Auto</button>
+          <button class="btn" onclick="setMode('heat')">Heat</button>
+          <button class="btn" onclick="setMode('fan')">Fan</button>
+        </div>
+      </div>
+      <div class="card">
+        <span class="material-icons">toys_fan</span>
+        <div class="card-title">Ceiling Fan
+          <label class="toggle-switch">
+            <input type="checkbox" id="fanSwitch" onchange="toggleFan(this)">
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin-top:10px;">
+          <button class="btn" onclick="setFanSpeed('low')">Low</button>
+          <button class="btn" onclick="setFanSpeed('med')">Med</button>
+          <button class="btn" onclick="setFanSpeed('high')">High</button>
+        </div>
+      </div>
+      <div class="card">
+        <span class="material-icons">meeting_room</span>
+        <div class="card-title">Front Door</div>
+        <div class="card-row">
+          <span class="btn locked" id="doorStatus">Locked</span>
+        </div>
+        <button class="btn" onclick="unlockDoor()">Unlock Door</button>
+        <div class="status-label" id="doorActivity">Last activity: Today, 2:30 PM</div>
+      </div>
+      <div class="card">
+        <span class="material-icons">water_drop</span>
+        <div class="card-title">Humidity</div>
+        <div class="card-value" id="humValue">65%</div>
+        <div class="slider-labels">
+          <span>0%</span>
+          <span><div style="width:120px;display:inline-block;background:#eaf3ff;height:8px;border-radius:4px;vertical-align:middle;"><div id="humBar" style="background:#36A2EB;width:65%;height:8px;border-radius:4px;"></div></div></span>
+          <span>100%</span>
+        </div>
+        <div class="status-label" id="humStatus">Status: Normal</div>
+      </div>
+      <div class="card">
+        <span class="material-icons">sensors</span>
+        <div class="card-title">Motion Sensor</div>
+        <div class="card-row">
+          <span class="btn" id="motionStatus">No Motion</span>
+        </div>
+        <div class="status-label" id="motionLast">Last detected: Today, 1:45 PM</div>
+        <label class="toggle-switch" style="margin-top:10px;">
+          <input type="checkbox" id="motionToggle">
+          <span class="slider-toggle"></span>
+        </label>
+        <button class="btn" style="margin-top:10px;" onclick="testSensor()">Test Sensor</button>
+      </div>
+    </div>
+    <!-- Add similar divs for other rooms if needed -->
+    <div class="scene-cards">
+      <button class="scene-btn night">Good Night</button>
+      <button class="scene-btn morning">Good Morning</button>
+      <button class="scene-btn movie">Movie Mode</button>
+      <button class="scene-btn away">Away Mode</button>
     </div>
   </div>
-</div>
-<div class="dashboard-section">
-  <h3 style="text-align:center;">Relay Controls</h3>
-  <div id="relays"></div>
-</div>
-<div class="dashboard-section">
-  <div id="controls">
-    <button class="filter-btn active" data-filter="LIVE">LIVE</button>
-    <button class="filter-btn" data-filter="1H">1H</button>
-    <button class="filter-btn" data-filter="1D">1D</button>
-    <button class="filter-btn" data-filter="1W">1W</button>
-  </div>
-  <div id="chart-container">
-    <canvas id="sensorChart"></canvas>
-  </div>
-</div>
-<button id="logBtn" onclick="showLogs()">Show Logs</button>
-<pre id="logs"></pre>
-<script>
-  let chart;
-  const data = {
-    labels: [],
-    datasets: [
-      {
-        label: 'Temperature (°C)',
-        borderColor: '#FF6384',
-        backgroundColor: '#FF6384',
-        data: [],
-        tension: 0.4,
-        fill: false,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        borderWidth: 2,
-        yAxisID: 'y'
-      },
-      {
-        label: 'Humidity (%)',
-        borderColor: '#36A2EB',
-        backgroundColor: '#36A2EB',
-        data: [],
-        tension: 0.4,
-        fill: false,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        borderWidth: 2,
-        yAxisID: 'y1'
-      }
-    ]
-  };
-  const options = {
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: { mode: 'index', intersect: false },
-  plugins: {
-    legend: {
-      labels: {
-        color: '#333',
-        font: { size: 14 }
-      }
-    },
-    datalabels: {
-      display: true,
-      align: 'top',
-      color: '#444',
-      font: {
-        weight: 'bold'
-      },
-      formatter: function(value, context) {
-        return value.toFixed(1);
-      }
+  <script>
+    // Tab switching logic
+    function showRoom(room) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+      document.querySelectorAll('.room-tab').forEach(tab => tab.style.display = 'none');
+      document.querySelector('.tab[onclick="showRoom(\''+room+'\')"]').classList.add('active');
+      document.getElementById('room-' + room).style.display = 'flex';
     }
-  },
-  scales: {
-    x: {
-      type: 'time',
-      time: {
-        tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
-        displayFormats: {
-          second: 'HH:mm:ss',
-          minute: 'HH:mm',
-          hour: 'HH:mm'
-        }
-      },
-      title: {
-        display: true,
-        text: 'Time',
-        color: '#333'
-      },
-      grid: {
-        display: false
-      },
-      ticks: {
-        color: '#666',
-        maxRotation: 0
-      },
-      border: {
-        display: true,
-        color: '#333'
-      }
-    },
-    y: {
-      type: 'linear',
-      position: 'left',
-      title: {
-        display: true,
-        text: 'Value',
-        color: '#333'
-      },
-      min: 0,
-      grid: {
-        display: false
-      },
-      ticks: {
-        color: '#666'
-      },
-      border: {
-        display: true,
-        color: '#333'
-      }
-    }
-  }
-};
+    // Set initial room
+    showRoom('living');
 
-  function createRelaysUI() {
-    const relaysDiv = document.getElementById('relays');
-    relaysDiv.innerHTML = '';
-    for (let i = 1; i <= 8; i++) {
-      const relayDiv = document.createElement('div');
-      relayDiv.className = 'relay-label';
-      relayDiv.innerHTML = `
-        Relay ${i} <label class="switch"><input type="checkbox" id="relay${i}" /><span class="slider"></span></label>
-      `;
-      relaysDiv.appendChild(relayDiv);
-      document.getElementById(`relay${i}`).addEventListener('change', e => toggleRelay(i, e.target.checked));
+    // Example JS for UI demo (replace with real fetches for live data)
+    function toggleLight(el) {
+      // TODO: Send relay command
     }
-  }
-  function toggleRelay(relayNum, state) {
-    fetch(`/relay?num=${relayNum}&state=${state ? 1 : 0}`, { credentials: 'include' })
-      .then(resp => resp.json())
-      .then(data => {
-        if (!data.success) alert('Failed to toggle relay');
-      });
-  }
-  function fetchRelayStates() {
-    fetch('/relaystates', { credentials: 'include' })
-      .then(resp => resp.json())
-      .then(states => {
-        for (let i = 1; i <= 8; i++) {
-          document.getElementById(`relay${i}`).checked = states[i - 1];
-        }
-      });
-  }
-  function fetchCurrentReadings() {
-    fetch('/current', { credentials: 'include' })
-      .then(resp => resp.json())
-      .then(data => {
-        document.getElementById('current-temp').textContent = data.temperature.toFixed(1) + ' °C';
-        document.getElementById('current-hum').textContent = data.humidity.toFixed(1) + ' %';
-      });
-  }
-  function fetchSensorData(filter='LIVE') {
-    fetch(`/sensordata?filter=${filter}`, { credentials: 'include' })
-      .then(resp => resp.json())
-      .then(points => {
-        chart.data.labels = points.map(p => new Date(p.timestamp * 1000));
-        chart.data.datasets[0].data = points.map(p => p.temperature);
-        chart.data.datasets[1].data = points.map(p => p.humidity);
-        chart.update();
-      });
-  }
-  function showLogs() {
-    fetch('/logs', { credentials: 'include' })
-      .then(resp => resp.text())
-      .then(text => {
-        const logsEl = document.getElementById('logs');
-        logsEl.textContent = text;
-        logsEl.scrollTop = logsEl.scrollHeight;
-      });
-  }
-  document.querySelectorAll('.filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      fetchSensorData(btn.getAttribute('data-filter'));
-    });
-  });
-  window.onload = () => {
-    createRelaysUI();
-    fetchRelayStates();
-    fetchCurrentReadings();
-    chart = new Chart(document.getElementById('sensorChart').getContext('2d'), {
-      type: 'line',
-      data: data,
-      options: options,
-      plugins: [ChartDataLabels]
-    });
-    fetchSensorData();
-    setInterval(() => {
-      fetchRelayStates();
-      fetchCurrentReadings();
-      const activeFilter = document.querySelector('.filter-btn.active').getAttribute('data-filter');
-      fetchSensorData(activeFilter);
-    }, 10000);
-  };
-</script>
+    function updateBrightness(val) {
+      document.querySelector('.slider-labels span:nth-child(2)').textContent = val + '%';
+      // TODO: Send brightness value
+    }
+    function changeTemp(delta) {
+      let el = document.getElementById('tempValue');
+      let val = parseInt(el.textContent);
+      val += delta;
+      el.textContent = val + '°C';
+      // TODO: Send temp value
+    }
+    function setMode(mode) {
+      // TODO: Send mode
+    }
+    function toggleFan(el) {
+      // TODO: Send relay command
+    }
+    function setFanSpeed(speed) {
+      // TODO: Send speed
+    }
+    function unlockDoor() {
+      let btn = document.getElementById('doorStatus');
+      btn.textContent = 'Unlocked';
+      btn.classList.remove('locked');
+      btn.classList.add('unlocked');
+      setTimeout(() => {
+        btn.textContent = 'Locked';
+        btn.classList.remove('unlocked');
+        btn.classList.add('locked');
+      }, 5000);
+      // TODO: Send unlock command
+    }
+    function testSensor() {
+      let btn = document.getElementById('motionStatus');
+      btn.textContent = 'Motion!';
+      setTimeout(() => { btn.textContent = 'No Motion'; }, 2000);
+      // TODO: Test sensor
+    }
+  </script>
 </body>
 </html>
 )rawliteral";
