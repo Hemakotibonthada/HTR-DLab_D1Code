@@ -616,108 +616,121 @@ void handleRoot() {
 <pre id="logs"></pre>
 <script>
   let chart;
+
+  // Simulating Exponential Growth for Temperature and Humidity
+  let tempData = [0];  // Starting temperature (°C)
+  let humData = [0];   // Starting humidity (%)
+  let labels = [new Date()];
+
+  // For dot logic
+  let prevTemp = tempData[0];
+  let prevHum = humData[0];
+  let tempPointStyles = [true];
+  let humPointStyles = [true];
+
   const data = {
-    labels: [],
+    labels: labels,
     datasets: [
       {
-        label: 'Temperature (°C)',
+        label: '°C',
         borderColor: '#FF6384',
         backgroundColor: '#FF6384',
-        data: [],
+        data: tempData,
         tension: 0.4,
         fill: false,
-        pointRadius: 5,
+        pointRadius: tempPointStyles.map(show => show ? 5 : 0),
         pointHoverRadius: 7,
         borderWidth: 2,
         yAxisID: 'y'
       },
       {
-        label: 'Humidity (%)',
+        label: '%',
         borderColor: '#36A2EB',
         backgroundColor: '#36A2EB',
-        data: [],
+        data: humData,
         tension: 0.4,
         fill: false,
-        pointRadius: 5,
+        pointRadius: humPointStyles.map(show => show ? 5 : 0),
         pointHoverRadius: 7,
         borderWidth: 2,
         yAxisID: 'y1'
       }
     ]
   };
+
   const options = {
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: { mode: 'index', intersect: false },
-  plugins: {
-    legend: {
-      labels: {
-        color: '#333',
-        font: { size: 14 }
-      }
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    animation: {
+      duration: 2000, // Smooth transition every 2 seconds
+      easing: 'easeInOutQuad'
     },
-    datalabels: {
-      display: true,
-      align: 'top',
-      color: '#444',
-      font: {
-        weight: 'bold'
-      },
-      formatter: function(value, context) {
-        return value.toFixed(1);
-      }
-    }
-  },
-  scales: {
-    x: {
-      type: 'time',
-      time: {
-        tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
-        displayFormats: {
-          second: 'HH:mm:ss',
-          minute: 'HH:mm',
-          hour: 'HH:mm'
+    plugins: {
+      legend: {
+        labels: {
+          color: '#333',
+          font: { size: 14 }
         }
       },
-      title: {
-        display: true,
-        text: 'Time',
-        color: '#333'
-      },
-      grid: {
-        display: false
-      },
-      ticks: {
-        color: '#666',
-        maxRotation: 0
-      },
-      border: {
-        display: true,
-        color: '#333'
+      datalabels: {
+        display: function(context) {
+          // Display only on the latest data point
+          const dataset = context.dataset.data;
+          return context.dataIndex === dataset.length - 1;
+        },
+        align: 'top',
+        color: '#444',
+        font: { weight: 'bold', size: 12 },
+        backgroundColor: '#fff',
+        borderRadius: 4,
+        padding: 4,
+        formatter: function(value, context) {
+          return `${value.toFixed(1)} ${context.dataset.label}`;
+        }
       }
     },
-    y: {
-      type: 'linear',
-      position: 'left',
-      title: {
-        display: true,
-        text: 'Value',
-        color: '#333'
+    scales: {
+      x: {
+        type: 'time',
+        time: {
+          unit: 'minute',
+          stepSize: 5, // Update time every 5 minutes
+          tooltipFormat: 'yyyy-MM-dd HH:mm:ss',
+          displayFormats: {
+            minute: 'HH:mm'
+          }
+        },
+        title: { display: true, text: 'Time', color: '#333' },
+        grid: { display: false },
+        ticks: { color: '#666', maxRotation: 0 },
+        border: { display: true, color: '#333' },
+        min: null,
+        max: null
       },
-      min: 0,
-      grid: {
-        display: false
-      },
-      ticks: {
-        color: '#666'
-      },
-      border: {
-        display: true,
-        color: '#333'
+      y: {
+        type: 'linear',
+        position: 'left',
+        title: { display: true, text: 'Value', color: '#333' },
+        min: 0, // Always start from 0
+        grid: { display: false },
+        ticks: { color: '#666' },
+        border: { display: true, color: '#333' }
       }
     }
+  };
+
+  function shiftXAxisWindow() {
+    // Show the latest node at about the middle (50%) of the chart width
+    if (labels.length < 2) return;
+    const total = labels.length;
+    const windowSize = Math.floor(total * 0.5); // 50% window for middle
+    const endIdx = total - 1;
+    const startIdx = Math.max(0, endIdx - windowSize);
+    options.scales.x.min = labels[startIdx];
+    options.scales.x.max = labels[endIdx];
+    if (chart) chart.update();
   }
-};
 
   function createRelaysUI() {
     const relaysDiv = document.getElementById('relays');
@@ -756,16 +769,6 @@ void handleRoot() {
         document.getElementById('current-hum').textContent = data.humidity.toFixed(1) + ' %';
       });
   }
-  function fetchSensorData(filter='LIVE') {
-    fetch(`/sensordata?filter=${filter}`, { credentials: 'include' })
-      .then(resp => resp.json())
-      .then(points => {
-        chart.data.labels = points.map(p => new Date(p.timestamp * 1000));
-        chart.data.datasets[0].data = points.map(p => p.temperature);
-        chart.data.datasets[1].data = points.map(p => p.humidity);
-        chart.update();
-      });
-  }
   function showLogs() {
     fetch('/logs', { credentials: 'include' })
       .then(resp => resp.text())
@@ -779,7 +782,7 @@ void handleRoot() {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      fetchSensorData(btn.getAttribute('data-filter'));
+      // You can add logic here to change simulation or fetch real data
     });
   });
   window.onload = () => {
@@ -792,14 +795,49 @@ void handleRoot() {
       options: options,
       plugins: [ChartDataLabels]
     });
-    fetchSensorData();
-    setInterval(() => {
-      fetchRelayStates();
-      fetchCurrentReadings();
-      const activeFilter = document.querySelector('.filter-btn.active').getAttribute('data-filter');
-      fetchSensorData(activeFilter);
-    }, 10000);
+    shiftXAxisWindow();
   };
+
+  // Exponential growth function for simulation
+  function getExponentialData(currentValue) {
+    return currentValue * 1.02;
+  }
+
+  // Update chart data every 2 seconds
+  setInterval(() => {
+    // Simulate exponential changes in temperature and humidity
+    let newTemp = getExponentialData(tempData[tempData.length - 1]);
+    let newHum = getExponentialData(humData[humData.length - 1]);
+    tempData.push(newTemp);
+    humData.push(newHum);
+
+    // Dot logic: only show dot if value changed from previous
+    tempPointStyles.push(newTemp !== prevTemp);
+    humPointStyles.push(newHum !== prevHum);
+
+    prevTemp = newTemp;
+    prevHum = newHum;
+
+    // Keep arrays in sync (max 50 points)
+    if (tempData.length > 50) tempData.shift();
+    if (humData.length > 50) humData.shift();
+    if (tempPointStyles.length > 50) tempPointStyles.shift();
+    if (humPointStyles.length > 50) humPointStyles.shift();
+
+    let now = new Date();
+    labels.push(now);
+    if (labels.length > 50) labels.shift();
+
+    // Update pointRadius arrays for Chart.js
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = tempData;
+    chart.data.datasets[1].data = humData;
+    chart.data.datasets[0].pointRadius = tempPointStyles.map(show => show ? 5 : 0);
+    chart.data.datasets[1].pointRadius = humPointStyles.map(show => show ? 5 : 0);
+
+    shiftXAxisWindow();
+    chart.update();
+  }, 2000);
 </script>
 </body>
 </html>
