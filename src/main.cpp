@@ -26,6 +26,74 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
+#include <TimeAlarms.h> // Add TimeAlarms library
+
+
+// ----------- DEBUG SETTINGS -----------
+// Change DEBUG_LEVEL to control verbosity:
+// 0 = No debug output
+// 1 = Error messages only
+// 2 = Errors and warnings
+// 3 = Errors, warnings, and info
+// 4 = Verbose (all messages)
+#define DEBUG_LEVEL 4
+
+// Component-specific debugging flags
+#define DEBUG_WIFI true       // WiFi connection debugging
+#define DEBUG_AUTH false  // Disable just auth debugging
+#define DEBUG_SENSORS true    // Sensor reading debugging
+#define DEBUG_RELAYS true     // Relay operation debugging
+#define DEBUG_HTTP true       // HTTP server requests debugging
+#define DEBUG_FILESYSTEM true // SPIFFS file operations debugging
+
+// Colors for better readability in Serial Monitor
+#define DEBUG_COLOR_ERROR "\033[31m"    // Red
+#define DEBUG_COLOR_WARNING "\033[33m"  // Yellow
+#define DEBUG_COLOR_INFO "\033[36m"     // Cyan
+#define DEBUG_COLOR_VERBOSE "\033[32m"  // Green
+#define DEBUG_COLOR_RESET "\033[0m"     // Reset to default
+
+// Debug print macros
+#if DEBUG_LEVEL > 0
+  #define DEBUG_ERROR(comp, msg) if(DEBUG_##comp) { Serial.print(DEBUG_COLOR_ERROR "[ERROR]["); Serial.print(#comp); Serial.print("] "); Serial.print(msg); Serial.println(DEBUG_COLOR_RESET); }
+#else
+  #define DEBUG_ERROR(comp, msg)
+#endif
+
+#if DEBUG_LEVEL > 1
+  #define DEBUG_WARN(comp, msg) if(DEBUG_##comp) { Serial.print(DEBUG_COLOR_WARNING "[WARN]["); Serial.print(#comp); Serial.print("] "); Serial.print(msg); Serial.println(DEBUG_COLOR_RESET); }
+#else
+  #define DEBUG_WARN(comp, msg)
+#endif
+
+#if DEBUG_LEVEL > 2
+  #define DEBUG_INFO(comp, msg) if(DEBUG_##comp) { Serial.print(DEBUG_COLOR_INFO "[INFO]["); Serial.print(#comp); Serial.print("] "); Serial.print(msg); Serial.println(DEBUG_COLOR_RESET); }
+#else
+  #define DEBUG_INFO(comp, msg)
+#endif
+
+#if DEBUG_LEVEL > 3
+  #define DEBUG_VERBOSE(comp, msg) if(DEBUG_##comp) { Serial.print(DEBUG_COLOR_VERBOSE "[VERBOSE]["); Serial.print(#comp); Serial.print("] "); Serial.print(msg); Serial.println(DEBUG_COLOR_RESET); }
+#else
+  #define DEBUG_VERBOSE(comp, msg)
+#endif
+
+// Debug function for dumping binary data (like cookies)
+#if DEBUG_LEVEL > 2
+  void debugHexDump(const char* title, const uint8_t* data, size_t length) {
+    if (!data || length == 0) return;
+    Serial.printf("\n%s [%u bytes]:\n", title, length);
+    for (size_t i = 0; i < length; i++) {
+      Serial.printf("%02X ", data[i]);
+      if ((i + 1) % 16 == 0) Serial.println();
+    }
+    Serial.println();
+  }
+#else
+  #define debugHexDump(title, data, length)
+#endif
+
+// ----------- END DEBUG SETTINGS -----------
 
 // ----------- CONFIGURABLE SECTION -----------
 
@@ -89,6 +157,16 @@ float currentTemp = NAN, currentHum = NAN;
 unsigned long lastSensorRead = 0;
 bool buttonPressed = false;
 unsigned long lastButtonPress = 0;
+int statusHistoryCount = 0;
+
+// Forward declarations for security and event functions
+bool isIPBlocked(const String& ip);
+void recordLoginAttempt(const String& ip, bool success);
+void recordRelayEvent(int relayNum, bool state, const String& source);
+void setupSchedules();
+void checkSchedules();
+
+// ----------- Helper Functions -----------
 
 struct SensorDataPoint {
   time_t timestamp;
@@ -97,6 +175,67 @@ struct SensorDataPoint {
 };
 SensorDataPoint dataPoints[MAX_DATA_POINTS];
 int dataCount = 0;
+
+// Schedule management
+#define MAX_SCHEDULES 10
+
+struct Schedule {
+  int id;
+  bool active;
+  int hour;
+  int minute;
+  bool days[7]; // Sun-Sat
+  int relayNum;
+  bool state;
+  bool repeat;
+  AlarmID_t alarmId;
+};
+
+Schedule schedules[MAX_SCHEDULES];
+int scheduleCount = 0;
+
+// Weather data structure
+struct WeatherData {
+  String description;
+  float temperature;
+  float feelsLike;
+  int humidity;
+  float windSpeed;
+  long sunrise;
+  long sunset;
+  String iconCode;
+  unsigned long lastUpdate;
+};
+
+WeatherData weather;
+const String WEATHER_API_KEY = "e5074258d34949dd1310d451504f2043"; // Add this to config.ini
+String WEATHER_CITY = "Hyderabad"; // Add this to config.ini
+
+// Add to Global Variables section
+struct LoginAttempt {
+  String ipAddress;
+  time_t timestamp;
+  bool success;
+};
+
+#define MAX_LOGIN_ATTEMPTS 10
+LoginAttempt loginAttempts[MAX_LOGIN_ATTEMPTS];
+int loginAttemptCount = 0;
+const int MAX_FAILED_ATTEMPTS = 5;
+const int LOCKOUT_DURATION = 300; // 5 minutes in seconds
+
+// Add after weather data struct
+#define MAX_STATUS_HISTORY 100
+
+struct StatusEvent {
+  time_t timestamp;
+  int relayNum;
+  bool state;
+  String source; // "manual", "schedule", "api"
+};
+
+StatusEvent statusHistory[MAX_STATUS_HISTORY];
+
 
 // ----------- Helper Functions -----------
 
@@ -123,31 +262,27 @@ void addLog(const String& entry) {
 }
 
 bool isLoggedIn() {
-  // TEMPORARY: Always return true to bypass login
   return true;
-  
-  // Original login check code (commented out)
-  /*
-  if (!server.hasHeader("Cookie")) {
-    Serial.println("[DEBUG] No Cookie header received");
-    return false;
-  }
-  String cookie = server.header("Cookie");
-  Serial.println("[DEBUG] Cookie header: " + cookie);
-  int idx = cookie.indexOf("ESPSESSIONID=");
-  if (idx == -1) {
-    Serial.println("[DEBUG] ESPSESSIONID not found in cookie");
-    return false;
-  }
-  int start = idx + strlen("ESPSESSIONID=");
-  int end = cookie.indexOf(';', start);
-  String token = (end == -1) ? cookie.substring(start) : cookie.substring(start, end);
-  token.trim();
-  sessionToken.trim();
-  Serial.println("[DEBUG] Cookie token: [" + token + "] | Session: [" + sessionToken + "]");
-  Serial.printf("[DEBUG] Comparing cookie token [%s] with sessionToken [%s]\n", token.c_str(), sessionToken.c_str());
-  return token == sessionToken;
-  */
+  // DEBUG_VERBOSE(AUTH, "Checking login state");
+  // if (!server.hasHeader("Cookie")) {
+  //   DEBUG_INFO(AUTH, "No Cookie header received");
+  //   return false;
+  // }
+  // String cookie = server.header("Cookie");
+  // DEBUG_VERBOSE(AUTH, "Cookie header: " + cookie);
+  // int idx = cookie.indexOf("ESPSESSIONID=");
+  // if (idx == -1) {
+  //   DEBUG_INFO(AUTH, "ESPSESSIONID not found in cookie");
+  //   return false;
+  // }
+  // int start = idx + strlen("ESPSESSIONID=");
+  // int end = cookie.indexOf(';', start);
+  // String token = (end == -1) ? cookie.substring(start) : cookie.substring(start, end);
+  // token.trim();
+  // sessionToken.trim();
+  // DEBUG_VERBOSE(AUTH, "Cookie token: [" + token + "] | Session: [" + sessionToken + "]");
+  // Serial.printf("[DEBUG] Comparing cookie token [%s] with sessionToken [%s]\n", token.c_str(), sessionToken.c_str());
+  // return token == sessionToken;
 }
 
 bool requireLogin() {
@@ -216,43 +351,61 @@ String stripQuotes(const String& s) {
 }
 
 void connectWiFiStatic() {
-  String ssid = stripQuotes(getINIValue("/config.ini", "wifi_ssid", ""));
-  String pass = stripQuotes(getINIValue("/config.ini", "wifi_password", ""));
-  String staticIP = getINIValue("/config.ini", "static_ip", "");
-  String gatewayStr = getINIValue("/config.ini", "gateway", "");
-  String subnetStr = getINIValue("/config.ini", "subnet", "");
-  String dnsStr = getINIValue("/config.ini", "dns", "");
+  if (SPIFFS.exists("/config.ini")) {
+    Serial.println("Found config.ini file");
+    
+    String ssid = stripQuotes(getINIValue("/config.ini", "wifi_ssid", ""));
+    String pass = stripQuotes(getINIValue("/config.ini", "wifi_password", ""));
+    String staticIP = getINIValue("/config.ini", "static_ip", "");
+    String gatewayStr = getINIValue("/config.ini", "gateway", "");
+    String subnetStr = getINIValue("/config.ini", "subnet", "");
+    String dnsStr = getINIValue("/config.ini", "dns", "");
 
-  if (ssid == "" || pass == "" || staticIP == "" || gatewayStr == "" || subnetStr == "") {
-    Serial.println("Missing WiFi/static IP config in config.ini");
-    while (1) delay(1000);
-  }
+    Serial.println("Read values:");
+    Serial.println("SSID: " + ssid);
+    Serial.println("Password: " + pass);
+    Serial.println("Static IP: " + staticIP);
+    Serial.println("Gateway: " + gatewayStr);
+    Serial.println("Subnet: " + subnetStr);
+    Serial.println("DNS: " + dnsStr);
 
-  IPAddress ip, gw, sn, dn;
-  ip.fromString(staticIP);
-  gw.fromString(gatewayStr);
-  sn.fromString(subnetStr);
-  dn.fromString(dnsStr.length() > 0 ? dnsStr : gatewayStr);
+    WiFi.mode(WIFI_STA);
 
-  WiFi.mode(WIFI_STA);
-  WiFi.config(ip, gw, sn, dn);
+    bool useStatic = staticIP.length() > 0 && gatewayStr.length() > 0 && subnetStr.length() > 0;
+    if (useStatic) {
+      IPAddress ip, gw, sn, dn;
+      if (ip.fromString(staticIP) && gw.fromString(gatewayStr) && sn.fromString(subnetStr)) {
+        if (dnsStr.length() > 0 && dn.fromString(dnsStr)) {
+          WiFi.config(ip, gw, sn, dn);
+        } else {
+          WiFi.config(ip, gw, sn);
+        }
+        Serial.println("Attempting WiFi connection (static IP)...");
+      } else {
+        Serial.println("Invalid static IP configuration, falling back to DHCP.");
+        useStatic = false;
+      }
+    }
 
-  WiFi.begin(ssid.c_str(), pass.c_str());
-  Serial.print("Connecting to WiFi (static IP)...");
-  int retry = 0;
-  while (WiFi.status() != WL_CONNECTED && retry < 30) {
-    delay(500); 
-    Serial.print(".");
-    retry++;
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
-    addLog("Connected to WiFi (static IP): " + WiFi.localIP().toString());
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    Serial.print("Connecting to WiFi");
+    int retry = 0;
+    while (WiFi.status() != WL_CONNECTED && retry < 30) {
+      delay(500);
+      Serial.print(".");
+      retry++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nWiFi connected! IP: " + WiFi.localIP().toString());
+      addLog("Connected to WiFi: " + WiFi.localIP().toString());
+    } else {
+      Serial.println("\nFailed to connect to WiFi.");
+      addLog("Failed to connect to WiFi.");
+      ESP.restart();
+    }
   } else {
-    Serial.println("\nFailed to connect to WiFi with static IP.");
-    addLog("Failed to connect to WiFi with static IP.");
-    ESP.restart();
+    Serial.println("config.ini file not found!");
   }
 }
 
@@ -433,17 +586,122 @@ void handleLogin() {
   <title>IoT Dashboard Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { min-height: 100vh; background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
-      display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-    .login-container { background: #fff; border-radius: 24px; box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18); padding: 2.8rem 2.2rem 2.2rem 2.2rem; width: 100%; max-width: 370px; }
-    .login-title { font-size: 2.2rem; font-weight: 800; color: #0072ff; margin-bottom: 1.7rem; letter-spacing: 1.5px; text-align: center; }
-    .input-group { margin-bottom: 1.3rem; }
-    .input-group label { display: block; margin-bottom: 0.5rem; color: #0072ff; font-weight: 600; }
-    .input-group input { width: 100%; padding: 0.8rem 1.1rem; border: none; border-radius: 8px; font-size: 1.08rem; background: #f0f7fa; }
-    .login-btn { width: 100%; padding: 0.9rem; background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%); color: #fff; border: none; border-radius: 8px; font-size: 1.15rem; font-weight: 700; cursor: pointer; margin-top: 0.7rem; }
-    .footer { margin-top: 2.2rem; text-align: center; color: #aaa; font-size: 1rem; }
-    .forgot-link { color: #0072ff; text-decoration: underline; font-size: 1rem; font-weight: 500; margin-top: 1.2rem; display: inline-block; }
-    .error-message { color: #e74c3c; background: #fff0f0; border-radius: 6px; padding: 0.6rem 1.1rem; margin-top: 1.1rem; text-align: center; font-weight: 600; display: %ERROR_DISPLAY%; }
+    :root {
+      --bg-color: #f4f7fb;
+      --card-bg: #fff;
+      --text-color: #222;
+      --text-secondary: #888;
+      --primary-color: #0072ff;
+      --secondary-color: #00c6ff;
+      --border-color: #eee;
+      --shadow-color: rgba(0,0,0,0.07);
+    }
+
+    .dark-mode {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-secondary: #aaa;
+      --primary-color: #0099ff;
+      --secondary-color: #00c6ff;
+      --border-color: #333;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      transition: background 0.3s ease;
+    }
+
+    .login-container {
+      background: var(--card-bg);
+      border-radius: 24px;
+      box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18);
+      padding: 2.8rem 2.2rem 2.2rem 2.2rem;
+      width: 100%;
+      max-width: 370px;
+    }
+
+    .login-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--primary-color);
+      margin-bottom: 1.7rem;
+      letter-spacing: 1.5px;
+      text-align: center;
+    }
+
+    .input-group {
+      margin-bottom: 1.3rem;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem 1.1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.08rem;
+      background: #f0f7fa;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 1rem;
+    }
+
+    .forgot-link {
+      color: var(--primary-color);
+      text-decoration: underline;
+      font-size: 1rem;
+      font-weight: 500;
+      margin-top: 1.2rem;
+      display: inline-block;
+    }
+
+    .error-message {
+      color: #e74c3c;
+      background: #fff0f0;
+      border-radius: 6px;
+      padding: 0.6rem 1.1rem;
+      margin-top: 1.1rem;
+      text-align: center;
+      font-weight: 600;
+      display: %ERROR_DISPLAY%;
+    }
+
+    .dark-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -466,6 +724,25 @@ void handleLogin() {
     </div>
     <div class="footer">©️ 2024 IoT Dashboard</div>
   </div>
+  <script>
+    // Dark mode toggle
+    const toggleDarkMode = () => {
+      document.body.classList.toggle('dark-mode');
+      const isDark = document.body.classList.contains('dark-mode');
+      localStorage.setItem('dark-mode', isDark);
+    }
+
+    // Load dark mode preference
+    const loadDarkMode = () => {
+      const isDark = JSON.parse(localStorage.getItem('dark-mode'));
+      if (isDark) {
+        document.body.classList.add('dark-mode');
+      }
+    }
+
+    // Initialize dark mode
+    loadDarkMode();
+  </script>
 </body>
 </html>
 )rawliteral";
@@ -477,6 +754,14 @@ void handleLogin() {
     String password = server.arg("password");
     Serial.println("[DEBUG] Login POST: username=" + username + ", password=" + password);
 
+    String clientIP = server.client().remoteIP().toString();
+  
+    if (isIPBlocked(clientIP)) {
+      DEBUG_WARN(AUTH, "Blocked login attempt from IP: " + clientIP);
+      server.send(429, "text/html", "<html><body><h2>Too many failed login attempts</h2><p>Please try again later.</p></body></html>");
+      return;
+    }
+  
     if (username == savedUsername && password == savedPassword) {
       sessionToken = generateSessionToken();
       Serial.println("[DEBUG] New sessionToken: " + sessionToken);
@@ -487,6 +772,7 @@ void handleLogin() {
       server.send(302, "text/plain", "Redirecting to dashboard...");
       delay(100);
       addLog("User logged in");
+      recordLoginAttempt(clientIP, true);
       Serial.println("[DEBUG] Login success, JS redirect to /");
     } else {
       String html = R"rawliteral(
@@ -497,17 +783,129 @@ void handleLogin() {
   <title>IoT Dashboard Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { min-height: 100vh; background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
-      display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-    .login-container { background: #fff; border-radius: 24px; box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18); padding: 2.8rem 2.2rem 2.2rem 2.2rem; width: 100%; max-width: 370px; }
-    .login-title { font-size: 2.2rem; font-weight: 800; color: #0072ff; margin-bottom: 1.7rem; letter-spacing: 1.5px; text-align: center; }
-    .input-group { margin-bottom: 1.3rem; }
-    .input-group label { display: block; margin-bottom: 0.5rem; color: #0072ff; font-weight: 600; }
-    .input-group input { width: 100%; padding: 0.8rem 1.1rem; border: none; border-radius: 8px; font-size: 1.08rem; background: #f0f7fa; }
-    .login-btn { width: 100%; padding: 0.9rem; background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%); color: #fff; border: none; border-radius: 8px; font-size: 1.15rem; font-weight: 700; cursor: pointer; margin-top: 0.7rem; }
-    .footer { margin-top: 2.2rem; text-align: center; color: #aaa; font-size: 1rem; }
-    .forgot-link { color: #0072ff; text-decoration: underline; font-size: 1rem; font-weight: 500; margin-top: 1.2rem; display: inline-block; }
-    .error-message { color: #e74c3c; background: #fff0f0; border-radius: 6px; padding: 0.6rem 1.1rem; margin-top: 1.1rem; text-align: center; font-weight: 600; display: block; }
+    :root {
+      --bg-color: #f4f7fb;
+      --card-bg: #fff;
+      --text-color: #222;
+      --text-secondary: #888;
+      --primary-color: #0072ff;
+      --secondary-color: #00c6ff;
+      --border-color: #eee;
+      --shadow-color: rgba(0,0,0,0.07);
+    }
+
+    .dark-mode {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-secondary: #aaa;
+      --primary-color: #0099ff;
+      --secondary-color: #00c6ff;
+      --border-color: #333;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      transition: background 0.3s ease;
+    }
+
+    .login-container {
+      background: var(--card-bg);
+      border-radius: 24px;
+      box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18);
+      padding: 2.8rem 2.2rem 2.2rem 2.2rem;
+      width: 100%;
+      max-width: 370px;
+    }
+
+    .login-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--primary-color);
+      margin-bottom: 1.7rem;
+      letter-spacing: 1.5px;
+      text-align: center;
+    }
+
+    .input-group {
+      margin-bottom: 1.3rem;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem 1.1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.08rem;
+      background: #f0f7fa;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 0.7rem;
+    }
+
+    .footer {
+      margin-top: 2.2rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 1rem;
+    }
+
+    .forgot-link {
+      color: var(--primary-color);
+      text-decoration: underline;
+      font-size: 1rem;
+      font-weight: 500;
+      margin-top: 1.2rem;
+      display: inline-block;
+    }
+
+    .error-message {
+      color: #e74c3c;
+      background: #fff0f0;
+      border-radius: 6px;
+      padding: 0.6rem 1.1rem;
+      margin-top: 1.1rem;
+      text-align: center;
+      font-weight: 600;
+      display: block;
+    }
+
+    .dark-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -530,10 +928,30 @@ void handleLogin() {
     </div>
     <div class="footer">©️ 2024 IoT Dashboard</div>
   </div>
+  <script>
+    // Dark mode toggle
+    const toggleDarkMode = () => {
+      document.body.classList.toggle('dark-mode');
+      const isDark = document.body.classList.contains('dark-mode');
+      localStorage.setItem('dark-mode', isDark);
+    }
+
+    // Load dark mode preference
+    const loadDarkMode = () => {
+      const isDark = JSON.parse(localStorage.getItem('dark-mode'));
+      if (isDark) {
+        document.body.classList.add('dark-mode');
+      }
+    }
+
+    // Initialize dark mode
+    loadDarkMode();
+  </script>
 </body>
 </html>
 )rawliteral";
       server.send(200, "text/html", html);
+      recordLoginAttempt(clientIP, false);
       addLog("Failed login attempt");
       Serial.println("[DEBUG] Login failed");
     }
@@ -566,12 +984,35 @@ void handleRoot() {
   <link href="https://fonts.googleapis.com/css?family=Segoe+UI:400,700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
+    :root {
+      --bg-color: #f4f7fb;
+      --card-bg: #fff;
+      --text-color: #222;
+      --text-secondary: #888;
+      --primary-color: #0072ff;
+      --secondary-color: #00c6ff;
+      --border-color: #eee;
+      --shadow-color: rgba(0,0,0,0.07);
+    }
+
+    .dark-mode {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-secondary: #aaa;
+      --primary-color: #0099ff;
+      --secondary-color: #00c6ff;
+      --border-color: #333;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
-      background: #f4f7fb;
+      background: var(--bg-color);
       margin: 0;
       padding: 0;
-      color: #222;
+      color: var(--text-color);
+      transition: background 0.3s ease;
     }
     .container {
       max-width: 1200px;
@@ -630,9 +1071,9 @@ void handleRoot() {
       margin-bottom: 24px;
     }
     .card {
-      background: #fff;
+      background: var(--card-bg);
       border-radius: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      box-shadow: 0 2px 12px var(--shadow-color);
       padding: 28px 24px 20px 24px;
       flex: 1 1 260px;
       min-width: 260px;
@@ -849,7 +1290,7 @@ void handleRoot() {
       let tabsHtml = '';
       rooms.forEach((room, index) => {
         tabsHtml += `<button class="tab ${index === 0 ? 'active' : ''}" 
-                      onclick="showRoom('${room.id}')">${room.name}</button>`;
+                      onclick="showRoom('${room.id}', this)">${room.name}</button>`;
       });
       document.getElementById('roomTabs').innerHTML = tabsHtml;
     }
@@ -906,7 +1347,7 @@ void handleRoot() {
     }
     
     // Switch active room tab
-    function showRoom(roomId) {
+    function showRoom(roomId, btn) {
       // Hide all room tabs
       document.querySelectorAll('.room-tab').forEach(tab => {
         tab.style.display = 'none';
@@ -919,7 +1360,7 @@ void handleRoot() {
       document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.remove('active');
       });
-      event.currentTarget.classList.add('active');
+      if (btn) btn.classList.add('active');
     }
     
     // Toggle a relay
@@ -930,13 +1371,12 @@ void handleRoot() {
           if (!data.success) {
             alert('Failed to toggle relay');
             // Revert the checkbox state
-            event.target.checked = !state;
+            fetchRelayStates();
           }
         })
         .catch(err => {
           alert('Network error: ' + err.message);
-          // Revert the checkbox state
-          event.target.checked = !state;
+          fetchRelayStates();
         });
     }
     
@@ -1028,27 +1468,146 @@ void handleSettings() {
   <title>Settings</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { background: #f5f7fa; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    .settings-container { background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 600px; padding: 40px; }
-    .settings-title { color: #2c3e50; font-size: 22px; font-weight: 600; margin-bottom: 30px; text-align: center; }
-    .settings-tabs { display: flex; border-bottom: 1px solid #eee; margin-bottom: 20px; }
-    .settings-tab { padding: 10px 20px; cursor: pointer; font-weight: 500; color: #7f8c8d; }
-    .settings-tab.active { color: #0072ff; border-bottom: 2px solid #0072ff; }
-    .settings-content { display: none; }
-    .settings-content.active { display: block; }
-    .input-group { margin-bottom: 20px; }
-    .input-group label { display: block; margin-bottom: 8px; color: #2c3e50; font-size: 14px; font-weight: 500; }
-    .input-group input, .input-group select { width: 100%; padding: 12px 15px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 14px; transition: border-color 0.3s; }
-    .input-group input:focus, .input-group select:focus { outline: none; border-color: #3498db; }
-    .settings-button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 500; cursor: pointer; transition: background-color 0.3s; }
-    .settings-button:hover { background-color: #2980b9; }
-    .error-message { color: #e74c3c; font-size: 14px; margin-top: 15px; display: none; }
-    .success-message { color: #27ae60; font-size: 14px; margin-top: 15px; display: none; }
-    .scene-config { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-    .scene-item { flex: 1 1 200px; background: #f8f9fa; padding: 15px; border-radius: 8px; }
-    .scene-item h3 { margin-top: 0; color: #2c3e50; }
-    .scene-toggle { display: flex; align-items: center; margin-bottom: 8px; }
-    .scene-toggle label { margin-left: 8px; }
+    :root {
+      --bg-color: #f4f7fb;
+      --card-bg: #fff;
+      --text-color: #222;
+      --text-secondary: #888;
+      --primary-color: #0072ff;
+      --secondary-color: #00c6ff;
+      --border-color: #eee;
+      --shadow-color: rgba(0,0,0,0.07);
+    }
+
+    .dark-mode {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-secondary: #aaa;
+      --primary-color: #0099ff;
+      --secondary-color: #00c6ff;
+      --border-color: #333;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      transition: background 0.3s ease;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .settings-container {
+      background: var(--card-bg);
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 600px;
+      padding: 40px;
+    }
+    .settings-title {
+      color: #2c3e50;
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .settings-tabs {
+      display: flex;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 20px;
+    }
+    .settings-tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #7f8c8d;
+    }
+    .settings-tab.active {
+      color: #0072ff;
+      border-bottom: 2px solid #0072ff;
+    }
+    .settings-content {
+      display: none;
+    }
+    .settings-content.active {
+      display: block;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #2c3e50;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    .input-group input:focus, .input-group select:focus {
+      outline: none;
+      border-color: #3498db;
+    }
+    .settings-button {
+      width: 100%;
+      padding: 12px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .settings-button:hover {
+      background-color: #2980b9;
+    }
+    .error-message {
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 15px;
+      display: none;
+    }
+    .success-message {
+      color: #27ae60;
+      font-size: 14px;
+      margin-top: 15px;
+      display: none;
+    }
+    .scene-config {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .scene-item {
+      flex: 1 1 200px;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .scene-item h3 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    .scene-toggle {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .scene-toggle label {
+      margin-left: 8px;
+    }
   </style>
 </head>
 <body>
@@ -1253,8 +1812,8 @@ void handleSettingsScenes() {
     String body = server.arg("plain");
     DynamicJsonDocument doc(1024);
     deserializeJson(doc, body);
-    
-    JsonArray sceneArray = doc["scenes"];
+    JsonArray sceneArray = doc["scenes"].as<JsonArray>();
+
     if (sceneArray.size() != SCENE_COUNT) {
       server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid scene count\"}");
       return;
@@ -1290,7 +1849,7 @@ void handleSensorData() {
   if (requireLogin()) return;
   
   DynamicJsonDocument doc(4096);
-  JsonArray data = doc.createNestedArray("data");
+  JsonArray data = doc["data"].to<JsonArray>();
   
   // Get current time
   time_t now;
@@ -1299,7 +1858,7 @@ void handleSensorData() {
   // Send last 24 hours of data
   for (int i = 0; i < dataCount; i++) {
     if (difftime(now, dataPoints[i].timestamp) <= 86400) { // 24 hours
-      JsonObject point = data.createNestedObject();
+      JsonObject point = data.add<JsonObject>();
       point["time"] = dataPoints[i].timestamp;
       point["temp"] = dataPoints[i].temperature;
       point["hum"] = dataPoints[i].humidity;
@@ -1322,17 +1881,131 @@ void handleResetPass() {
   <title>Reset Password</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { min-height: 100vh; background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
-      display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-    .reset-container { background: #fff; border-radius: 24px; box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18); padding: 2.8rem 2.2rem 2.2rem 2.2rem; width: 100%; max-width: 370px; }
-    .reset-title { font-size: 2.2rem; font-weight: 800; color: #0072ff; margin-bottom: 1.7rem; letter-spacing: 1.5px; text-align: center; }
-    .input-group { margin-bottom: 1.3rem; }
-    .input-group label { display: block; margin-bottom: 0.5rem; color: #0072ff; font-weight: 600; }
-    .input-group input { width: 100%; padding: 0.8rem 1.1rem; border: none; border-radius: 8px; font-size: 1.08rem; background: #f0f7fa; }
-    .reset-btn { width: 100%; padding: 0.9rem; background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%); color: #fff; border: none; border-radius: 8px; font-size: 1.15rem; font-weight: 700; cursor: pointer; margin-top: 0.7rem; }
-    .footer { margin-top: 2.2rem; text-align: center; color: #aaa; font-size: 1rem; }
-    .error-message { color: #e74c3c; background: #fff0f0; border-radius: 6px; padding: 0.6rem 1.1rem; margin-top: 1.1rem; text-align: center; font-weight: 600; display: none; }
-    .success-message { color: #27ae60; background: #f0fff4; border-radius: 6px; padding: 0.6rem 1.1rem; margin-top: 1.1rem; text-align: center; font-weight: 600; display: none; }
+    :root {
+      --bg-color: #f4f7fb;
+      --card-bg: #fff;
+      --text-color: #222;
+      --text-secondary: #888;
+      --primary-color: #0072ff;
+      --secondary-color: #00c6ff;
+      --border-color: #eee;
+      --shadow-color: rgba(0,0,0,0.07);
+    }
+
+    .dark-mode {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #e0e0e0;
+      --text-secondary: #aaa;
+      --primary-color: #0099ff;
+      --secondary-color: #00c6ff;
+      --border-color: #333;
+      --shadow-color: rgba(0,0,0,0.3);
+    }
+
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+      transition: background 0.3s ease;
+    }
+
+    .reset-container {
+      background: var(--card-bg);
+      border-radius: 24px;
+      box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18);
+      padding: 2.8rem 2.2rem 2.2rem 2.2rem;
+      width: 100%;
+      max-width: 370px;
+    }
+
+    .reset-title {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--primary-color);
+      margin-bottom: 1.7rem;
+      letter-spacing: 1.5px;
+      text-align: center;
+    }
+
+    .input-group {
+      margin-bottom: 1.3rem;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.8rem 1.1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.08rem;
+      background: #f0f7fa;
+    }
+
+    .reset-btn {
+      width: 100%;
+      padding: 0.9rem;
+      background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 0.7rem;
+    }
+
+    .footer {
+      margin-top: 2.2rem;
+      text-align: center;
+      color: #aaa;
+      font-size: 1rem;
+    }
+
+    .error-message {
+      color: #e74c3c;
+      background: #fff0f0;
+      border-radius: 6px;
+      padding: 0.6rem 1.1rem;
+      margin-top: 1.1rem;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+
+    .success-message {
+      color: #27ae60;
+      background: #f0fff4;
+      border-radius: 6px;
+      padding: 0.6rem 1.1rem;
+      margin-top: 1.1rem;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+
+    .dark-toggle {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--primary-color);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -1393,24 +2066,21 @@ void handleResetPass() {
           errorEl.textContent = data.error || 'Password reset failed';
           errorEl.style.display = 'block';
         }
-      })
-      .catch(error => {
-        successEl.style.display = 'none';
-        errorEl.textContent = 'Network error';
-        errorEl.style.display = 'block';
       });
     }
   </script>
 </body>
 </html>
 )rawliteral";
+
   server.send(200, "text/html", html);
 }
 
 void handleResetPassPost() {
-  String body = server.arg("plain");
+  if (requireLogin()) return;
+  
   DynamicJsonDocument doc(256);
-  deserializeJson(doc, body);
+  deserializeJson(doc, server.arg("plain"));
   
   String currentPass = doc["current_password"];
   String newUser = doc["username"];
@@ -1447,9 +2117,15 @@ void handleRelayToggle() {
   }
   
   relayStates[num - 1] = (state == 1);
+
+
+
   digitalWrite(relayPins[num - 1], relayStates[num - 1] ? HIGH : LOW);
   saveRelayStates();
   addLog("Relay " + String(num) + (relayStates[num - 1] ? " ON" : " OFF"));
+  
+  // Record the relay event
+  recordRelayEvent(num, relayStates[num - 1], "api");
   
   server.send(200, "application/json", "{\"success\":true}");
 }
@@ -1482,7 +2158,6 @@ void handleScene() {
   applyScene(idx);
   
   StaticJsonDocument<256> doc;
-  doc["success"] = true;
   JsonArray states = doc.createNestedArray("states");
   for (int i = 0; i < RELAY_COUNT; i++) {
     states.add(relayStates[i]);
@@ -1531,6 +2206,9 @@ void handleJarvisRelay() {
   saveRelayStates();
   addLog("Jarvis: Room " + server.arg("room") + " Relay " + String(relayNum) + (state ? " ON" : " OFF"));
   
+  // Record the relay event
+  recordRelayEvent(relayNum, state, "api");
+  
   server.send(200, "application/json", "{\"success\":true}");
 }
 
@@ -1571,31 +2249,107 @@ void handleNotFound() {
   }
 }
 
-// ----------- Setup and Loop -----------
+// ----------- Security functionsns -----------
+bool isIPBlocked(const String& ip) {
+  int failedAttempts = 0;
+  time_t now;
+  time(&now);
+  for (int i = 0; i < loginAttemptCount; i++) {
+    if (loginAttempts[i].ipAddress == ip && 
+        !loginAttempts[i].success && 
+        difftime(now, loginAttempts[i].timestamp) < LOCKOUT_DURATION) {
+      failedAttempts++;
+    }
+  }
+  return failedAttempts >= MAX_FAILED_ATTEMPTS;
+}
 
+// Security: Record login attempts
+void recordLoginAttempt(const String& ip, bool success) {
+  if (loginAttemptCount >= MAX_LOGIN_ATTEMPTS) {
+    for (int i = 0; i < MAX_LOGIN_ATTEMPTS - 1; i++) {
+      loginAttempts[i] = loginAttempts[i + 1];
+    }
+    loginAttemptCount--;
+  }
+  time_t now;
+  time(&now);
+  loginAttempts[loginAttemptCount].ipAddress = ip;
+  loginAttempts[loginAttemptCount].timestamp = now;
+  loginAttempts[loginAttemptCount].success = success;
+  loginAttemptCount++;
+}
+
+// Record relay state changes for history
+void recordRelayEvent(int relayNum, bool state, const String& source) {
+  if (statusHistoryCount >= MAX_STATUS_HISTORY) {
+    for (int i = 0; i < MAX_STATUS_HISTORY - 1; i++) {
+      statusHistory[i] = statusHistory[i + 1];
+    }
+    statusHistoryCount--;
+  }
+  time_t now;
+  time(&now);
+  statusHistory[statusHistoryCount].timestamp = now;
+  statusHistory[statusHistoryCount].relayNum = relayNum;
+  statusHistory[statusHistoryCount].state = state;
+  statusHistory[statusHistoryCount].source = source;
+  statusHistoryCount++;
+}
+
+// Dummy schedule setup (implement your own logic as needed)
+void setupSchedules() {
+  // Example: No schedules by default
+}
+
+// Dummy schedule checker (implement your own logic as needed)
+void checkSchedules() {
+  // Example: No scheduled actions by default
+}
+
+// Arduino required functions
 void setup() {
   Serial.begin(115200);
+  delay(1000);
   
   // Initialize pins
-  pinMode(STATUS_LED, OUTPUT);
-  digitalWrite(STATUS_LED, HIGH); // Turn on status LED
-  
   for (int i = 0; i < RELAY_COUNT; i++) {
     pinMode(relayPins[i], OUTPUT);
-    digitalWrite(relayPins[i], LOW); // Ensure all relays are off initially
+    digitalWrite(relayPins[i], LOW);
   }
   
+  pinMode(STATUS_LED, OUTPUT);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   
   // Initialize file system
   if (!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS Mount Failed");
-    while (1) delay(1000);
+    Serial.println("Failed to mount SPIFFS. Formatting...");
+    if (!SPIFFS.format()) {
+      Serial.println("SPIFFS formatting failed");
+    } else {
+      Serial.println("SPIFFS formatted successfully");
+      if (!SPIFFS.begin(true)) {
+        Serial.println("Failed to mount SPIFFS after formatting");
+      } else {
+        Serial.println("SPIFFS mounted successfully after formatting");
+      }
+    }
   }
   
-  // Initialize EEPROM and load data
-  EEPROM.begin(EEPROM_SIZE);
-  dht.begin();
+  Serial.println("Listing SPIFFS files:");
+  File root = SPIFFS.open("/");
+  if (!root) {
+    Serial.println("Failed to open root directory");
+  } else {
+    File file = root.openNextFile();
+    while (file) {
+      Serial.print("  FILE: ");
+      Serial.println(file.name());
+      file = root.openNextFile();
+    }
+  }
+  
+  // Load configuration
   loadCredentials();
   loadRelayStates();
   loadSceneStates();
@@ -1603,21 +2357,24 @@ void setup() {
   // Connect to WiFi
   connectWiFiStatic();
   
-  // Configure time
+  // Initialize time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
-  // Set up server routes
+  // Initialize sensors
+  dht.begin();
+  
+  // Set up web server routes
   server.on("/", HTTP_GET, handleRoot);
   server.on("/login", HTTP_GET, handleLogin);
   server.on("/login", HTTP_POST, handleLogin);
   server.on("/logout", HTTP_GET, handleLogout);
-  server.on("/resetpass", HTTP_GET, handleResetPass);
-  server.on("/resetpass", HTTP_POST, handleResetPassPost);
   server.on("/settings", HTTP_GET, handleSettings);
   server.on("/settings/credentials", HTTP_POST, handleSettingsCredentials);
   server.on("/settings/scenes", HTTP_POST, handleSettingsScenes);
-  server.on("/system/restart", HTTP_POST, handleSystemRestart);
+  server.on("/system/restart", HTTP_GET, handleSystemRestart);
   server.on("/sensor/data", HTTP_GET, handleSensorData);
+  server.on("/resetpass", HTTP_GET, handleResetPass);
+  server.on("/resetpass", HTTP_POST, handleResetPassPost);
   server.on("/relay", HTTP_GET, handleRelayToggle);
   server.on("/relayStatus", HTTP_GET, handleRelayStatus);
   server.on("/scene", HTTP_GET, handleScene);
@@ -1627,76 +2384,65 @@ void setup() {
   server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
   server.onNotFound(handleNotFound);
   
-  server.on("/debug/headers", HTTP_GET, []() {
-    String headers;
-    int n = server.headers();
-    for (int i = 0; i < n; i++) {
-      headers += server.headerName(i) + ": " + server.header(i) + "\n";
-    }
-    server.send(200, "text/plain", headers);
-  });
-  
-  server.on("/testcookie", HTTP_GET, []() {
-    if (server.hasHeader("Cookie")) {
-      Serial.println("[DEBUG] /testcookie Cookie: " + server.header("Cookie"));
-      server.send(200, "text/plain", "Cookie: " + server.header("Cookie"));
-    } else {
-      server.send(200, "text/plain", "No cookie received");
-    }
-  });
-  
   server.begin();
-  Serial.println("HTTP server started");
   
-  // mDNS setup
-  if (!MDNS.begin("esp32")) {
-    Serial.println("Error starting mDNS");
-  } else {
-    Serial.println("mDNS responder started: http://esp32.local/");
+  // Set up mDNS for easy access
+  if (MDNS.begin("homeautomation")) {
+    DEBUG_INFO(WIFI, "mDNS responder started");
   }
-  
-  // Initial log entries
-  addLog("System initialized");
-  addLog("Firmware version: 2.0.0");
-  addLog("MAC address: " + WiFi.macAddress());
   
   // Check for birthday
   checkBirthday();
   
-  // Turn off status LED after successful setup
-  digitalWrite(STATUS_LED, LOW);
+  // Set up schedules
+  setupSchedules();
+  
+  addLog("System initialized");
 }
+
 void loop() {
   server.handleClient();
-  // Read sensor data periodically
-  unsigned long now = millis();
-  if (now - lastSensorRead > SENSOR_READ_INTERVAL) {
-    lastSensorRead = now;
+  
+  // Check physical button
+  handleButtonPress();
+  
+  // Read sensor periodically
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastSensorRead > SENSOR_READ_INTERVAL) {
+    lastSensorRead = currentMillis;
     
-    float temp = dht.readTemperature();
-    float hum = dht.readHumidity();
+    // Read DHT sensor
+    float newTemp = dht.readTemperature();
+    float newHum = dht.readHumidity();
     
-    if (!isnan(temp) && !isnan(hum)) {
-      currentTemp = temp;
-      currentHum = hum;
+    if (!isnan(newTemp) && !isnan(newHum)) {
+      currentTemp = newTemp;
+      currentHum = newHum;
       
-      // Store data point if we have space
+      // Add to data history
       if (dataCount < MAX_DATA_POINTS) {
-        time_t nowTime;
-        time(&nowTime);
-        dataPoints[dataCount++] = {nowTime, temp, hum};
+        time_t now;
+        time(&now);
+        dataPoints[dataCount].timestamp = now;
+        dataPoints[dataCount].temperature = currentTemp;
+        dataPoints[dataCount].humidity = currentHum;
+        dataCount++;
+      } else {
+        // Shift data when buffer is full
+        for (int i = 0; i < MAX_DATA_POINTS - 1; i++) {
+          dataPoints[i] = dataPoints[i + 1];
+        }
+        time_t now;
+        time(&now);
+        dataPoints[MAX_DATA_POINTS - 1].timestamp = now;
+        dataPoints[MAX_DATA_POINTS - 1].temperature = currentTemp;
+        dataPoints[MAX_DATA_POINTS - 1].humidity = currentHum;
       }
-      
-      Serial.printf("Temp: %.2f°C, Hum: %.2f%%\n", temp, hum);
-    } else {
-      Serial.println("Failed to read from DHT sensor");
     }
   }
   
-  // Check birthday once per hour
-  static unsigned long lastBirthdayCheck = 0;
-  if (now - lastBirthdayCheck > 3600000) { // 1 hour
-    lastBirthdayCheck = now;
-    checkBirthday();
-  }
+  // Check schedules
+  checkSchedules();
+  
+  delay(10); // Small delay to prevent CPU hogging
 }
