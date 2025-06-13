@@ -2311,6 +2311,30 @@ void handleNotFound() {
   }
   server.send(404, "text/plain", message);
 }
+void handleSystemInfo() {
+  if (requireLogin()) return;
+
+  StaticJsonDocument<256> doc;
+
+  // Uptime in seconds
+  unsigned long ms = millis();
+  unsigned long sec = ms / 1000;
+  unsigned long min = sec / 60;
+  unsigned long hr = min / 60;
+  char uptimeStr[32];
+  snprintf(uptimeStr, sizeof(uptimeStr), "%lu:%02lu:%02lu", hr, min % 60, sec % 60);
+  doc["uptime"] = uptimeStr;
+
+  // IP address
+  doc["ip"] = WiFi.localIP().toString();
+
+  // Free heap
+  doc["heap"] = ESP.getFreeHeap();
+
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
 
 // --- Add your setup and loop functions ---
 void setup() {
@@ -2388,6 +2412,7 @@ void setup() {
   server.on("/api/jarvis/relay", HTTP_GET, handleJarvisRelay);
   server.on("/ota", HTTP_GET, handleOTAWeb);
   server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
+  server.on("/systeminfo", HTTP_GET, handleSystemInfo);
   server.onNotFound(handleNotFound);
   
   server.begin();
