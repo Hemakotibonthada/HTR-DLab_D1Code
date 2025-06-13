@@ -991,7 +991,7 @@ void handleRoot() {
     }
     .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
     .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
-    .header .settings-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; }
+    .header .settings-btn, .header .ota-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; margin-left: 8px;}
     .dashboard-main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
     .dashboard-cards { display: flex; gap: 24px; margin-bottom: 24px; }
     .dashboard-card {
@@ -1054,6 +1054,66 @@ void handleRoot() {
     .routine-toggle { position: absolute; top: 22px; right: 22px; }
     .add-routine-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 1rem; cursor: pointer; }
     .footer { margin: 32px 0 0 0; text-align: center; color: #aaa; font-size: 1rem; }
+    .camera-modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0; top: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.7);
+      align-items: center; justify-content: center;
+    }
+    .camera-modal.active { display: flex; }
+    .camera-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 2px 16px #2228;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .camera-content h2 {
+      margin: 0 0 12px 0;
+      font-size: 1.2rem;
+      color: #2563eb;
+    }
+    .camera-stream {
+      width: 480px;
+      max-width: 80vw;
+      height: 320px;
+      max-height: 60vh;
+      background: #222;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      object-fit: contain;
+    }
+    .close-modal {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .quick-actions { display: flex; gap: 12px; margin: 18px 0 18px 0; }
+    .quick-action-btn { background: #fff; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    .quick-action-btn:hover { background: #2563eb; color: #fff; }
+    .system-info { margin: 24px 0; background: #f8fafc; border-radius: 12px; padding: 18px 24px; font-size: 1.05rem; color: #444; }
+    .system-info span { font-weight: 600; }
+    .log-section { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e3e9f7; padding: 18px 24px; margin-bottom: 24px; }
+    .log-section h3 { margin-top: 0; color: #2563eb; }
+    .log-list { max-height: 120px; overflow-y: auto; font-size: 0.98rem; color: #333; background: #f8fafc; border-radius: 8px; padding: 8px 12px; }
+    .dark-toggle { position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: #fff; border: none; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; }
+    .dark-mode { background: #181c24 !important; color: #e0e0e0 !important; }
+    .dark-mode .dashboard-card, .dark-mode .device-card, .dark-mode .energy-section, .dark-mode .routine-card, .dark-mode .log-section { background: #232a36 !important; color: #e0e0e0 !important; }
+    .dark-mode .dashboard-tab, .dark-mode .energy-tab { color: #90cdf4 !important; }
+    .dark-mode .dashboard-tab.active, .dark-mode .energy-tab.active { background: #2563eb !important; color: #fff !important; }
+    .dark-mode .quick-action-btn { background: #232a36 !important; color: #90cdf4 !important; border-color: #2563eb !important; }
+    .dark-mode .quick-action-btn:hover { background: #2563eb !important; color: #fff !important; }
     @media (max-width: 900px) {
       .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
       .energy-section, .dashboard-main { padding: 0 5px; }
@@ -1066,6 +1126,8 @@ void handleRoot() {
     <div>
       <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
       <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
+      <button class="ota-btn" onclick="window.location.href='/ota'">OTA Update</button>
+      <button class="settings-btn" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
     </div>
   </div>
   <div class="dashboard-main">
@@ -1095,6 +1157,13 @@ void handleRoot() {
         <div class="card-sub" id="activeDevicesSub"></div>
       </div>
     </div>
+    <div class="quick-actions">
+      <button class="quick-action-btn" onclick="applyScene(0)"><span class="material-icons">nights_stay</span> Good Night</button>
+      <button class="quick-action-btn" onclick="applyScene(1)"><span class="material-icons">wb_sunny</span> Good Morning</button>
+      <button class="quick-action-btn" onclick="applyScene(4)"><span class="material-icons">power</span> All On</button>
+      <button class="quick-action-btn" onclick="applyScene(5)"><span class="material-icons">power_off</span> All Off</button>
+      <button class="quick-action-btn" onclick="window.location.href='/logs'"><span class="material-icons">list</span> Logs</button>
+    </div>
     <div class="dashboard-tabs">
       <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
       <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
@@ -1104,6 +1173,14 @@ void handleRoot() {
       <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
     </div>
     <div class="devices-row" id="devicesRow"></div>
+    <!-- Camera Modal -->
+    <div class="camera-modal" id="cameraModal">
+      <div class="camera-content">
+        <h2>ESP32 Camera Live Stream</h2>
+        <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
+        <button class="close-modal" onclick="closeCameraModal()">Close</button>
+      </div>
+    </div>
     <div class="energy-section">
       <div class="energy-header">
         <div class="energy-title">Energy Consumption</div>
@@ -1122,11 +1199,21 @@ void handleRoot() {
       </div>
       <div class="routines-list" id="routinesList"></div>
     </div>
+    <div class="system-info" id="systemInfo">
+      <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
+      <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
+      <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
+    </div>
+    <div class="log-section">
+      <h3>Recent System Logs</h3>
+      <div class="log-list" id="logList"></div>
+    </div>
     <div class="footer">
       ESP32 Home Automation Dashboard<br>
       Connected to: ESP32-WROOM-32
     </div>
   </div>
+  <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
   <script>
     // --- Device and Routine Data (simulate for now) ---
     let devices = [
@@ -1135,7 +1222,7 @@ void handleRoot() {
       { id: 'tv', room: 'living', type: 'tv', name: 'Smart TV', state: true, playing: 'Netflix', volume: 12 },
       { id: 'lock', room: 'living', type: 'lock', name: 'Front Door Lock', state: false, last: 'Today, 10:42 AM' },
       { id: 'curtain', room: 'bedroom', type: 'curtain', name: 'Bedroom Curtains', state: true, pos: 100 },
-      { id: 'cam', room: 'bedroom', type: 'camera', name: 'Front Camera', state: true, recording: true }
+      { id: 'esp32cam', room: 'bedroom', type: 'esp32cam', name: 'ESP32 Camera', state: true }
     ];
     let routines = [
       { id: 'morning', name: 'Morning Routine', icon: 'wb_sunny', time: '7:00 AM, Daily', enabled: true, steps: ['Open bedroom curtains', 'Turn on kitchen lights', 'Start coffee machine'] },
@@ -1169,13 +1256,32 @@ void handleRoot() {
       let filtered = room === 'all' ? devices : devices.filter(d => d.room === room);
       filtered.forEach(dev => {
         let html = `<div class="device-card">
-          <span class="material-icons">${dev.type === 'light' ? 'wb_incandescent' : dev.type === 'thermostat' ? 'thermostat' : dev.type === 'tv' ? 'tv' : dev.type === 'lock' ? 'lock' : dev.type === 'curtain' ? 'window' : dev.type === 'camera' ? 'videocam' : 'devices'}</span>
+          <span class="material-icons">${
+            dev.type === 'light' ? 'wb_incandescent' :
+            dev.type === 'thermostat' ? 'thermostat' :
+            dev.type === 'tv' ? 'tv' :
+            dev.type === 'lock' ? 'lock' :
+            dev.type === 'curtain' ? 'window' :
+            dev.type === 'esp32cam' ? 'videocam' :
+            dev.type === 'camera' ? 'videocam' : 'devices'
+          }</span>
           <div class="device-title">${dev.name}</div>
-          <div class="device-status">${dev.type === 'light' ? 'On for ' + dev.onFor : dev.type === 'tv' ? (dev.playing ? dev.playing + ' playing' : '') : dev.type === 'lock' ? (dev.state ? 'Locked' : 'Unlocked') : dev.type === 'curtain' ? (dev.state ? 'Open' : 'Closed') : dev.type === 'camera' ? (dev.recording ? 'Recording' : 'Idle') : ''}</div>
-          <div class="toggle-switch">
-            <input type="checkbox" id="dev-${dev.id}" ${dev.state ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked)">
-            <span class="slider-toggle"></span>
-          </div>`;
+          <div class="device-status">${
+            dev.type === 'light' ? 'On for ' + dev.onFor :
+            dev.type === 'tv' ? (dev.playing ? dev.playing + ' playing' : '') :
+            dev.type === 'lock' ? (dev.state ? 'Locked' : 'Unlocked') :
+            dev.type === 'curtain' ? (dev.state ? 'Open' : 'Closed') :
+            dev.type === 'esp32cam' ? 'Live Stream' :
+            dev.type === 'camera' ? (dev.recording ? 'Recording' : 'Idle') : ''
+          }</div>
+          ${
+            dev.type === 'esp32cam'
+              ? `<button class="settings-btn" style="margin-top:10px;" onclick="openCameraModal()">View Stream</button>`
+              : `<div class="toggle-switch">
+                  <input type="checkbox" id="dev-${dev.id}" ${dev.state ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked)">
+                  <span class="slider-toggle"></span>
+                </div>`
+          }`;
         if (dev.type === 'light') {
           html += `<div class="slider-row">Brightness <input type="range" min="0" max="100" value="${dev.brightness}" onchange="setBrightness('${dev.id}', this.value)"> <span>${dev.brightness}%</span></div>`;
         }
@@ -1201,34 +1307,14 @@ void handleRoot() {
       });
     }
 
-    function toggleDevice(id, state) {
-      // TODO: Send to backend
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.state = state;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    // --- Camera Modal Logic ---
+    function openCameraModal() {
+      document.getElementById('cameraModal').classList.add('active');
+      document.getElementById('cameraStream').src = "http://192.168.1.150/stream";
     }
-    function setBrightness(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.brightness = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function setThermo(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.temp = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function setCurtain(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.pos = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function toggleLock(id) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.state = !dev.state;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function tvCmd(id, cmd) {
-      alert('TV command: ' + cmd);
+    function closeCameraModal() {
+      document.getElementById('cameraModal').classList.remove('active');
+      document.getElementById('cameraStream').src = "";
     }
 
     // --- Energy Chart ---
@@ -1280,11 +1366,82 @@ void handleRoot() {
       renderRoutines();
     }
 
+    // --- Quick Actions ---
+    function applyScene(idx) {
+      fetch('/scene?idx=' + idx, { credentials: 'include' })
+        .then(r => r.json())
+        .then(() => showRoom('all', document.querySelector('.dashboard-tab.active')));
+    }
+
+    // --- Device Controls (simulate for now) ---
+    function toggleDevice(id, state) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.state = state;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setBrightness(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.brightness = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setThermo(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.temp = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setCurtain(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.pos = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function toggleLock(id) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.state = !dev.state;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function tvCmd(id, cmd) {
+      alert('TV command: ' + cmd);
+    }
+
+    // --- System Info ---
+    function updateSystemInfo() {
+      fetch('/sensor', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('tempCard').textContent = data.temperature + '°C';
+          document.getElementById('humCard').textContent = data.humidity + '%';
+        });
+      fetch('/logs', { credentials: 'include' })
+        .then(r => r.text())
+        .then(logs => {
+          let logLines = logs.trim().split('\n').slice(-10);
+          document.getElementById('logList').innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
+        });
+      fetch('/systeminfo', { credentials: 'include' })
+        .then(r => r.json())
+        .then(info => {
+          document.getElementById('uptime').textContent = info.uptime;
+          document.getElementById('ipAddr').textContent = info.ip;
+          document.getElementById('freeHeap').textContent = info.heap;
+        });
+    }
+
+    // --- Dark Mode ---
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
+    }
+    (function() {
+      if (localStorage.getItem('dark-mode') === 'true') document.body.classList.add('dark-mode');
+    })();
+
     // --- Init ---
     updateDashboardCards();
     showRoom('all', document.querySelector('.dashboard-tab.active'));
     renderEnergyChart();
     renderRoutines();
+    updateSystemInfo();
+    setInterval(updateSystemInfo, 10000);
   </script>
 </body>
 </html>
@@ -1497,7 +1654,7 @@ void handleSettings() {
       </div>
       <div class="input-group">
         <label for="sensorData">Sensor Data (Last 24h)</label>
-        <div id="sensorChart" style="width:100%; height:200px; background:#f8f9fa;"></div>
+        <div id="sensorChart" style="width:100%; height:200px; background:#f8fafc;"></div>
       </div>
     </div>
   </div>
@@ -2051,9 +2208,9 @@ void handleJarvisRelay() {
 
 void handleOTAUpdate() {
   if (requireLogin()) return;
-  
+
   HTTPUpload& upload = server.upload();
-  
+
   if (upload.status == UPLOAD_FILE_START) {
     Serial.printf("Update: %s\n", upload.filename.c_str());
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
@@ -2074,77 +2231,88 @@ void handleOTAUpdate() {
 
 void handleOTAFinish() {
   if (requireLogin()) return;
-  
   server.sendHeader("Connection", "close");
   server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
   ESP.restart();
 }
 
+// --- Add this HTML handler for the OTA page ---
+void handleOTAWeb() {
+  if (requireLogin()) return;
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OTA Firmware Update</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #eef3fc; color: #222; }
+    .ota-container { max-width: 400px; margin: 60px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px #e3e9f7; padding: 32px; }
+    h2 { text-align: center; }
+    input[type=file] { width: 100%; margin-bottom: 18px; }
+    .ota-btn { width: 100%; padding: 12px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; }
+    .ota-btn:active { background: #1746a2; }
+    .ota-status { margin-top: 18px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="ota-container">
+    <h2>OTA Firmware Update</h2>
+    <form id="otaForm" method="POST" action="/update" enctype="multipart/form-data">
+      <input type="file" name="update" required>
+      <button class="ota-btn" type="submit">Upload & Update</button>
+    </form>
+    <div class="ota-status" id="otaStatus"></div>
+    <div style="margin-top:18px; text-align:center;">
+      <a href="/">Back to Dashboard</a>
+    </div>
+  </div>
+  <script>
+    document.getElementById('otaForm').onsubmit = function(e) {
+      e.preventDefault();
+      var form = e.target;
+      var data = new FormData(form);
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/update', true);
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          document.getElementById('otaStatus').innerText = 'Uploading: ' + Math.round(e.loaded / e.total * 100) + '%';
+        }
+      };
+      xhr.onload = function() {
+        if (xhr.status == 200) {
+          document.getElementById('otaStatus').innerText = 'Update successful! Rebooting...';
+          setTimeout(function(){ location.href = '/'; }, 4000);
+        } else {
+          document.getElementById('otaStatus').innerText = 'Update failed!';
+        }
+      };
+      xhr.send(data);
+    };
+  </script>
+</body>
+</html>
+)rawliteral";
+  server.send(200, "text/html", html);
+}
+
+// --- Add this handler at the end of your file (before setup/loop) ---
 void handleNotFound() {
-  if (!handleFileRead(server.uri())) {
-    server.send(404, "text/plain", "File Not Found");
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
+  server.send(404, "text/plain", message);
 }
 
-// ----------- Security functionsns -----------
-bool isIPBlocked(const String& ip) {
-  int failedAttempts = 0;
-  time_t now;
-  time(&now);
-  for (int i = 0; i < loginAttemptCount; i++) {
-    if (loginAttempts[i].ipAddress == ip && 
-        !loginAttempts[i].success && 
-        difftime(now, loginAttempts[i].timestamp) < LOCKOUT_DURATION) {
-      failedAttempts++;
-    }
-  }
-  return failedAttempts >= MAX_FAILED_ATTEMPTS;
-}
-
-// Security: Record login attempts
-void recordLoginAttempt(const String& ip, bool success) {
-  if (loginAttemptCount >= MAX_LOGIN_ATTEMPTS) {
-    for (int i = 0; i < MAX_LOGIN_ATTEMPTS - 1; i++) {
-      loginAttempts[i] = loginAttempts[i + 1];
-    }
-    loginAttemptCount--;
-  }
-  time_t now;
-  time(&now);
-  loginAttempts[loginAttemptCount].ipAddress = ip;
-  loginAttempts[loginAttemptCount].timestamp = now;
-  loginAttempts[loginAttemptCount].success = success;
-  loginAttemptCount++;
-}
-
-// Record relay state changes for history
-void recordRelayEvent(int relayNum, bool state, const String& source) {
-  if (statusHistoryCount >= MAX_STATUS_HISTORY) {
-    for (int i = 0; i < MAX_STATUS_HISTORY - 1; i++) {
-      statusHistory[i] = statusHistory[i + 1];
-    }
-    statusHistoryCount--;
-  }
-  time_t now;
-  time(&now);
-  statusHistory[statusHistoryCount].timestamp = now;
-  statusHistory[statusHistoryCount].relayNum = relayNum;
-  statusHistory[statusHistoryCount].state = state;
-  statusHistory[statusHistoryCount].source = source;
-  statusHistoryCount++;
-}
-
-// Dummy schedule setup (implement your own logic as needed)
-void setupSchedules() {
-  // Example: No schedules by default
-}
-
-// Dummy schedule checker (implement your own logic as needed)
-void checkSchedules() {
-  // Example: No scheduled actions by default
-}
-
-// Arduino required functions
+// --- Add your setup and loop functions ---
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -2218,6 +2386,7 @@ void setup() {
   server.on("/sensor", HTTP_GET, handleSensor);
   server.on("/logs", HTTP_GET, handleSimpleLogs);
   server.on("/api/jarvis/relay", HTTP_GET, handleJarvisRelay);
+  server.on("/ota", HTTP_GET, handleOTAWeb);
   server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
   server.onNotFound(handleNotFound);
   
@@ -2282,4 +2451,70 @@ void loop() {
   checkSchedules();
   
   delay(10); // Small delay to prevent CPU hogging
+}
+
+// --- Add these implementations above setup() ---
+
+// Block IPs after too many failed logins
+bool isIPBlocked(const String& ip) {
+  time_t now;
+  time(&now);
+  int failed = 0;
+  time_t lastFail = 0;
+  for (int i = 0; i < loginAttemptCount; i++) {
+    if (loginAttempts[i].ipAddress == ip && !loginAttempts[i].success) {
+      failed++;
+      if (loginAttempts[i].timestamp > lastFail) lastFail = loginAttempts[i].timestamp;
+    }
+  }
+  if (failed >= MAX_FAILED_ATTEMPTS && (now - lastFail) < LOCKOUT_DURATION) {
+    return true;
+  }
+  return false;
+}
+
+// Record login attempts for brute-force protection
+void recordLoginAttempt(const String& ip, bool success) {
+  time_t now;
+  time(&now);
+  if (loginAttemptCount < MAX_LOGIN_ATTEMPTS) {
+    loginAttempts[loginAttemptCount++] = {ip, now, success};
+  } else {
+    // Shift left if full
+    for (int i = 1; i < MAX_LOGIN_ATTEMPTS; i++) loginAttempts[i-1] = loginAttempts[i];
+    loginAttempts[MAX_LOGIN_ATTEMPTS-1] = {ip, now, success};
+  }
+}
+
+// Record relay events for status history
+void recordRelayEvent(int relayNum, bool state, const String& source) {
+  time_t now;
+  time(&now);
+  if (statusHistoryCount < MAX_STATUS_HISTORY) {
+    statusHistory[statusHistoryCount++] = {now, relayNum, state, source};
+  } else {
+    for (int i = 1; i < MAX_STATUS_HISTORY; i++) statusHistory[i-1] = statusHistory[i];
+    statusHistory[MAX_STATUS_HISTORY-1] = {now, relayNum, state, source};
+  }
+}
+
+// Schedule setup (stub, can be extended for real scheduling)
+void setupSchedules() {
+  // Example: Turn on relay 1 at 7:00 AM every day, turn off at 7:05 AM
+  Alarm.alarmRepeat(7, 0, 0, [](){
+    relayStates[0] = true;
+    digitalWrite(relayPins[0], HIGH);
+    addLog("Schedule: Relay 1 ON (7:00 AM)");
+    recordRelayEvent(1, true, "schedule");
+  });
+  Alarm.alarmRepeat(7, 5, 0, [](){
+    relayStates[0] = false;
+    digitalWrite(relayPins[0], LOW);
+    addLog("Schedule: Relay 1 OFF (7:05 AM)");
+    recordRelayEvent(1, false, "schedule");
+  });
+}
+
+void checkSchedules() {
+  Alarm.delay(0); // This will process scheduled alarms
 }
