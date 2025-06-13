@@ -967,491 +967,328 @@ void handleLogout() {
 }
 
 void handleRoot() {
-  Serial.println("[DEBUG] handleRoot called");
-  if (requireLogin()) {
-    Serial.println("[DEBUG] Not logged in, redirecting to login");
-    return;
-  }
-  
-  Serial.println("[DEBUG] Serving inline dashboard HTML");
+  if (requireLogin()) return;
   String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Smart Home Control</title>
-  <link href="https://fonts.googleapis.com/css?family=Segoe+UI:400,700&display=swap" rel="stylesheet">
+  <title>SmartHome</title>
+  <link href="https://fonts.googleapis.com/css?family=Segoe+UI:700,400&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    :root {
-      --bg-color: #f4f7fb;
-      --card-bg: #fff;
-      --text-color: #222;
-      --text-secondary: #888;
-      --primary-color: #0072ff;
-      --secondary-color: #00c6ff;
-      --border-color: #eee;
-      --shadow-color: rgba(0,0,0,0.07);
-    }
-
-    .dark-mode {
-      --bg-color: #121212;
-      --card-bg: #1e1e1e;
-      --text-color: #e0e0e0;
-      --text-secondary: #aaa;
-      --primary-color: #0099ff;
-      --secondary-color: #00c6ff;
-      --border-color: #333;
-      --shadow-color: rgba(0,0,0,0.3);
-    }
-
     body {
+      background: #eef3fc;
       font-family: 'Segoe UI', Arial, sans-serif;
-      background: var(--bg-color);
-      margin: 0;
-      padding: 0;
-      color: var(--text-color);
-      transition: background 0.3s ease;
-    }
-    .container {
-      max-width: 1200px;
-      margin: 30px auto;
-      padding: 0 20px;
+      margin: 0; padding: 0;
+      color: #222;
     }
     .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 24px 0 10px 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px 10px 32px; background: #fff; box-shadow: 0 2px 8px #e3e9f7;
     }
-    .header-title {
-      font-size: 2.2rem;
-      font-weight: 700;
-      letter-spacing: 1px;
+    .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
+    .header .settings-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; }
+    .dashboard-main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+    .dashboard-cards { display: flex; gap: 24px; margin-bottom: 24px; }
+    .dashboard-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 24px 32px; flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 8px;
     }
-    .status-dot {
-      width: 12px;
-      height: 12px;
-      background: #2ecc40;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 8px;
-      vertical-align: middle;
+    .dashboard-card .material-icons { font-size: 2rem; color: #2563eb; }
+    .dashboard-card .card-title { font-size: 1.1rem; font-weight: 600; }
+    .dashboard-card .card-value { font-size: 2rem; font-weight: 700; }
+    .dashboard-card .card-sub { font-size: 0.98rem; color: #888; }
+    .dashboard-tabs { display: flex; gap: 18px; margin: 18px 0 12px 0; }
+    .dashboard-tab {
+      background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #2563eb;
+      padding: 8px 18px; border-radius: 8px 8px 0 0; cursor: pointer; transition: background 0.2s;
     }
-    .tabs {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 24px;
-      overflow-x: auto;
-      padding-bottom: 5px;
+    .dashboard-tab.active, .dashboard-tab:hover { background: #eaf3ff; color: #222; }
+    .devices-row { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 24px; }
+    .device-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 22px 20px; flex: 1 1 260px; min-width: 240px; max-width: 340px;
+      display: flex; flex-direction: column; gap: 10px; align-items: flex-start; position: relative;
     }
-    .tab {
-      background: #fff;
-      border-radius: 8px 8px 0 0;
-      padding: 10px 28px;
-      font-weight: 600;
-      color: #0072ff;
-      cursor: pointer;
-      border: none;
-      outline: none;
-      font-size: 1.1rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-      transition: background 0.2s, color 0.2s;
-      white-space: nowrap;
-    }
-    .tab.active, .tab:hover {
-      background: #eaf3ff;
-      color: #222;
-    }
-    .cards {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      margin-bottom: 24px;
-    }
-    .card {
-      background: var(--card-bg);
-      border-radius: 16px;
-      box-shadow: 0 2px 12px var(--shadow-color);
-      padding: 28px 24px 20px 24px;
-      flex: 1 1 260px;
-      min-width: 260px;
-      max-width: 340px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      position: relative;
-    }
-    .card .material-icons {
-      font-size: 2.2rem;
-      color: #0072ff;
-      margin-bottom: 10px;
-    }
-    .card-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: #444;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .card-value {
-      font-size: 2.1rem;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: #222;
-    }
-    .slider {
-      width: 100%;
-      margin: 10px 0 0 0;
-    }
-    .slider input[type=range] {
-      width: 100%;
-      accent-color: #0072ff;
-      height: 4px;
-      border-radius: 2px;
-      background: #eaf3ff;
-      outline: none;
-      margin: 0;
-    }
-    .slider-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.95rem;
-      color: #888;
-      margin-top: 2px;
-    }
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 48px;
-      height: 28px;
-      margin-left: 10px;
-      vertical-align: middle;
-    }
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+    .device-card .material-icons { font-size: 2rem; }
+    .device-card .device-title { font-size: 1.1rem; font-weight: 600; }
+    .device-card .device-status { font-size: 0.98rem; color: #888; }
+    .device-card .toggle-switch { position: absolute; top: 22px; right: 22px; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
     .slider-toggle {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: #ccc;
-      transition: .4s;
-      border-radius: 28px;
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc; transition: .4s; border-radius: 28px;
     }
     .slider-toggle:before {
-      position: absolute;
-      content: "";
-      height: 20px;
-      width: 20px;
-      left: 4px;
-      bottom: 4px;
-      background: #fff;
-      transition: .4s;
-      border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
+      background: #fff; transition: .4s; border-radius: 50%; box-shadow: 0 2px 6px #e3e9f7;
     }
-    .toggle-switch input:checked + .slider-toggle {
-      background: #0072ff;
+    .toggle-switch input:checked + .slider-toggle { background: #2563eb; }
+    .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    .slider-row input[type=range] { width: 120px; }
+    .energy-section { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 24px 32px; margin-bottom: 32px; }
+    .energy-header { display: flex; align-items: center; justify-content: space-between; }
+    .energy-title { font-size: 1.2rem; font-weight: 700; }
+    .energy-tabs { display: flex; gap: 10px; }
+    .energy-tab { background: #eaf3ff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 1rem; color: #2563eb; cursor: pointer; }
+    .energy-tab.active { background: #2563eb; color: #fff; }
+    #energyChart { width: 100%; height: 180px; margin-top: 10px; }
+    .routines-section { margin-bottom: 32px; }
+    .routines-header { display: flex; align-items: center; justify-content: space-between; }
+    .routines-title { font-size: 1.2rem; font-weight: 700; }
+    .routines-list { display: flex; gap: 24px; margin-top: 18px; }
+    .routine-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 22px 20px; min-width: 260px; display: flex; flex-direction: column; gap: 8px; position: relative;
     }
-    .toggle-switch input:checked + .slider-toggle:before {
-      transform: translateX(20px);
-    }
-    .card-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-    .btn {
-      background: #0072ff;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 22px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 8px;
-      transition: background 0.2s;
-    }
-    .btn:active, .btn:hover {
-      background: #005fcc;
-    }
-    .btn.locked {
-      background: #e74c3c;
-    }
-    .btn.unlocked {
-      background: #2ecc40;
-    }
-    .status-label {
-      font-size: 0.98rem;
-      color: #888;
-      margin-left: 8px;
-    }
-    .scene-cards {
-      display: flex;
-      gap: 18px;
-      margin-top: 18px;
-      flex-wrap: wrap;
-    }
-    .scene-btn {
-      flex: 1 1 200px;
-      min-width: 120px;
-      background: #f6f8fc;
-      border-radius: 12px;
-      padding: 18px 10px;
-      text-align: center;
-      font-weight: 600;
-      font-size: 1.1rem;
-      color: #fff;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-      border: none;
-      margin-bottom: 8px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-    .scene-btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-    }
-    .scene-btn .material-icons {
-      font-size: 1.8rem;
-      margin-bottom: 6px;
-    }
-    .scene-btn.night { background: #3b3b98; }
-    .scene-btn.morning { background: #f6b93b; color: #fff; }
-    .scene-btn.movie { background: #6a89cc; }
-    .scene-btn.away { background: #38ada9; }
-    .scene-btn.all-on { background: #4CAF50; }
-    .scene-btn.all-off { background: #607D8B; }
-    .room-tab { display: none; }
-    .room-tab:first-of-type { display: flex; }
+    .routine-card .material-icons { font-size: 1.5rem; }
+    .routine-title { font-size: 1.1rem; font-weight: 600; }
+    .routine-time { font-size: 0.98rem; color: #888; }
+    .routine-list { margin: 10px 0 0 0; padding: 0 0 0 18px; color: #27ae60; font-size: 0.98rem; }
+    .routine-toggle { position: absolute; top: 22px; right: 22px; }
+    .add-routine-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 1rem; cursor: pointer; }
+    .footer { margin: 32px 0 0 0; text-align: center; color: #aaa; font-size: 1rem; }
     @media (max-width: 900px) {
-      .cards { flex-direction: column; }
-      .scene-cards { flex-direction: row; overflow-x: auto; padding-bottom: 15px; }
-      .scene-btn { min-width: 150px; }
+      .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
+      .energy-section, .dashboard-main { padding: 0 5px; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div class="header-title">
-        <span class="status-dot"></span> Smart Home Control
+  <div class="header">
+    <div class="logo"><span class="material-icons">home</span> SmartHome</div>
+    <div>
+      <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
+      <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
+    </div>
+  </div>
+  <div class="dashboard-main">
+    <div class="dashboard-cards">
+      <div class="dashboard-card">
+        <span class="material-icons">thermostat</span>
+        <div class="card-title">Indoor Temperature</div>
+        <div class="card-value" id="tempCard">--°C</div>
+        <div class="card-sub" id="tempSub"></div>
       </div>
-      <div>
-        <button class="btn" onclick="window.location.href='/settings'">Settings</button>
-        <button class="btn" onclick="window.location.href='/logout'">Logout</button>
+      <div class="dashboard-card">
+        <span class="material-icons">water_drop</span>
+        <div class="card-title">Humidity</div>
+        <div class="card-value" id="humCard">--%</div>
+        <div class="card-sub" id="humSub"></div>
+      </div>
+      <div class="dashboard-card">
+        <span class="material-icons">bolt</span>
+        <div class="card-title">Energy Usage</div>
+        <div class="card-value" id="energyCard">-- kWh</div>
+        <div class="card-sub" id="energySub"></div>
+      </div>
+      <div class="dashboard-card">
+        <span class="material-icons">devices</span>
+        <div class="card-title">Active Devices</div>
+        <div class="card-value" id="activeDevices">--</div>
+        <div class="card-sub" id="activeDevicesSub"></div>
       </div>
     </div>
-    <div class="tabs" id="roomTabs">
-      <!-- Room tabs will be generated dynamically -->
+    <div class="dashboard-tabs">
+      <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
+      <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
+      <button class="dashboard-tab" onclick="showRoom('kitchen', this)">Kitchen</button>
+      <button class="dashboard-tab" onclick="showRoom('bedroom', this)">Bedroom</button>
+      <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
+      <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
     </div>
-    <div id="roomContainers">
-      <!-- Room card containers will be generated dynamically -->
+    <div class="devices-row" id="devicesRow"></div>
+    <div class="energy-section">
+      <div class="energy-header">
+        <div class="energy-title">Energy Consumption</div>
+        <div class="energy-tabs">
+          <button class="energy-tab active" onclick="setEnergyRange('day', this)">Day</button>
+          <button class="energy-tab" onclick="setEnergyRange('week', this)">Week</button>
+          <button class="energy-tab" onclick="setEnergyRange('month', this)">Month</button>
+        </div>
+      </div>
+      <canvas id="energyChart"></canvas>
     </div>
-    <div class="scene-cards" id="sceneCards">
-      <!-- Scene buttons will be generated dynamically -->
+    <div class="routines-section">
+      <div class="routines-header">
+        <div class="routines-title">Automation Routines</div>
+        <button class="add-routine-btn" onclick="alert('Routine creation coming soon!')">+ New Routine</button>
+      </div>
+      <div class="routines-list" id="routinesList"></div>
+    </div>
+    <div class="footer">
+      ESP32 Home Automation Dashboard<br>
+      Connected to: ESP32-WROOM-32
     </div>
   </div>
   <script>
-    // Room definitions that match your configured rooms
-    const rooms = [
-      {name: "Living Room", id: "living"},
-      {name: "Bedroom", id: "bedroom"},
-      {name: "Kitchen", id: "kitchen"},
-      {name: "Bathroom", id: "bathroom"},
-      {name: "Garage", id: "garage"},
-      {name: "Porch", id: "porch"},
-      {name: "Study", id: "study"}
+    // --- Device and Routine Data (simulate for now) ---
+    let devices = [
+      { id: 'light1', room: 'living', type: 'light', name: 'Living Room Light', state: false, brightness: 80, onFor: '3 hours' },
+      { id: 'thermo', room: 'living', type: 'thermostat', name: 'Thermostat', state: true, temp: 23 },
+      { id: 'tv', room: 'living', type: 'tv', name: 'Smart TV', state: true, playing: 'Netflix', volume: 12 },
+      { id: 'lock', room: 'living', type: 'lock', name: 'Front Door Lock', state: false, last: 'Today, 10:42 AM' },
+      { id: 'curtain', room: 'bedroom', type: 'curtain', name: 'Bedroom Curtains', state: true, pos: 100 },
+      { id: 'cam', room: 'bedroom', type: 'camera', name: 'Front Camera', state: true, recording: true }
     ];
-    
-    // Scene definitions that match your configured scenes
-    const scenes = [
-      {name: "Good Night", icon: "nights_stay", class: "night"},
-      {name: "Good Morning", icon: "wb_sunny", class: "morning"},
-      {name: "Movie Mode", icon: "movie", class: "movie"},
-      {name: "Away Mode", icon: "not_listed_location", class: "away"},
-      {name: "All On", icon: "power", class: "all-on"},
-      {name: "All Off", icon: "power_off", class: "all-off"}
+    let routines = [
+      { id: 'morning', name: 'Morning Routine', icon: 'wb_sunny', time: '7:00 AM, Daily', enabled: true, steps: ['Open bedroom curtains', 'Turn on kitchen lights', 'Start coffee machine'] },
+      { id: 'night', name: 'Night Routine', icon: 'nights_stay', time: '10:30 PM, Daily', enabled: true, steps: ['Turn off all lights', 'Close all curtains', 'Lock all doors', 'Set thermostat to 20°C'] },
+      { id: 'away', name: 'Away Mode', icon: 'logout', time: 'Manual activation', enabled: false, steps: ['Turn off all devices', 'Lock all doors', 'Activate security cameras', 'Random light patterns'] }
     ];
-    
-    // Build tabs dynamically
-    function buildTabs() {
-      let tabsHtml = '';
-      rooms.forEach((room, index) => {
-        tabsHtml += `<button class="tab ${index === 0 ? 'active' : ''}" 
-                      onclick="showRoom('${room.id}', this)">${room.name}</button>`;
-      });
-      document.getElementById('roomTabs').innerHTML = tabsHtml;
+    let energyData = {
+      day: { labels: ['12 AM','3 AM','6 AM','9 AM','12 PM','3 PM','6 PM','9 PM','12 AM'], values: [0.8,1.1,1.0,1.5,2.2,2.1,2.7,3.1,3.8] },
+      week: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], values: [18,16,19,21,20,22,18] },
+      month: { labels: ['W1','W2','W3','W4'], values: [70, 75, 80, 78] }
+    };
+
+    // --- Dashboard Cards ---
+    function updateDashboardCards() {
+      document.getElementById('tempCard').textContent = '24°C';
+      document.getElementById('tempSub').textContent = '↑ 2°C from yesterday';
+      document.getElementById('humCard').textContent = '65%';
+      document.getElementById('humSub').textContent = '↓ 5% from yesterday';
+      document.getElementById('energyCard').textContent = '3.8 kWh';
+      document.getElementById('energySub').textContent = '↓ 12% from yesterday';
+      document.getElementById('activeDevices').textContent = '8/12';
+      document.getElementById('activeDevicesSub').textContent = '+2 devices added today';
     }
-    
-    // Build room containers dynamically
-    function buildRoomContainers() {
-      let containersHtml = '';
-      
-      rooms.forEach((room, index) => {
-        // Create cards for each room
-        containersHtml += `
-          <div id="room-${room.id}" class="cards room-tab" ${index === 0 ? '' : 'style="display:none"'}>
-            <div class="card">
-              <span class="material-icons">wb_incandescent</span>
-              <div class="card-title">Main Light
-                <label class="toggle-switch">
-                  <input type="checkbox" id="${room.id}-mainLight" onchange="toggleRelay(${index*2}, this.checked)">
-                  <span class="slider-toggle"></span>
-                </label>
-              </div>
-            </div>
-            <div class="card">
-              <span class="material-icons">highlight</span>
-              <div class="card-title">Accent Light
-                <label class="toggle-switch">
-                  <input type="checkbox" id="${room.id}-accentLight" onchange="toggleRelay(${index*2+1}, this.checked)">
-                  <span class="slider-toggle"></span>
-                </label>
-              </div>
-            </div>
-            <div class="card">
-              <span class="material-icons">thermostat</span>
-              <div class="card-title">Temperature</div>
-              <div class="card-value" id="${room.id}-temp">--°C</div>
-              <div class="status-label" id="${room.id}-hum">Humidity: --%</div>
-            </div>
-          </div>`;
-      });
-      
-      document.getElementById('roomContainers').innerHTML = containersHtml;
-    }
-    
-    // Build scene buttons
-    function buildSceneButtons() {
-      let scenesHtml = '';
-      scenes.forEach((scene, index) => {
-        scenesHtml += `
-          <button class="scene-btn ${scene.class}" onclick="applyScene(${index})">
-            <span class="material-icons">${scene.icon}</span>
-            ${scene.name}
-          </button>`;
-      });
-      document.getElementById('sceneCards').innerHTML = scenesHtml;
-    }
-    
-    // Switch active room tab
-    function showRoom(roomId, btn) {
-      // Hide all room tabs
-      document.querySelectorAll('.room-tab').forEach(tab => {
-        tab.style.display = 'none';
-      });
-      
-      // Show the selected room tab
-      document.getElementById('room-' + roomId).style.display = 'flex';
-      
-      // Update active tab styling
-      document.querySelectorAll('.tab').forEach(tab => {
-        tab.classList.remove('active');
-      });
+
+    // --- Device Cards ---
+    function showRoom(room, btn) {
+      document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
       if (btn) btn.classList.add('active');
+      let row = document.getElementById('devicesRow');
+      row.innerHTML = '';
+      let filtered = room === 'all' ? devices : devices.filter(d => d.room === room);
+      filtered.forEach(dev => {
+        let html = `<div class="device-card">
+          <span class="material-icons">${dev.type === 'light' ? 'wb_incandescent' : dev.type === 'thermostat' ? 'thermostat' : dev.type === 'tv' ? 'tv' : dev.type === 'lock' ? 'lock' : dev.type === 'curtain' ? 'window' : dev.type === 'camera' ? 'videocam' : 'devices'}</span>
+          <div class="device-title">${dev.name}</div>
+          <div class="device-status">${dev.type === 'light' ? 'On for ' + dev.onFor : dev.type === 'tv' ? (dev.playing ? dev.playing + ' playing' : '') : dev.type === 'lock' ? (dev.state ? 'Locked' : 'Unlocked') : dev.type === 'curtain' ? (dev.state ? 'Open' : 'Closed') : dev.type === 'camera' ? (dev.recording ? 'Recording' : 'Idle') : ''}</div>
+          <div class="toggle-switch">
+            <input type="checkbox" id="dev-${dev.id}" ${dev.state ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked)">
+            <span class="slider-toggle"></span>
+          </div>`;
+        if (dev.type === 'light') {
+          html += `<div class="slider-row">Brightness <input type="range" min="0" max="100" value="${dev.brightness}" onchange="setBrightness('${dev.id}', this.value)"> <span>${dev.brightness}%</span></div>`;
+        }
+        if (dev.type === 'thermostat') {
+          html += `<div class="slider-row">Temperature <input type="range" min="16" max="30" value="${dev.temp}" onchange="setThermo('${dev.id}', this.value)"> <span>${dev.temp}°C</span></div>`;
+        }
+        if (dev.type === 'tv') {
+          html += `<div class="slider-row"><button onclick="tvCmd('${dev.id}','ch+');event.stopPropagation()">Channel +</button> <button onclick="tvCmd('${dev.id}','ch-');event.stopPropagation()">Channel -</button></div>
+                   <div class="slider-row"><button onclick="tvCmd('${dev.id}','vol+');event.stopPropagation()">Volume +</button> <button onclick="tvCmd('${dev.id}','vol-');event.stopPropagation()">Volume -</button></div>`;
+        }
+        if (dev.type === 'lock') {
+          html += `<button class="settings-btn" style="margin-top:10px;" onclick="toggleLock('${dev.id}')">${dev.state ? 'Unlock' : 'Lock'}</button>
+                   <div class="device-status">Last accessed: ${dev.last}</div>`;
+        }
+        if (dev.type === 'curtain') {
+          html += `<div class="slider-row">Position <input type="range" min="0" max="100" value="${dev.pos}" onchange="setCurtain('${dev.id}', this.value)"> <span>${dev.pos}%</span></div>`;
+        }
+        if (dev.type === 'camera') {
+          html += `<div style="background:#222; color:#fff; border-radius:8px; width:100%; height:60px; display:flex; align-items:center; justify-content:center; margin-top:10px;"><span class="material-icons" style="font-size:2.2rem;">play_circle</span></div>`;
+        }
+        html += `</div>`;
+        row.innerHTML += html;
+      });
     }
-    
-    // Toggle a relay
-    function toggleRelay(relayNum, state) {
-      fetch(`/relay?num=${relayNum+1}&state=${state ? 1 : 0}`, { credentials: 'include' })
-        .then(resp => resp.json())
-        .then(data => {
-          if (!data.success) {
-            alert('Failed to toggle relay');
-            // Revert the checkbox state
-            fetchRelayStates();
-          }
-        })
-        .catch(err => {
-          alert('Network error: ' + err.message);
-          fetchRelayStates();
+
+    function toggleDevice(id, state) {
+      // TODO: Send to backend
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.state = state;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setBrightness(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.brightness = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setThermo(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.temp = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function setCurtain(id, val) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.pos = val;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function toggleLock(id) {
+      let dev = devices.find(d => d.id === id);
+      if (dev) dev.state = !dev.state;
+      showRoom('all', document.querySelector('.dashboard-tab.active'));
+    }
+    function tvCmd(id, cmd) {
+      alert('TV command: ' + cmd);
+    }
+
+    // --- Energy Chart ---
+    let energyChart, energyRange = 'day';
+    function setEnergyRange(range, btn) {
+      document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      energyRange = range;
+      renderEnergyChart();
+    }
+    function renderEnergyChart() {
+      let data = energyData[energyRange];
+      if (!energyChart) {
+        energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: data.labels, datasets: [{ label: 'kWh', data: data.values, borderColor: '#2563eb', fill: true, backgroundColor: 'rgba(37,99,235,0.08)' }] },
+          options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
         });
+      } else {
+        energyChart.data.labels = data.labels;
+        energyChart.data.datasets[0].data = data.values;
+        energyChart.update();
+      }
     }
-    
-    // Apply a scene
-    function applyScene(sceneId) {
-      fetch(`/scene?idx=${sceneId}`, { credentials: 'include' })
-        .then(resp => resp.json())
-        .then(data => {
-          if (data.success) {
-            fetchRelayStates(); // Update UI after scene is applied
-          } else {
-            alert('Failed to apply scene');
-          }
-        })
-        .catch(err => {
-          alert('Network error: ' + err.message);
-        });
+
+    // --- Routines ---
+    function renderRoutines() {
+      let list = document.getElementById('routinesList');
+      list.innerHTML = '';
+      routines.forEach(r => {
+        let html = `<div class="routine-card">
+          <span class="material-icons">${r.icon}</span>
+          <div class="routine-title">${r.name}</div>
+          <div class="routine-time">${r.time}</div>
+          <ul class="routine-list">${r.steps.map(s => `<li>${s}</li>`).join('')}</ul>
+          <div class="routine-toggle">
+            <label class="toggle-switch">
+              <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleRoutine('${r.id}', this.checked)">
+              <span class="slider-toggle"></span>
+            </label>
+          </div>
+        </div>`;
+        list.innerHTML += html;
+      });
     }
-    
-    // Fetch all relay states
-    function fetchRelayStates() {
-      fetch('/relayStatus', { credentials: 'include' })
-        .then(resp => resp.json())
-        .then(data => {
-          // Update all toggles based on relay states
-          rooms.forEach((room, roomIndex) => {
-            const mainLightIndex = roomIndex * 2;
-            const accentLightIndex = roomIndex * 2 + 1;
-            
-            if (mainLightIndex < data.length) {
-              document.getElementById(`${room.id}-mainLight`).checked = data[mainLightIndex];
-            }
-            if (accentLightIndex < data.length) {
-              document.getElementById(`${room.id}-accentLight`).checked = data[accentLightIndex];
-            }
-          });
-        })
-        .catch(err => console.error('Error fetching relay states:', err));
+    function toggleRoutine(id, state) {
+      let r = routines.find(x => x.id === id);
+      if (r) r.enabled = state;
+      renderRoutines();
     }
-    
-    // Fetch sensor data
-    function fetchSensorData() {
-      fetch('/sensor', { credentials: 'include' })
-        .then(resp => resp.json())
-        .then(data => {
-          // Format temperature and humidity values
-          const temp = data.temperature ? data.temperature.toFixed(1) + '°C' : '--°C';
-          const hum = data.humidity ? 'Humidity: ' + data.humidity.toFixed(0) + '%' : 'Humidity: --%';
-          
-          // Update all room temperature displays with the same values
-          rooms.forEach(room => {
-            document.getElementById(`${room.id}-temp`).textContent = temp;
-            document.getElementById(`${room.id}-hum`).textContent = hum;
-          });
-        })
-        .catch(err => console.error('Error fetching sensor data:', err));
-    }
-    
-    // Initialize UI
-    buildTabs();
-    buildRoomContainers();
-    buildSceneButtons();
-    
-    // Fetch initial data
-    fetchRelayStates();
-    fetchSensorData();
-    
-    // Set up polling
-    setInterval(fetchRelayStates, 5000);
-    setInterval(fetchSensorData, 10000);
+
+    // --- Init ---
+    updateDashboardCards();
+    showRoom('all', document.querySelector('.dashboard-tab.active'));
+    renderEnergyChart();
+    renderRoutines();
   </script>
 </body>
 </html>
 )rawliteral";
-
   server.send(200, "text/html", html);
 }
 
