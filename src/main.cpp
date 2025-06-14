@@ -37,15 +37,15 @@
 // 2 = Errors and warnings
 // 3 = Errors, warnings, and info
 // 4 = Verbose (all messages)
-#define DEBUG_LEVEL 1
+#define DEBUG_LEVEL 0
 
 // Component-specific debugging flags
-#define DEBUG_WIFI true       // WiFi connection debugging
+#define DEBUG_WIFI false       // WiFi connection debugging
 #define DEBUG_AUTH false  // Disable just auth debugging
-#define DEBUG_SENSORS true    // Sensor reading debugging
-#define DEBUG_RELAYS true     // Relay operation debugging
-#define DEBUG_HTTP true       // HTTP server requests debugging
-#define DEBUG_FILESYSTEM true // SPIFFS file operations debugging
+#define DEBUG_SENSORS false    // Sensor reading debugging
+#define DEBUG_RELAYS false     // Relay operation debugging
+#define DEBUG_HTTP false       // HTTP server requests debugging
+#define DEBUG_FILESYSTEM false // SPIFFS file operations debugging
 
 // Colors for better readability in Serial Monitor
 #define DEBUG_COLOR_ERROR "\033[31m"    // Red
@@ -53,6 +53,7 @@
 #define DEBUG_COLOR_INFO "\033[36m"     // Cyan
 #define DEBUG_COLOR_VERBOSE "\033[32m"  // Green
 #define DEBUG_COLOR_RESET "\033[0m"     // Reset to default
+#define TEMP_HISTORY_SIZE 7 
 
 // Debug print macros
 #if DEBUG_LEVEL > 0
@@ -80,7 +81,7 @@
 #endif
 
 // Debug function for dumping binary data (like cookies)
-#if DEBUG_LEVEL > 2
+#if DEBUG_LEVEL > 0
   void debugHexDump(const char* title, const uint8_t* data, size_t length) {
     if (!data || length == 0) return;
     Serial.printf("\n%s [%u bytes]:\n", title, length);
@@ -105,6 +106,8 @@ const int relayPins[RELAY_COUNT] = {2, 15, 16, 17, 18, 19, 21, 22};
 #define DHTTYPE DHT11
 #define STATUS_LED 23
 #define BUTTON_PIN 5  // For physical button control
+
+#define MAX_FW_SIZE 1572864 // 1.5 MB for OTA updates
 
 // --- EEPROM ---
 #define EEPROM_SIZE 512
@@ -159,6 +162,10 @@ unsigned long lastSensorRead = 0;
 bool buttonPressed = false;
 unsigned long lastButtonPress = 0;
 int statusHistoryCount = 0;
+float dailyTempAverage[TEMP_HISTORY_SIZE] = {0};
+float dailyHumAverage[TEMP_HISTORY_SIZE] = {0};
+int currentDayIndex = 0;
+unsigned long lastDayUpdate = 0;
 
 // Forward declarations for security and event functions
 bool isIPBlocked(const String& ip);
@@ -394,7 +401,11 @@ void connectWiFiStatic() {
     } else {
       Serial.println("\nFailed to connect to WiFi.");
       addLog("Failed to connect to WiFi.");
-      ESP.restart();
+      // Instead of ESP.restart(), enter a wait loop
+      while (true) {
+        digitalWrite(STATUS_LED, !digitalRead(STATUS_LED));
+        delay(500);
+      }
     }
   } else {
     Serial.println("config.ini file not found!");
@@ -588,7 +599,625 @@ void handleLogin() {
       --border-color: #eee;
       --shadow-color: rgba(0,0,0,0.07);
     }
-    // Add this CSS to the <style> section in handleRoot()
+
+    // Add to the <style> section in handleRoot()
+
+/* Enhanced Card Hover Effects */
+.dashboard-card {
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Button Hover Effects */
+.settings-btn, .ota-btn, .quick-action-btn, .close-modal, .add-routine-btn {
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.settings-btn:hover, .ota-btn:hover, .add-routine-btn:hover, .close-modal:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+.quick-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+.settings-btn:active, .ota-btn:active, .quick-action-btn:active, .close-modal:active {
+  transform: translateY(1px);
+}
+
+/* Ripple Effect for Buttons */
+.settings-btn:after, .ota-btn:after, .quick-action-btn:after, .add-routine-btn:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+.settings-btn:focus:not(:active)::after, .ota-btn:focus:not(:active)::after, 
+.quick-action-btn:focus:not(:active)::after, .add-routine-btn:focus:not(:active)::after {
+  animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(40, 40);
+  }
+}
+
+/* Enhanced Toggle Switch */
+.toggle-switch {
+  transition: all 0.3s ease;
+}
+.toggle-switch:hover .slider-toggle {
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+}
+.slider-toggle:before {
+  transition: 0.4s cubic-bezier(0.18, 0.89, 0.35, 1.15);
+}
+.toggle-switch input:checked + .slider-toggle:before {
+  transform: translateX(20px);
+}
+
+/* Device Card Enhancements */
+.device-card {
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+.device-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Tab Hover Effects */
+.dashboard-tab {
+  transition: all 0.2s ease;
+  position: relative;
+}
+.dashboard-tab:hover {
+  background: rgba(234, 243, 255, 0.5);
+}
+.dashboard-tab.active:after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 10%;
+  width: 80%;
+  height: 3px;
+  background: #2563eb;
+}
+
+/* Energy Tabs Enhancement */
+.energy-tab {
+  transition: all 0.2s ease;
+}
+.energy-tab:hover {
+  transform: translateY(-2px);
+}
+
+/* Routine Card Enhancement */
+.routine-card {
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+.routine-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+  border-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Dark Mode Toggle Enhancement */
+.dark-toggle {
+  transition: all 0.3s ease;
+}
+.dark-toggle:hover {
+  transform: rotate(30deg) scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Bulb Icons Animation Enhancement */
+.bulb-on {
+  transition: all 0.5s ease;
+}
+.bulb-off {
+  transition: color 0.3s ease;
+}
+.bulb-icon-container:hover .bulb-off {
+  color: #666;
+}
+
+/* Enhanced Relay Status */
+#relayStatusCard > div > div {
+  transition: all 0.3s ease;
+}
+#relayStatusCard > div > div:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Input Range Slider Enhancement */
+input[type=range] {
+  height: 6px;
+  appearance: none;
+  margin: 10px 0;
+  background: #d7dcdf;
+  border-radius: 5px;
+  background-image: linear-gradient(#2563eb, #2563eb);
+  background-repeat: no-repeat;
+  transition: all 0.3s ease;
+}
+input[type=range]:hover {
+  background-image: linear-gradient(#1d4ed8, #1d4ed8);
+}
+input[type=range]::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  border: none;
+}
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #1d4ed8;
+}
+.dark-mode input[type=range] {
+  background: #4b5563;
+  background-image: linear-gradient(#3b82f6, #3b82f6);
+  background-repeat: no-repeat;
+}
+
+/* System Info Hover */
+.system-info {
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+.system-info:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+.dark-mode .system-info:hover {
+  background: #1e293b;
+  border-color: #334155;
+}
+  // Add these enhanced styles to the <style> section in handleRoot()
+
+/* Enhanced Shadow Effects */
+.dashboard-card {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); /* Improved easing */
+}
+
+.dashboard-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 
+    0 12px 20px rgba(37, 99, 235, 0.15),
+    0 4px 8px rgba(37, 99, 235, 0.08),
+    0 0 0 1px rgba(37, 99, 235, 0.05);
+}
+
+/* Device Card Enhanced Effects */
+.device-card {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  backface-visibility: hidden; /* Prevents flickering in some browsers */
+}
+
+.device-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 
+    0 12px 20px rgba(37, 99, 235, 0.15),
+    0 4px 8px rgba(37, 99, 235, 0.08),
+    0 0 0 1px rgba(37, 99, 235, 0.05);
+}
+
+/* Button Animation Enhancements */
+.settings-btn, .ota-btn, .quick-action-btn, .close-modal, .add-routine-btn {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.settings-btn:hover, .ota-btn:hover, .add-routine-btn:hover, .close-modal:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 6px 15px rgba(37, 99, 235, 0.25);
+}
+
+.settings-btn:active, .ota-btn:active, .quick-action-btn:active, .close-modal:active {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+}
+
+/* Improved Ripple Effect */
+.settings-btn:after, .ota-btn:after, .quick-action-btn:after, .add-routine-btn:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.settings-btn:focus:not(:active)::after, .ota-btn:focus:not(:active)::after, 
+.quick-action-btn:focus:not(:active)::after, .add-routine-btn:focus:not(:active)::after {
+  animation: ripple 1s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.6;
+  }
+  20% {
+    transform: scale(25, 25);
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(40, 40);
+  }
+}
+
+/* Enhanced Toggle Switch */
+.toggle-switch {
+  transition: all 0.3s ease;
+}
+
+.toggle-switch:hover .slider-toggle {
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.5);
+}
+
+.slider-toggle {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  border-radius: 28px;
+}
+
+.slider-toggle:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background: #fff;
+  transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch input:checked + .slider-toggle {
+  background: #2563eb;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.toggle-switch input:checked + .slider-toggle:before {
+  transform: translateX(20px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Improved Dashboard Tabs */
+.dashboard-tab {
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-tab:hover {
+  transform: translateY(-2px);
+  background: rgba(234, 243, 255, 0.7);
+}
+
+.dashboard-tab.active:after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 10%;
+  width: 80%;
+  height: 3px;
+  background: #2563eb;
+  border-radius: 1.5px;
+  animation: tabActivate 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes tabActivate {
+  from { width: 0; left: 50%; }
+  to { width: 80%; left: 10%; }
+}
+
+/* Enhanced Lamp Animation */
+.lamp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  position: relative;
+  margin-left: 5px;
+  transition: transform 0.3s ease;
+}
+
+.lamp-body {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  position: relative;
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.lamp-base {
+  width: 12px;
+  height: 5px;
+  background: #888;
+  border-radius: 2px;
+  margin: 0 auto;
+  position: relative;
+  top: -2px;
+  transition: all 0.3s ease;
+}
+
+.lamp-on .lamp-body {
+  background: #ffeb3b;
+  box-shadow: 
+    0 0 15px rgba(255, 235, 59, 0.8),
+    0 0 30px rgba(255, 235, 59, 0.3);
+  animation: glow 2s infinite alternate;
+}
+
+.lamp-off .lamp-body {
+  background: #eaeaea;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.1);
+}
+
+.lamp-icon:hover {
+  transform: translateY(-3px);
+}
+
+.lamp-on:hover .lamp-body {
+  animation: glowIntense 1.2s infinite alternate;
+}
+
+@keyframes glow {
+  from { 
+    box-shadow: 0 0 5px rgba(255, 235, 59, 0.6), 0 0 10px rgba(255, 235, 59, 0.3); 
+  }
+  to { 
+    box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), 0 0 25px rgba(255, 235, 59, 0.5), 0 0 35px rgba(255, 235, 59, 0.3); 
+  }
+}
+
+@keyframes glowIntense {
+  from { 
+    box-shadow: 0 0 10px rgba(255, 235, 59, 0.7), 0 0 20px rgba(255, 235, 59, 0.4); 
+    transform: scale(1);
+  }
+  to { 
+    box-shadow: 0 0 20px rgba(255, 235, 59, 0.9), 0 0 30px rgba(255, 235, 59, 0.6), 0 0 40px rgba(255, 235, 59, 0.4);
+    transform: scale(1.05);
+  }
+}
+
+/* Enhanced Bulb Animation */
+.bulb-icon-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  position: relative;
+  margin-left: 5px;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.bulb-icon-container:hover {
+  transform: translateY(-3px) scale(1.1);
+}
+
+.bulb-on {
+  color: #27ae60;
+  filter: drop-shadow(0 0 5px rgba(39, 174, 96, 0.6));
+  animation: glow-bulb 2s infinite alternate;
+  transition: all 0.5s ease;
+}
+
+.bulb-off {
+  color: #444;
+  transition: color 0.3s ease, filter 0.3s ease;
+}
+
+.bulb-icon-container:hover .bulb-off {
+  color: #666;
+  filter: drop-shadow(0 0 2px rgba(102, 102, 102, 0.3));
+}
+
+@keyframes glow-bulb {
+  from { 
+    filter: drop-shadow(0 0 3px rgba(39, 174, 96, 0.4));
+  }
+  to { 
+    filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.6)) drop-shadow(0 0 12px rgba(39, 174, 96, 0.4));
+  }
+}
+
+/* Animated Status Cards */
+#relayStatusCard > div > div {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform: translateZ(0);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border: 1px solid transparent;
+}
+
+#relayStatusCard > div > div:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 
+    0 8px 16px rgba(0, 0, 0, 0.1),
+    0 3px 6px rgba(0, 0, 0, 0.08);
+  border-color: rgba(37, 99, 235, 0.1);
+}
+
+/* Enhanced Range Slider */
+input[type=range] {
+  height: 6px;
+  appearance: none;
+  margin: 10px 0;
+  background: linear-gradient(to right, #d7dcdf 0%, #d7dcdf 100%);
+  border-radius: 5px;
+  transition: all 0.3s ease;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+input[type=range]:focus {
+  outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2563eb;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+input[type=range]::-webkit-slider-thumb:hover {
+  transform: scale(1.3);
+  background: #1d4ed8;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark Mode Toggle Animation */
+.dark-toggle {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+}
+
+.dark-toggle:hover {
+  transform: rotate(45deg) scale(1.15);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.dark-toggle:active {
+  transform: rotate(45deg) scale(0.95);
+}
+
+/* System Info Card */
+.system-info {
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  border: 1px solid transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.system-info:hover {
+  transform: translateY(-5px);
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .system-info:hover {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Routine Card Animation */
+.routine-card {
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  border: 1px solid transparent;
+}
+
+.routine-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 
+    0 12px 20px rgba(37, 99, 235, 0.15),
+    0 4px 8px rgba(37, 99, 235, 0.08),
+    0 0 0 1px rgba(37, 99, 235, 0.05);
+}
+
+/* Animation for Camera Modal */
+.camera-modal {
+  transition: opacity 0.3s ease;
+  opacity: 0;
+  display: flex;
+  visibility: hidden;
+}
+
+.camera-modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.camera-content {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform: scale(0.8);
+}
+
+.camera-modal.active .camera-content {
+  transform: scale(1);
+}
+
+/* Material Icons Animation */
+.material-icons {
+  transition: transform 0.3s ease;
+}
+
+.dashboard-card:hover .material-icons,
+.device-card:hover .material-icons,
+.routine-card:hover .material-icons {
+  transform: scale(1.2);
+}
+
+/* Page Transition Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dashboard-main {
+  animation: fadeIn 0.5s ease-out;
+}
+    
 .lamp-icon {
   display: inline-flex;
   align-items: center;
@@ -1169,7 +1798,103 @@ void handleRoot() {
 @keyframes glow-bulb {
   from { filter: drop-shadow(0 0 3px rgba(39, 174, 96, 0.4)); }
   to { filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.6)); }
+}// Add to the <style> section in handleRoot()
+
+/* Premium Card Shadow Effects */
+.dashboard-card, .device-card, .routine-card, .scene-item {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+  will-change: transform, box-shadow;
 }
+
+.dashboard-card:hover, .device-card:hover, .routine-card:hover, .scene-item:hover {
+  transform: translateY(-8px);
+  box-shadow: 
+    0 14px 24px rgba(37, 99, 235, 0.15),
+    0 6px 12px rgba(37, 99, 235, 0.08),
+    0 0 0 1px rgba(37, 99, 235, 0.05);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Subtle Background Color Change on Hover */
+.dashboard-card:hover {
+  background: linear-gradient(to bottom right, #ffffff, #f8faff);
+}
+
+.dark-mode .dashboard-card:hover, 
+.dark-mode .device-card:hover, 
+.dark-mode .routine-card:hover,
+.dark-mode .scene-item:hover {
+  background: linear-gradient(to bottom right, #232a36, #293241);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 
+    0 14px 24px rgba(0, 0, 0, 0.25),
+    0 6px 12px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(59, 130, 246, 0.2);
+}
+
+/* Subtle Glow Effect on Hover */
+.dashboard-card:after,
+.device-card:after,
+.routine-card:after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: transparent;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: background 0.4s ease-in-out;
+}
+
+.dashboard-card:hover:after,
+.device-card:hover:after,
+.routine-card:hover:after {
+  background: radial-gradient(
+    circle at 50% 0%, 
+    rgba(59, 130, 246, 0.08),
+    transparent 50%
+  );
+}
+
+/* Card Content Subtle Lift on Hover */
+.dashboard-card > *:not(.material-icons),
+.device-card > *:not(.material-icons, .toggle-switch),
+.routine-card > *:not(.material-icons, .routine-toggle) {
+  transform: translateY(0);
+  transition: transform 0.4s ease-out;
+}
+
+.dashboard-card:hover > *:not(.material-icons),
+.device-card:hover > *:not(.material-icons, .toggle-switch),
+.routine-card:hover > *:not(.material-icons, .routine-toggle) {
+  transform: translateY(-2px);
+}
+
+/* Make Card Values More Prominent on Hover */
+.dashboard-card:hover .card-value {
+  color: #2563eb;
+  transform: scale(1.05);
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.dark-mode .dashboard-card:hover .card-value {
+  color: #60a5fa;
+}
+
+/* System Info Card Enhanced Effects */
+.system-info {
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  border-radius: 12px;
+}
+
+.system-info:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+  
   </style>
 </head>
 <body>
@@ -1293,43 +2018,14 @@ void handleRoot() {
     };
 
     // --- Dashboard Cards ---
-    function updateDashboardCards() {
-      document.getElementById('tempCard').textContent = '24°C';
-      document.getElementById('tempSub').textContent = '↑ 2°C from yesterday';
-      document.getElementById('humCard').textContent = '65%';
-      document.getElementById('energyCard').textContent = '3.8 kWh';
-      document.getElementById('activeDevices').textContent = '8/12';
-      document.getElementById('activeDevicesSub').textContent = '+2 devices added today';
-    }
-    // --- Relay Status ---
-// Replace the updateRelayStatus function in handleRoot()
-function updateRelayStatus() {
-  fetch('/relayStatus', { credentials: 'include' })
-    .then(r => r.json())
-    .then(data => {
-      let html = '';
-      if (data.relays) {
-        data.relays.forEach(relay => {
-          html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <span style="font-weight:600;min-width:120px;">${relay.name || 'Relay ' + relay.num}</span>
-            <span class="bulb-icon-container">
-              ${relay.state ? 
-                `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" class="bulb-on">
-                  <path fill="currentColor" d="M12,2C9.89,2 7.89,2.54 6.2,3.6C4.5,4.67 3.24,6.28 2.73,8.13C2.21,10 2.51,12 3.53,13.8C4.55,15.6 6.25,17 8.3,17.74V21C8.3,21.3 8.5,21.52 8.77,21.77C9.04,22 9.33,22.26 9.75,22.47C10.17,22.7 10.69,22.83 11.3,22.92C11.94,23 12.5,23 12.97,22.92C13.44,22.84 13.86,22.7 14.27,22.47C14.68,22.24 15.05,22 15.35,21.77C15.65,21.5 15.86,21.3 15.86,21V17.74C17.93,17 19.66,15.59 20.67,13.8C21.7,12 22,10 21.5,8.13C20.97,6.26 19.71,4.66 18.04,3.6C16.36,2.53 14.11,2 12,2M12,4C13.39,4 14.77,4.33 16,5C17.25,5.67 18.2,6.7 18.7,8.06C19.22,9.42 19.09,11 18.41,12.3C17.73,13.65 16.71,14.7 15.4,15.28C15,15.47 14.8,15.87 14.8,16.34V20H9.5V16.34C9.5,15.87 9.3,15.47 8.9,15.28C7.6,14.7 6.63,13.66 5.94,12.31C5.25,11 5.11,9.44 5.64,8.06C6.14,6.69 7.09,5.67 8.34,5C9.57,4.37 10.78,4 12,4M14,6.5C13.5,6.5 13,6.69 12.61,7.07C12.2,7.47 12,8 12,8.5V9.8C11.7,9.86 11.41,9.93 11.2,10C10.17,10.21 9.44,10.5 9.09,10.91C9.06,10.94 9,11 8.97,11.03C8.95,11.06 8.92,11.13 8.88,11.22C8.8,11.36 8.77,11.5 8.77,11.63C8.75,11.77 8.8,11.88 8.83,12C8.86,12.11 8.91,12.2 8.97,12.27C9.03,12.34 9.09,12.41 9.16,12.45C9.23,12.5 9.28,12.53 9.36,12.53H9.45C9.62,12.53 9.76,12.46 9.88,12.39C10,12.31 10.08,12.23 10.19,12.13C10.28,12.05 10.33,12 10.42,11.94C10.5,11.89 10.56,11.86 10.64,11.83C10.83,11.77 11.06,11.77 11.3,11.75C11.5,11.72 11.83,11.69 12,11.69C12.92,11.69 13.38,11.77 13.66,11.83C13.77,11.86 13.89,11.89 13.98,11.94C14.08,12 14.17,12.05 14.28,12.13C14.38,12.2 14.47,12.28 14.59,12.36C14.7,12.43 14.84,12.5 15,12.5H15.09C15.16,12.5 15.23,12.47 15.3,12.42C15.36,12.38 15.42,12.31 15.5,12.23C15.55,12.17 15.61,12.08 15.64,11.97C15.67,11.85 15.73,11.72 15.7,11.58C15.67,11.44 15.64,11.3 15.56,11.17C15.5,11.08 15.45,11 15.41,10.97C15.38,10.94 15.34,10.91 15.31,10.88C14.97,10.5 14.23,10.27 13.2,10C13,9.93 12.7,9.86 12.41,9.8V8.5C12.41,8.23 12.3,8 12.11,7.82C11.91,7.65 11.66,7.5 11.39,7.5H9.5C9.23,7.5 9,7.73 9,8C9,8.27 9.23,8.5 9.5,8.5H11.39C11.41,8.5 11.39,8.53 11.39,8.5V10.41C11.11,10.5 10.8,10.56 10.5,10.63C10.03,10.78 9.53,10.95 9.13,11.25C8.72,11.5 8.34,11.95 8.39,12.63C8.41,12.95 8.55,13.25 8.75,13.47C8.94,13.7 9.2,13.84 9.47,13.92C9.73,14 10.05,14 10.36,13.92C10.67,13.84 10.92,13.7 11.11,13.56L11.33,13.39C11.36,13.39 11.39,13.36 11.41,13.36C11.5,13.34 11.59,13.31 11.73,13.31H12.27C12.41,13.31 12.5,13.34 12.58,13.36C12.61,13.36 12.64,13.39 12.66,13.39L12.89,13.56C13.08,13.7 13.33,13.84 13.64,13.92C13.95,14 14.27,14 14.53,13.92C14.8,13.84 15.05,13.7 15.25,13.47C15.44,13.25 15.58,12.95 15.61,12.63C15.66,11.95 15.28,11.5 14.86,11.25C14.47,10.97 13.97,10.8 13.5,10.63C13.2,10.56 12.89,10.5 12.61,10.41V9.44C12.7,9.31 12.83,9.19 13,9.13C13.17,9.06 13.33,9 13.5,9C13.83,9 14.17,9.17 14.17,9.5V10C14.17,10.27 14.39,10.5 14.67,10.5C14.94,10.5 15.17,10.27 15.17,10V9.5C15.17,8.97 14.95,8.44 14.56,8.06C14.17,7.69 13.66,7.5 13.16,7.5H13"/>
-                </svg>` : 
-                `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" class="bulb-off">
-                  <path fill="currentColor" d="M12,2C9.89,2 7.89,2.54 6.2,3.6C4.5,4.67 3.24,6.28 2.73,8.13C2.21,10 2.51,12 3.53,13.8C4.55,15.6 6.25,17 8.3,17.74V21C8.3,21.3 8.5,21.52 8.77,21.77C9.04,22 9.33,22.26 9.75,22.47C10.17,22.7 10.69,22.83 11.3,22.92C11.94,23 12.5,23 12.97,22.92C13.44,22.84 13.86,22.7 14.27,22.47C14.68,22.24 15.05,22 15.35,21.77C15.65,21.5 15.86,21.3 15.86,21V17.74C17.93,17 19.66,15.59 20.67,13.8C21.7,12 22,10 21.5,8.13C20.97,6.26 19.71,4.66 18.04,3.6C16.36,2.53 14.11,2 12,2M12,4C13.39,4 14.77,4.33 16,5C17.25,5.67 18.2,6.7 18.7,8.06C19.22,9.42 19.09,11 18.41,12.3C17.73,13.65 16.71,14.7 15.4,15.28C15,15.47 14.8,15.87 14.8,16.34V20H9.5V16.34C9.5,15.87 9.3,15.47 8.9,15.28C7.6,14.7 6.63,13.66 5.94,12.31C5.25,11 5.11,9.44 5.64,8.06C6.14,6.69 7.09,5.67 8.34,5C9.57,4.37 10.78,4 12,4M14,6.5C13.5,6.5 13,6.69 12.61,7.07C12.2,7.47 12,8 12,8.5V9.8C11.7,9.86 11.41,9.93 11.2,10C10.17,10.21 9.44,10.5 9.09,10.91C9.06,10.94 9,11 8.97,11.03C8.95,11.06 8.92,11.13 8.88,11.22C8.8,11.36 8.77,11.5 8.77,11.63C8.75,11.77 8.8,11.88 8.83,12C8.86,12.11 8.91,12.2 8.97,12.27C9.03,12.34 9.09,12.41 9.16,12.45C9.23,12.5 9.28,12.53 9.36,12.53H9.45C9.62,12.53 9.76,12.46 9.88,12.39C10,12.31 10.08,12.23 10.19,12.13C10.28,12.05 10.33,12 10.42,11.94C10.5,11.89 10.56,11.86 10.64,11.83C10.83,11.77 11.06,11.77 11.3,11.75C11.5,11.72 11.83,11.69 12,11.69C12.92,11.69 13.38,11.77 13.66,11.83C13.77,11.86 13.89,11.89 13.98,11.94C14.08,12 14.17,12.05 14.28,12.13C14.38,12.2 14.47,12.28 14.59,12.36C14.7,12.43 14.84,12.5 15,12.5H15.09C15.16,12.5 15.23,12.47 15.3,12.42C15.36,12.38 15.42,12.31 15.5,12.23C15.55,12.17 15.61,12.08 15.64,11.97C15.67,11.85 15.73,11.72 15.7,11.58C15.67,11.44 15.64,11.3 15.56,11.17C15.5,11.08 15.45,11 15.41,10.97C15.38,10.94 15.34,10.91 15.31,10.88C14.97,10.5 14.23,10.27 13.2,10C13,9.93 12.7,9.86 12.41,9.8V8.5C12.41,8.23 12.3,8 12.11,7.82C11.91,7.65 11.66,7.5 11.39,7.5H9.5C9.23,7.5 9,7.73 9,8C9,8.27 9.23,8.5 9.5,8.5H11.39C11.41,8.5 11.39,8.53 11.39,8.5V10.41C11.11,10.5 10.8,10.56 10.5,10.63C10.03,10.78 9.53,10.95 9.13,11.25C8.72,11.5 8.34,11.95 8.39,12.63C8.41,12.95 8.55,13.25 8.75,13.47C8.94,13.7 9.2,13.84 9.47,13.92C9.73,14 10.05,14 10.36,13.92C10.67,13.84 10.92,13.7 11.11,13.56L11.33,13.39C11.36,13.39 11.39,13.36 11.41,13.36C11.5,13.34 11.59,13.31 11.73,13.31H12.27C12.41,13.31 12.5,13.34 12.58,13.36C12.61,13.36 12.64,13.39 12.66,13.39L12.89,13.56C13.08,13.7 13.33,13.84 13.64,13.92C13.95,14 14.27,14 14.53,13.92C14.8,13.84 15.05,13.7 15.25,13.47C15.44,13.25 15.58,12.95 15.61,12.63C15.66,11.95 15.28,11.5 14.86,11.25C14.47,10.97 13.97,10.8 13.5,10.63C13.2,10.56 12.89,10.5 12.61,10.41V9.44C12.7,9.31 12.83,9.19 13,9.13C13.17,9.06 13.33,9 13.5,9C13.83,9 14.17,9.17 14.17,9.5V10C14.17,10.27 14.39,10.5 14.67,10.5C14.94,10.5 15.17,10.27 15.17,10V9.5C15.17,8.97 14.95,8.44 14.56,8.06C14.17,7.69 13.66,7.5 13.16,7.5H13"/>
-                </svg>`
-              }
-            </span>
-            <span style="margin-left:5px;color:${relay.state ? '#27ae60' : '#e74c3c'};font-weight:700;">
-              ${relay.state ? 'ON' : 'OFF'}
-            </span>
-          </div>`;
-        });
-      }
-      document.getElementById('relayStatusList').innerHTML = html;
-    });
+  // Replace the updateDashboardCards function:
+
+function updateDashboardCards() {
+  //document.getElementById('tempCard').textContent = '24°C';
+  //document.getElementById('tempSub').textContent = '↑ 2°C from yesterday';
+  //document.getElementById('humCard').textContent = '65%';
+  document.getElementById('energyCard').textContent = '3.8 kWh';
+  // The active devices values will be updated by updateSystemInfo()
 }
     // --- Device Cards ---
     function showRoom(room, btn) {
@@ -1488,27 +2184,62 @@ function updateRelayStatus() {
     }
 
     // --- System Info ---
-    function updateSystemInfo() {
-      fetch('/sensor', { credentials: 'include' })
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById('tempCard').textContent = data.temperature + '°C';
-          document.getElementById('humCard').textContent = data.humidity + '%';
-        });
-      fetch('/logs', { credentials: 'include' })
-        .then(r => r.text())
-        .then(logs => {
-          let logLines = logs.trim().split('\n').slice(-10);
-          document.getElementById('logList').innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
-        });
-      fetch('/systeminfo', { credentials: 'include' })
-        .then(r => r.json())
-        .then(info => {
-          document.getElementById('uptime').textContent = info.uptime;
-          document.getElementById('ipAddr').textContent = info.ip;
-          document.getElementById('freeHeap').textContent = info.heap;
-        });
+// Replace the updateSystemInfo function with this version:
+
+function updateSystemInfo() {
+  // ...inside updateSystemInfo() in your dashboard JS...
+fetch('/sensor', { credentials: 'include' })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('tempCard').textContent = data.temperature + '°C';
+    document.getElementById('humCard').textContent = data.humidity + '%';
+
+    // Temperature trend
+    const tempDiff = data.temperature - data.yesterdayTemp;
+    const tempSign = tempDiff > 0 ? '↑' : (tempDiff < 0 ? '↓' : '');
+    const absTempDiff = Math.abs(tempDiff).toFixed(1);
+
+    if (data.yesterdayTemp > 0) {
+      document.getElementById('tempSub').textContent =
+        `${tempSign} ${absTempDiff}°C from yesterday`;
+    } else {
+      document.getElementById('tempSub').textContent = '';
     }
+
+    // Humidity trend
+    const humDiff = data.humidity - data.yesterdayHum;
+    const humSign = humDiff > 0 ? '↑' : (humDiff < 0 ? '↓' : '');
+    const absHumDiff = Math.abs(humDiff).toFixed(1);
+
+    if (data.yesterdayHum > 0) {
+      document.getElementById('humSub').textContent =
+        `${humSign} ${absHumDiff}% from yesterday`;
+    } else {
+      document.getElementById('humSub').textContent = '';
+    }
+  });
+    
+  // Keep the rest of the function
+  fetch('/logs', { credentials: 'include' })
+    .then(r => r.text())
+    .then(logs => {
+      let logLines = logs.trim().split('\n').slice(-10);
+      document.getElementById('logList').innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
+    });
+  fetch('/systeminfo', { credentials: 'include' })
+    .then(r => r.json())
+    .then(info => {
+      document.getElementById('uptime').textContent = info.uptime;
+      document.getElementById('ipAddr').textContent = info.ip;
+      document.getElementById('freeHeap').textContent = info.heap;
+    });
+  fetch('/deviceStatus', { credentials: 'include' })
+    .then(r => r.json())
+    .then(devices => {
+      document.getElementById('activeDevices').textContent = devices.activeCount + '/' + devices.totalCount;
+      document.getElementById('activeDevicesSub').textContent = '+' + devices.newDevices + ' devices added today';
+    });
+}
 
     // --- Dark Mode ---
     function toggleDarkMode() {
@@ -1528,6 +2259,7 @@ function updateRelayStatus() {
     setInterval(updateSystemInfo, 10000);
 
     // --- Relay Status Update ---
+// ...inside handleRoot()'s <script> section, replace updateRelayStatus with:
 function updateRelayStatus() {
   fetch('/relayStatus', { credentials: 'include' })
     .then(r => r.json())
@@ -1536,7 +2268,7 @@ function updateRelayStatus() {
       if (data.relays) {
         data.relays.forEach(relay => {
           html += `
-            <div style="display:flex;flex-direction:column;align-items:center;background:#f8f9fa;border-radius:8px;padding:12px;min-width:110px;">
+            <div style="display:flex;flex-direction:column;align-items:center;background:#f8f9fa;border-radius:8px;padding:12px;min-width:110px;margin-bottom:10px;">
               <span style="font-weight:600;margin-bottom:8px;text-align:center;">${relay.name || 'Relay ' + relay.num}</span>
               <span class="bulb-icon-container" style="margin-bottom:5px;">
                 ${relay.state ? 
@@ -1548,6 +2280,10 @@ function updateRelayStatus() {
                   </svg>`
                 }
               </span>
+              <label class="toggle-switch">
+                <input type="checkbox" ${relay.state ? 'checked' : ''} onchange="toggleRelay(${relay.num}, this.checked)">
+                <span class="slider-toggle"></span>
+              </label>
               <span style="color:${relay.state ? '#27ae60' : '#e74c3c'};font-weight:700;">
                 ${relay.state ? 'ON' : 'OFF'}
               </span>
@@ -1558,9 +2294,16 @@ function updateRelayStatus() {
       document.getElementById('relayStatusList').innerHTML = html;
     });
 }
+
+// Add this function to your <script> section:
+function toggleRelay(num, state) {
+  fetch('/relay?num=' + num + '&state=' + (state ? 1 : 0), { credentials: 'include' })
+    .then(r => r.json())
+    .then(() => updateRelayStatus());
+}
     // Call once and set interval
     updateRelayStatus();
-    setInterval(updateRelayStatus, 100);
+    setInterval(updateRelayStatus, 1000);
   </script>
 </body>
 </html>
@@ -1958,30 +2701,7 @@ void handleSystemRestart() {
   ESP.restart();
 }
 
-void handleSensorData() {
-  if (requireLogin()) return;
-  
-  DynamicJsonDocument doc(4096);
-  JsonArray data = doc["data"].to<JsonArray>();
-  
-  // Get current time
-  time_t now;
-  time(&now);
-  
-  // Send last 24 hours of data
-  for (int i = 0; i < dataCount; i++) {
-    if (difftime(now, dataPoints[i].timestamp) <= 86400) { // 24 hours
-      JsonObject point = data.add<JsonObject>();
-      point["time"] = dataPoints[i].timestamp;
-      point["temp"] = dataPoints[i].temperature;
-      point["hum"] = dataPoints[i].humidity;
-    }
-  }
-  
-  String json;
-  serializeJson(doc, json);
-  server.send(200, "application/json", json);
-}
+
 
 void handleResetPass() {
   if (handleFileRead("/resetpass.html")) return;
@@ -2293,16 +3013,17 @@ void handleScene() {
 
 void handleSensor() {
   if (requireLogin()) return;
-  
-  StaticJsonDocument<128> doc;
+
+  StaticJsonDocument<256> doc;
   doc["temperature"] = currentTemp;
   doc["humidity"] = currentHum;
-  
+  doc["yesterdayTemp"] = dailyTempAverage[1];
+  doc["yesterdayHum"] = dailyHumAverage[1];
+
   String json;
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
-
 void handleSimpleLogs() {
   if (requireLogin()) return;
   
@@ -2337,11 +3058,13 @@ void handleJarvisRelay() {
 
 void handleOTAUpdate() {
   if (requireLogin()) return;
-
   HTTPUpload& upload = server.upload();
 
   if (upload.status == UPLOAD_FILE_START) {
-    Serial.printf("Update: %s\n", upload.filename.c_str());
+    if (upload.totalSize > MAX_FW_SIZE) {
+      server.send(400, "text/plain", "Firmware file too large!");
+      return;
+    }
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
       Update.printError(Serial);
     }
@@ -2395,30 +3118,62 @@ void handleOTAWeb() {
     <div style="margin-top:18px; text-align:center;">
       <a href="/">Back to Dashboard</a>
     </div>
-  </div>
-  <script>
-    document.getElementById('otaForm').onsubmit = function(e) {
-      e.preventDefault();
-      var form = e.target;
-      var data = new FormData(form);
-      var xhr = new XMLHttpRequest();
-      xhr.open('POST', '/update', true);
-      xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) {
-          document.getElementById('otaStatus').innerText = 'Uploading: ' + Math.round(e.loaded / e.total * 100) + '%';
-        }
-      };
-      xhr.onload = function() {
-        if (xhr.status == 200) {
-          document.getElementById('otaStatus').innerText = 'Update successful! Rebooting...';
-          setTimeout(function(){ location.href = '/'; }, 4000);
-        } else {
-          document.getElementById('otaStatus').innerText = 'Update failed!';
-        }
-      };
-      xhr.send(data);
-    };
-  </script>
+  <div class="ota-status" id="otaStatus"></div> with:
+<div class="ota-status" id="otaStatus"></div>
+<pre id="otaConsole" style="background:#222;color:#0f0;padding:12px 8px;border-radius:8px;min-height:60px;max-height:180px;overflow:auto;font-size:0.98rem;margin-top:10px;"></pre>
+
+<script>
+const MAX_FW_SIZE = 1572864; // 1.5MB (adjust to your partition table)
+const otaConsole = document.getElementById('otaConsole');
+
+function logToConsole(msg) {
+  otaConsole.textContent += msg + '\n';
+  otaConsole.scrollTop = otaConsole.scrollHeight;
+}
+
+document.getElementById('otaForm').onsubmit = function(e) {
+  e.preventDefault();
+  var form = e.target;
+  var fileInput = form.querySelector('input[type="file"]');
+  var file = fileInput.files[0];
+  otaConsole.textContent = '';
+  if (file.size > MAX_FW_SIZE) {
+    document.getElementById('otaStatus').innerText = 'Firmware file is too large! Max allowed: ' + (MAX_FW_SIZE/1024/1024).toFixed(2) + ' MB';
+    logToConsole('❌ File too large: ' + (file.size/1024/1024).toFixed(2) + ' MB');
+    return false;
+  }
+  logToConsole('Selected file: ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)');
+  logToConsole('Starting upload...');
+  var data = new FormData(form);
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/update', true);
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      let percent = Math.round(e.loaded / e.total * 100);
+      document.getElementById('otaStatus').innerText = 'Uploading: ' + percent + '%';
+      logToConsole('Uploading: ' + percent + '% (' + (e.loaded/1024).toFixed(1) + ' KB / ' + (e.total/1024).toFixed(1) + ' KB)');
+    }
+  };
+  xhr.onloadstart = function() {
+    logToConsole('Upload started...');
+  };
+  xhr.onerror = function() {
+    document.getElementById('otaStatus').innerText = 'Update failed!';
+    logToConsole('❌ Upload failed (network error)');
+  };
+  xhr.onload = function() {
+    if (xhr.status == 200) {
+      document.getElementById('otaStatus').innerText = 'Update successful! Rebooting...';
+      logToConsole('✅ Update successful! Device rebooting...');
+      setTimeout(function(){ location.href = '/'; }, 4000);
+    } else {
+      document.getElementById('otaStatus').innerText = 'Update failed!';
+      logToConsole('❌ Update failed! HTTP status: ' + xhr.status);
+    }
+  };
+  xhr.send(data);
+};
+</script>
 </body>
 </html>
 )rawliteral";
@@ -2466,6 +3221,77 @@ void handleSystemInfo() {
 }
 // Implementation of the missing functions
 
+// Replace the handleDeviceStatus function with this version:
+
+void handleDeviceStatus() {
+  if (requireLogin()) return;
+  
+  StaticJsonDocument<256> doc;
+  
+  // Count active devices (relays that are turned on)
+  int activeCount = 0;
+  for (int i = 0; i < RELAY_COUNT; i++) {
+    if (relayStates[i]) activeCount++;
+  }
+  
+  // Calculate new devices added today based on status history
+  int newDevices = 0;
+  time_t now;
+  time(&now);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  
+  // Track which relays have already been counted
+  bool relaysCounted[RELAY_COUNT] = {false};
+  
+  // Loop through status history to find events from today
+  for (int i = 0; i < statusHistoryCount; i++) {
+    struct tm event_time;
+    localtime_r(&statusHistory[i].timestamp, &event_time);
+    
+    // Check if this event is from today
+    if (event_time.tm_year == timeinfo.tm_year && 
+        event_time.tm_mon == timeinfo.tm_mon && 
+        event_time.tm_mday == timeinfo.tm_mday) {
+        
+      int relayIdx = statusHistory[i].relayNum - 1;
+      if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+        // If this relay was turned ON today and we haven't counted it yet
+        if (statusHistory[i].state && !relaysCounted[relayIdx]) {
+          newDevices++;
+          relaysCounted[relayIdx] = true;
+        }
+      }
+    }
+  }
+  
+  doc["activeCount"] = activeCount;
+  doc["totalCount"] = RELAY_COUNT;
+  doc["newDevices"] = newDevices;
+  
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+// Add after handleDeviceStatus function
+
+void updateDailyTemperature() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+
+  unsigned long now = millis();
+  if (now - lastDayUpdate > 86400000 || lastDayUpdate == 0) {
+    // Shift history
+    for (int i = TEMP_HISTORY_SIZE - 1; i > 0; i--) {
+      dailyTempAverage[i] = dailyTempAverage[i-1];
+      dailyHumAverage[i] = dailyHumAverage[i-1];
+    }
+    dailyTempAverage[0] = currentTemp;
+    dailyHumAverage[0] = currentHum;
+    lastDayUpdate = now;
+    DEBUG_INFO(SENSORS, "Updated daily averages: " + String(dailyTempAverage[0]) + "°C, " + String(dailyHumAverage[0]) + "%");
+  }
+}
 bool isIPBlocked(const String& ip) {
   // Check if IP is in blocklist
   for (int i = 0; i < loginAttemptCount; i++) {
@@ -2531,7 +3357,21 @@ void recordRelayEvent(int relayNum, bool state, const String& source) {
     statusHistory[MAX_STATUS_HISTORY - 1].source = source;
   }
 }
+void handleSensorData() {
+  if (requireLogin()) return;
 
+  StaticJsonDocument<4096> doc;
+  JsonArray arr = doc.createNestedArray("data");
+  for (int i = 0; i < dataCount; i++) {
+    JsonObject point = arr.createNestedObject();
+    point["timestamp"] = dataPoints[i].timestamp;
+    point["temperature"] = dataPoints[i].temperature;
+    point["humidity"] = dataPoints[i].humidity;
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
 void setupSchedules() {
   // Initialize schedules array
   for (int i = 0; i < MAX_SCHEDULES; i++) {
@@ -2592,6 +3432,7 @@ void checkSchedules() {
 // --- Add your setup and loop functions ---
 void setup() {
   Serial.begin(115200);
+  
   delay(1000);
   esp_task_wdt_init(10, true); // 10 second WDT
   esp_task_wdt_add(NULL); 
@@ -2631,7 +3472,7 @@ void setup() {
       file = root.openNextFile();
     }
   }
-  
+  esp_log_level_set("*", ESP_LOG_ERROR); 
   // Load configuration
   loadCredentials();
   loadRelayStates();
@@ -2667,6 +3508,7 @@ void setup() {
   server.on("/ota", HTTP_GET, handleOTAWeb);
   server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
   server.on("/systeminfo", HTTP_GET, handleSystemInfo);
+  server.on("/deviceStatus", HTTP_GET, handleDeviceStatus);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -2685,25 +3527,23 @@ void setup() {
   addLog("System initialized");
 }
 
+// ...existing code...
 void loop() {
   server.handleClient();
-  
-  // Check physical button
   handleButtonPress();
-  
-  // Read sensor periodically
+
   unsigned long currentMillis = millis();
   if (currentMillis - lastSensorRead > SENSOR_READ_INTERVAL) {
     lastSensorRead = currentMillis;
-    
+
     // Read DHT sensor
     float newTemp = dht.readTemperature();
     float newHum = dht.readHumidity();
-    
+
     if (!isnan(newTemp) && !isnan(newHum)) {
       currentTemp = newTemp;
       currentHum = newHum;
-      
+
       // Add to data history
       if (dataCount < MAX_DATA_POINTS) {
         time_t now;
@@ -2724,22 +3564,16 @@ void loop() {
         dataPoints[MAX_DATA_POINTS - 1].humidity = currentHum;
       }
     }
-
-  unsigned long currentMillis = millis();
-  if (currentMillis - lastSensorRead > SENSOR_READ_INTERVAL) {
-    // ...sensor code...
   }
+
   checkSchedules();
+  updateDailyTemperature();
 
   // WiFi reconnect logic
   if (WiFi.status() != WL_CONNECTED) {
     connectWiFiStatic();
   }
-  delay(10);
-  }
-  
-  // Check schedules
-  checkSchedules();
+
   esp_task_wdt_reset();
   delay(10); // Small delay to prevent CPU hogging
 }
