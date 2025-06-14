@@ -26,7 +26,8 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
-#include <TimeAlarms.h> // Add TimeAlarms library
+#include <TimeAlarms.h> 
+#include "esp_task_wdt.h"
 
 
 // ----------- DEBUG SETTINGS -----------
@@ -36,7 +37,7 @@
 // 2 = Errors and warnings
 // 3 = Errors, warnings, and info
 // 4 = Verbose (all messages)
-#define DEBUG_LEVEL 4
+#define DEBUG_LEVEL 1
 
 // Component-specific debugging flags
 #define DEBUG_WIFI true       // WiFi connection debugging
@@ -165,6 +166,7 @@ void recordLoginAttempt(const String& ip, bool success);
 void recordRelayEvent(int relayNum, bool state, const String& source);
 void setupSchedules();
 void checkSchedules();
+void checkSchedules();
 
 // ----------- Helper Functions -----------
 
@@ -263,26 +265,16 @@ void addLog(const String& entry) {
 
 bool isLoggedIn() {
   return true;
-  // DEBUG_VERBOSE(AUTH, "Checking login state");
-  // if (!server.hasHeader("Cookie")) {
-  //   DEBUG_INFO(AUTH, "No Cookie header received");
-  //   return false;
-  // }
+  // if (!server.hasHeader("Cookie")) return false;
   // String cookie = server.header("Cookie");
-  // DEBUG_VERBOSE(AUTH, "Cookie header: " + cookie);
   // int idx = cookie.indexOf("ESPSESSIONID=");
-  // if (idx == -1) {
-  //   DEBUG_INFO(AUTH, "ESPSESSIONID not found in cookie");
-  //   return false;
-  // }
+  // if (idx == -1) return false;
   // int start = idx + strlen("ESPSESSIONID=");
   // int end = cookie.indexOf(';', start);
   // String token = (end == -1) ? cookie.substring(start) : cookie.substring(start, end);
   // token.trim();
   // sessionToken.trim();
-  // DEBUG_VERBOSE(AUTH, "Cookie token: [" + token + "] | Session: [" + sessionToken + "]");
-  // Serial.printf("[DEBUG] Comparing cookie token [%s] with sessionToken [%s]\n", token.c_str(), sessionToken.c_str());
-  // return token == sessionToken;
+  // return token == sessionToken && sessionToken.length() > 0;
 }
 
 bool requireLogin() {
@@ -596,7 +588,45 @@ void handleLogin() {
       --border-color: #eee;
       --shadow-color: rgba(0,0,0,0.07);
     }
-
+    // Add this CSS to the <style> section in handleRoot()
+.lamp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  position: relative;
+  margin-left: 5px;
+}
+.lamp-body {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  position: relative;
+  transition: all 0.3s ease;
+}
+.lamp-base {
+  width: 10px;
+  height: 4px;
+  background: #888;
+  border-radius: 2px;
+  margin: 0 auto;
+  position: relative;
+  top: -2px;
+}
+.lamp-on .lamp-body {
+  background: #ffeb3b;
+  box-shadow: 0 0 15px rgba(255, 235, 59, 0.8);
+  animation: glow 1.5s infinite alternate;
+}
+.lamp-off .lamp-body {
+  background: #ccc;
+  box-shadow: none;
+}
+@keyframes glow {
+  from { box-shadow: 0 0 5px rgba(255, 235, 59, 0.8); }
+  to { box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), 0 0 20px rgba(255, 235, 59, 0.5); }
+}
     .dark-mode {
       --bg-color: #121212;
       --card-bg: #1e1e1e;
@@ -1118,6 +1148,28 @@ void handleRoot() {
       .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
       .energy-section, .dashboard-main { padding: 0 5px; }
     }
+// Add this CSS to the <style> section in handleRoot()
+.bulb-icon-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  position: relative;
+  margin-left: 5px;
+}
+.bulb-on {
+  color: #27ae60; /* Green color for ON state */
+  filter: drop-shadow(0 0 5px rgba(39, 174, 96, 0.6));
+  animation: glow-bulb 1.5s infinite alternate;
+}
+.bulb-off {
+  color: #444;
+}
+@keyframes glow-bulb {
+  from { filter: drop-shadow(0 0 3px rgba(39, 174, 96, 0.4)); }
+  to { filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.6)); }
+}
   </style>
 </head>
 <body>
@@ -1156,6 +1208,11 @@ void handleRoot() {
         <div class="card-value" id="activeDevices">--</div>
         <div class="card-sub" id="activeDevicesSub"></div>
       </div>
+    </div>
+    <div class="dashboard-card" id="relayStatusCard" style="margin-bottom:24px;">
+      <span class="material-icons">toggle_on</span>
+      <div class="card-title">Live Relay Status</div>
+      <div id="relayStatusList"></div>
     </div>
     <div class="quick-actions">
       <button class="quick-action-btn" onclick="applyScene(0)"><span class="material-icons">nights_stay</span> Good Night</button>
@@ -1240,13 +1297,40 @@ void handleRoot() {
       document.getElementById('tempCard').textContent = '24°C';
       document.getElementById('tempSub').textContent = '↑ 2°C from yesterday';
       document.getElementById('humCard').textContent = '65%';
-      document.getElementById('humSub').textContent = '↓ 5% from yesterday';
       document.getElementById('energyCard').textContent = '3.8 kWh';
-      document.getElementById('energySub').textContent = '↓ 12% from yesterday';
       document.getElementById('activeDevices').textContent = '8/12';
       document.getElementById('activeDevicesSub').textContent = '+2 devices added today';
     }
-
+    // --- Relay Status ---
+// Replace the updateRelayStatus function in handleRoot()
+function updateRelayStatus() {
+  fetch('/relayStatus', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      let html = '';
+      if (data.relays) {
+        data.relays.forEach(relay => {
+          html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-weight:600;min-width:120px;">${relay.name || 'Relay ' + relay.num}</span>
+            <span class="bulb-icon-container">
+              ${relay.state ? 
+                `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" class="bulb-on">
+                  <path fill="currentColor" d="M12,2C9.89,2 7.89,2.54 6.2,3.6C4.5,4.67 3.24,6.28 2.73,8.13C2.21,10 2.51,12 3.53,13.8C4.55,15.6 6.25,17 8.3,17.74V21C8.3,21.3 8.5,21.52 8.77,21.77C9.04,22 9.33,22.26 9.75,22.47C10.17,22.7 10.69,22.83 11.3,22.92C11.94,23 12.5,23 12.97,22.92C13.44,22.84 13.86,22.7 14.27,22.47C14.68,22.24 15.05,22 15.35,21.77C15.65,21.5 15.86,21.3 15.86,21V17.74C17.93,17 19.66,15.59 20.67,13.8C21.7,12 22,10 21.5,8.13C20.97,6.26 19.71,4.66 18.04,3.6C16.36,2.53 14.11,2 12,2M12,4C13.39,4 14.77,4.33 16,5C17.25,5.67 18.2,6.7 18.7,8.06C19.22,9.42 19.09,11 18.41,12.3C17.73,13.65 16.71,14.7 15.4,15.28C15,15.47 14.8,15.87 14.8,16.34V20H9.5V16.34C9.5,15.87 9.3,15.47 8.9,15.28C7.6,14.7 6.63,13.66 5.94,12.31C5.25,11 5.11,9.44 5.64,8.06C6.14,6.69 7.09,5.67 8.34,5C9.57,4.37 10.78,4 12,4M14,6.5C13.5,6.5 13,6.69 12.61,7.07C12.2,7.47 12,8 12,8.5V9.8C11.7,9.86 11.41,9.93 11.2,10C10.17,10.21 9.44,10.5 9.09,10.91C9.06,10.94 9,11 8.97,11.03C8.95,11.06 8.92,11.13 8.88,11.22C8.8,11.36 8.77,11.5 8.77,11.63C8.75,11.77 8.8,11.88 8.83,12C8.86,12.11 8.91,12.2 8.97,12.27C9.03,12.34 9.09,12.41 9.16,12.45C9.23,12.5 9.28,12.53 9.36,12.53H9.45C9.62,12.53 9.76,12.46 9.88,12.39C10,12.31 10.08,12.23 10.19,12.13C10.28,12.05 10.33,12 10.42,11.94C10.5,11.89 10.56,11.86 10.64,11.83C10.83,11.77 11.06,11.77 11.3,11.75C11.5,11.72 11.83,11.69 12,11.69C12.92,11.69 13.38,11.77 13.66,11.83C13.77,11.86 13.89,11.89 13.98,11.94C14.08,12 14.17,12.05 14.28,12.13C14.38,12.2 14.47,12.28 14.59,12.36C14.7,12.43 14.84,12.5 15,12.5H15.09C15.16,12.5 15.23,12.47 15.3,12.42C15.36,12.38 15.42,12.31 15.5,12.23C15.55,12.17 15.61,12.08 15.64,11.97C15.67,11.85 15.73,11.72 15.7,11.58C15.67,11.44 15.64,11.3 15.56,11.17C15.5,11.08 15.45,11 15.41,10.97C15.38,10.94 15.34,10.91 15.31,10.88C14.97,10.5 14.23,10.27 13.2,10C13,9.93 12.7,9.86 12.41,9.8V8.5C12.41,8.23 12.3,8 12.11,7.82C11.91,7.65 11.66,7.5 11.39,7.5H9.5C9.23,7.5 9,7.73 9,8C9,8.27 9.23,8.5 9.5,8.5H11.39C11.41,8.5 11.39,8.53 11.39,8.5V10.41C11.11,10.5 10.8,10.56 10.5,10.63C10.03,10.78 9.53,10.95 9.13,11.25C8.72,11.5 8.34,11.95 8.39,12.63C8.41,12.95 8.55,13.25 8.75,13.47C8.94,13.7 9.2,13.84 9.47,13.92C9.73,14 10.05,14 10.36,13.92C10.67,13.84 10.92,13.7 11.11,13.56L11.33,13.39C11.36,13.39 11.39,13.36 11.41,13.36C11.5,13.34 11.59,13.31 11.73,13.31H12.27C12.41,13.31 12.5,13.34 12.58,13.36C12.61,13.36 12.64,13.39 12.66,13.39L12.89,13.56C13.08,13.7 13.33,13.84 13.64,13.92C13.95,14 14.27,14 14.53,13.92C14.8,13.84 15.05,13.7 15.25,13.47C15.44,13.25 15.58,12.95 15.61,12.63C15.66,11.95 15.28,11.5 14.86,11.25C14.47,10.97 13.97,10.8 13.5,10.63C13.2,10.56 12.89,10.5 12.61,10.41V9.44C12.7,9.31 12.83,9.19 13,9.13C13.17,9.06 13.33,9 13.5,9C13.83,9 14.17,9.17 14.17,9.5V10C14.17,10.27 14.39,10.5 14.67,10.5C14.94,10.5 15.17,10.27 15.17,10V9.5C15.17,8.97 14.95,8.44 14.56,8.06C14.17,7.69 13.66,7.5 13.16,7.5H13"/>
+                </svg>` : 
+                `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" class="bulb-off">
+                  <path fill="currentColor" d="M12,2C9.89,2 7.89,2.54 6.2,3.6C4.5,4.67 3.24,6.28 2.73,8.13C2.21,10 2.51,12 3.53,13.8C4.55,15.6 6.25,17 8.3,17.74V21C8.3,21.3 8.5,21.52 8.77,21.77C9.04,22 9.33,22.26 9.75,22.47C10.17,22.7 10.69,22.83 11.3,22.92C11.94,23 12.5,23 12.97,22.92C13.44,22.84 13.86,22.7 14.27,22.47C14.68,22.24 15.05,22 15.35,21.77C15.65,21.5 15.86,21.3 15.86,21V17.74C17.93,17 19.66,15.59 20.67,13.8C21.7,12 22,10 21.5,8.13C20.97,6.26 19.71,4.66 18.04,3.6C16.36,2.53 14.11,2 12,2M12,4C13.39,4 14.77,4.33 16,5C17.25,5.67 18.2,6.7 18.7,8.06C19.22,9.42 19.09,11 18.41,12.3C17.73,13.65 16.71,14.7 15.4,15.28C15,15.47 14.8,15.87 14.8,16.34V20H9.5V16.34C9.5,15.87 9.3,15.47 8.9,15.28C7.6,14.7 6.63,13.66 5.94,12.31C5.25,11 5.11,9.44 5.64,8.06C6.14,6.69 7.09,5.67 8.34,5C9.57,4.37 10.78,4 12,4M14,6.5C13.5,6.5 13,6.69 12.61,7.07C12.2,7.47 12,8 12,8.5V9.8C11.7,9.86 11.41,9.93 11.2,10C10.17,10.21 9.44,10.5 9.09,10.91C9.06,10.94 9,11 8.97,11.03C8.95,11.06 8.92,11.13 8.88,11.22C8.8,11.36 8.77,11.5 8.77,11.63C8.75,11.77 8.8,11.88 8.83,12C8.86,12.11 8.91,12.2 8.97,12.27C9.03,12.34 9.09,12.41 9.16,12.45C9.23,12.5 9.28,12.53 9.36,12.53H9.45C9.62,12.53 9.76,12.46 9.88,12.39C10,12.31 10.08,12.23 10.19,12.13C10.28,12.05 10.33,12 10.42,11.94C10.5,11.89 10.56,11.86 10.64,11.83C10.83,11.77 11.06,11.77 11.3,11.75C11.5,11.72 11.83,11.69 12,11.69C12.92,11.69 13.38,11.77 13.66,11.83C13.77,11.86 13.89,11.89 13.98,11.94C14.08,12 14.17,12.05 14.28,12.13C14.38,12.2 14.47,12.28 14.59,12.36C14.7,12.43 14.84,12.5 15,12.5H15.09C15.16,12.5 15.23,12.47 15.3,12.42C15.36,12.38 15.42,12.31 15.5,12.23C15.55,12.17 15.61,12.08 15.64,11.97C15.67,11.85 15.73,11.72 15.7,11.58C15.67,11.44 15.64,11.3 15.56,11.17C15.5,11.08 15.45,11 15.41,10.97C15.38,10.94 15.34,10.91 15.31,10.88C14.97,10.5 14.23,10.27 13.2,10C13,9.93 12.7,9.86 12.41,9.8V8.5C12.41,8.23 12.3,8 12.11,7.82C11.91,7.65 11.66,7.5 11.39,7.5H9.5C9.23,7.5 9,7.73 9,8C9,8.27 9.23,8.5 9.5,8.5H11.39C11.41,8.5 11.39,8.53 11.39,8.5V10.41C11.11,10.5 10.8,10.56 10.5,10.63C10.03,10.78 9.53,10.95 9.13,11.25C8.72,11.5 8.34,11.95 8.39,12.63C8.41,12.95 8.55,13.25 8.75,13.47C8.94,13.7 9.2,13.84 9.47,13.92C9.73,14 10.05,14 10.36,13.92C10.67,13.84 10.92,13.7 11.11,13.56L11.33,13.39C11.36,13.39 11.39,13.36 11.41,13.36C11.5,13.34 11.59,13.31 11.73,13.31H12.27C12.41,13.31 12.5,13.34 12.58,13.36C12.61,13.36 12.64,13.39 12.66,13.39L12.89,13.56C13.08,13.7 13.33,13.84 13.64,13.92C13.95,14 14.27,14 14.53,13.92C14.8,13.84 15.05,13.7 15.25,13.47C15.44,13.25 15.58,12.95 15.61,12.63C15.66,11.95 15.28,11.5 14.86,11.25C14.47,10.97 13.97,10.8 13.5,10.63C13.2,10.56 12.89,10.5 12.61,10.41V9.44C12.7,9.31 12.83,9.19 13,9.13C13.17,9.06 13.33,9 13.5,9C13.83,9 14.17,9.17 14.17,9.5V10C14.17,10.27 14.39,10.5 14.67,10.5C14.94,10.5 15.17,10.27 15.17,10V9.5C15.17,8.97 14.95,8.44 14.56,8.06C14.17,7.69 13.66,7.5 13.16,7.5H13"/>
+                </svg>`
+              }
+            </span>
+            <span style="margin-left:5px;color:${relay.state ? '#27ae60' : '#e74c3c'};font-weight:700;">
+              ${relay.state ? 'ON' : 'OFF'}
+            </span>
+          </div>`;
+        });
+      }
+      document.getElementById('relayStatusList').innerHTML = html;
+    });
+}
     // --- Device Cards ---
     function showRoom(room, btn) {
       document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
@@ -1442,6 +1526,41 @@ void handleRoot() {
     renderRoutines();
     updateSystemInfo();
     setInterval(updateSystemInfo, 10000);
+
+    // --- Relay Status Update ---
+function updateRelayStatus() {
+  fetch('/relayStatus', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+      let html = '<div style="display:flex;flex-wrap:wrap;gap:15px;justify-content:flex-start;">';
+      if (data.relays) {
+        data.relays.forEach(relay => {
+          html += `
+            <div style="display:flex;flex-direction:column;align-items:center;background:#f8f9fa;border-radius:8px;padding:12px;min-width:110px;">
+              <span style="font-weight:600;margin-bottom:8px;text-align:center;">${relay.name || 'Relay ' + relay.num}</span>
+              <span class="bulb-icon-container" style="margin-bottom:5px;">
+                ${relay.state ? 
+                  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-lightbulb-fill bulb-on" viewBox="0 0 16 16">
+                    <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13h-5a.5.5 0 0 1-.46-.302l-.761-1.77a2 2 0 0 0-.453-.618A5.98 5.98 0 0 1 2 6m3 8.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1-.5-.5"/>
+                  </svg>` : 
+                  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-lightbulb bulb-off" viewBox="0 0 16 16">
+                    <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13a.5.5 0 0 1 0 1 .5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1 0-1 .5.5 0 0 1 0-1 .5.5 0 0 1-.46-.302l-.761-1.77a2 2 0 0 0-.453-.618A5.98 5.98 0 0 1 2 6m6-5a5 5 0 0 0-3.479 8.592c.263.254.514.564.676.941L5.83 12h4.342l.632-1.467c.162-.377.413-.687.676-.941A5 5 0 0 0 8 1"/>
+                  </svg>`
+                }
+              </span>
+              <span style="color:${relay.state ? '#27ae60' : '#e74c3c'};font-weight:700;">
+                ${relay.state ? 'ON' : 'OFF'}
+              </span>
+            </div>`;
+        });
+      }
+      html += '</div>';
+      document.getElementById('relayStatusList').innerHTML = html;
+    });
+}
+    // Call once and set interval
+    updateRelayStatus();
+    setInterval(updateRelayStatus, 100);
   </script>
 </body>
 </html>
@@ -2105,6 +2224,7 @@ void handleRelayToggle() {
   int num = server.arg("num").toInt();
   int state = server.arg("state").toInt();
   
+  // Example for relay number validation in handleRelayToggle()
   if (num < 1 || num > RELAY_COUNT) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid relay number\"}");
     return;
@@ -2124,16 +2244,25 @@ void handleRelayToggle() {
   server.send(200, "application/json", "{\"success\":true}");
 }
 
+
 void handleRelayStatus() {
   if (requireLogin()) return;
-  
-  StaticJsonDocument<256> doc;
-  for (int i = 0; i < RELAY_COUNT; i++) doc[i] = relayStates[i];
-  
+
+  StaticJsonDocument<512> doc;
+  JsonArray relays = doc.createNestedArray("relays");
+  for (int i = 0; i < RELAY_COUNT; i++) {
+    JsonObject relay = relays.createNestedObject();
+    relay["num"] = i + 1;
+    relay["name"] = roomNames[i];
+    relay["state"] = relayStates[i];
+  }
+  doc["timestamp"] = millis() / 1000;
+
   String json;
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+
 
 void handleScene() {
   if (requireLogin()) return;
@@ -2335,12 +2464,137 @@ void handleSystemInfo() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+// Implementation of the missing functions
 
+bool isIPBlocked(const String& ip) {
+  // Check if IP is in blocklist
+  for (int i = 0; i < loginAttemptCount; i++) {
+    if (loginAttempts[i].ipAddress == ip) {
+      int failCount = 0;
+      time_t now;
+      time(&now);
+      
+      // Count recent failed attempts from this IP
+      for (int j = 0; j < loginAttemptCount; j++) {
+        if (loginAttempts[j].ipAddress == ip && 
+            !loginAttempts[j].success && 
+            difftime(now, loginAttempts[j].timestamp) < LOCKOUT_DURATION) {
+          failCount++;
+        }
+      }
+      
+      // Block if too many failed attempts
+      if (failCount >= MAX_FAILED_ATTEMPTS) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void recordLoginAttempt(const String& ip, bool success) {
+  // Add to the circular buffer
+  if (loginAttemptCount < MAX_LOGIN_ATTEMPTS) {
+    loginAttempts[loginAttemptCount].ipAddress = ip;
+    time(&loginAttempts[loginAttemptCount].timestamp);
+    loginAttempts[loginAttemptCount].success = success;
+    loginAttemptCount++;
+  } else {
+    // Shift existing entries
+    for (int i = 0; i < MAX_LOGIN_ATTEMPTS - 1; i++) {
+      loginAttempts[i] = loginAttempts[i + 1];
+    }
+    // Add new entry at the end
+    loginAttempts[MAX_LOGIN_ATTEMPTS - 1].ipAddress = ip;
+    time(&loginAttempts[MAX_LOGIN_ATTEMPTS - 1].timestamp);
+    loginAttempts[MAX_LOGIN_ATTEMPTS - 1].success = success;
+  }
+}
+
+void recordRelayEvent(int relayNum, bool state, const String& source) {
+  // Add to circular buffer
+  if (statusHistoryCount < MAX_STATUS_HISTORY) {
+    statusHistory[statusHistoryCount].relayNum = relayNum;
+    time(&statusHistory[statusHistoryCount].timestamp);
+    statusHistory[statusHistoryCount].state = state;
+    statusHistory[statusHistoryCount].source = source;
+    statusHistoryCount++;
+  } else {
+    // Shift entries
+    for (int i = 0; i < MAX_STATUS_HISTORY - 1; i++) {
+      statusHistory[i] = statusHistory[i + 1];
+    }
+    // Add new entry at the end
+    statusHistory[MAX_STATUS_HISTORY - 1].relayNum = relayNum;
+    time(&statusHistory[MAX_STATUS_HISTORY - 1].timestamp);
+    statusHistory[MAX_STATUS_HISTORY - 1].state = state;
+    statusHistory[MAX_STATUS_HISTORY - 1].source = source;
+  }
+}
+
+void setupSchedules() {
+  // Initialize schedules array
+  for (int i = 0; i < MAX_SCHEDULES; i++) {
+    schedules[i].active = false;
+    schedules[i].id = i;
+    schedules[i].alarmId = dtINVALID_ALARM_ID;
+  }
+  
+  // You could load schedules from EEPROM here if needed
+  
+  // Add a default schedule (e.g., turn on lights at 7am)
+  if (scheduleCount < MAX_SCHEDULES) {
+    schedules[scheduleCount].active = true;
+    schedules[scheduleCount].hour = 7;
+    schedules[scheduleCount].minute = 0;
+    for (int d = 0; d < 7; d++) schedules[scheduleCount].days[d] = true;
+    schedules[scheduleCount].relayNum = 1;
+    schedules[scheduleCount].state = true;
+    schedules[scheduleCount].repeat = true;
+    scheduleCount++;
+  }
+}
+
+void checkSchedules() {
+  // Check all active schedules
+  time_t now;
+  time(&now);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  
+  // Simple polling approach to checking schedules
+  for (int i = 0; i < scheduleCount; i++) {
+    if (schedules[i].active && schedules[i].days[timeinfo.tm_wday]) {
+      if (timeinfo.tm_hour == schedules[i].hour && 
+          timeinfo.tm_min == schedules[i].minute && 
+          timeinfo.tm_sec < 10) { // Execute within first 10 seconds of the minute
+        
+        // Apply the scheduled relay state
+        int relayIdx = schedules[i].relayNum - 1;
+        if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+          relayStates[relayIdx] = schedules[i].state;
+          digitalWrite(relayPins[relayIdx], relayStates[relayIdx] ? HIGH : LOW);
+          addLog("Schedule triggered: Relay " + String(schedules[i].relayNum) + 
+                 (schedules[i].state ? " ON" : " OFF"));
+          
+          // Record the event
+          recordRelayEvent(schedules[i].relayNum, schedules[i].state, "schedule");
+          
+          // If not repeating, deactivate schedule
+          if (!schedules[i].repeat) {
+            schedules[i].active = false;
+          }
+        }
+      }
+    }
+  }
+}
 // --- Add your setup and loop functions ---
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  
+  esp_task_wdt_init(10, true); // 10 second WDT
+  esp_task_wdt_add(NULL); 
   // Initialize pins
   for (int i = 0; i < RELAY_COUNT; i++) {
     pinMode(relayPins[i], OUTPUT);
@@ -2470,76 +2724,22 @@ void loop() {
         dataPoints[MAX_DATA_POINTS - 1].humidity = currentHum;
       }
     }
+
+  unsigned long currentMillis = millis();
+  if (currentMillis - lastSensorRead > SENSOR_READ_INTERVAL) {
+    // ...sensor code...
+  }
+  checkSchedules();
+
+  // WiFi reconnect logic
+  if (WiFi.status() != WL_CONNECTED) {
+    connectWiFiStatic();
+  }
+  delay(10);
   }
   
   // Check schedules
   checkSchedules();
-  
+  esp_task_wdt_reset();
   delay(10); // Small delay to prevent CPU hogging
-}
-
-// --- Add these implementations above setup() ---
-
-// Block IPs after too many failed logins
-bool isIPBlocked(const String& ip) {
-  time_t now;
-  time(&now);
-  int failed = 0;
-  time_t lastFail = 0;
-  for (int i = 0; i < loginAttemptCount; i++) {
-    if (loginAttempts[i].ipAddress == ip && !loginAttempts[i].success) {
-      failed++;
-      if (loginAttempts[i].timestamp > lastFail) lastFail = loginAttempts[i].timestamp;
-    }
-  }
-  if (failed >= MAX_FAILED_ATTEMPTS && (now - lastFail) < LOCKOUT_DURATION) {
-    return true;
-  }
-  return false;
-}
-
-// Record login attempts for brute-force protection
-void recordLoginAttempt(const String& ip, bool success) {
-  time_t now;
-  time(&now);
-  if (loginAttemptCount < MAX_LOGIN_ATTEMPTS) {
-    loginAttempts[loginAttemptCount++] = {ip, now, success};
-  } else {
-    // Shift left if full
-    for (int i = 1; i < MAX_LOGIN_ATTEMPTS; i++) loginAttempts[i-1] = loginAttempts[i];
-    loginAttempts[MAX_LOGIN_ATTEMPTS-1] = {ip, now, success};
-  }
-}
-
-// Record relay events for status history
-void recordRelayEvent(int relayNum, bool state, const String& source) {
-  time_t now;
-  time(&now);
-  if (statusHistoryCount < MAX_STATUS_HISTORY) {
-    statusHistory[statusHistoryCount++] = {now, relayNum, state, source};
-  } else {
-    for (int i = 1; i < MAX_STATUS_HISTORY; i++) statusHistory[i-1] = statusHistory[i];
-    statusHistory[MAX_STATUS_HISTORY-1] = {now, relayNum, state, source};
-  }
-}
-
-// Schedule setup (stub, can be extended for real scheduling)
-void setupSchedules() {
-  // Example: Turn on relay 1 at 7:00 AM every day, turn off at 7:05 AM
-  Alarm.alarmRepeat(7, 0, 0, [](){
-    relayStates[0] = true;
-    digitalWrite(relayPins[0], HIGH);
-    addLog("Schedule: Relay 1 ON (7:00 AM)");
-    recordRelayEvent(1, true, "schedule");
-  });
-  Alarm.alarmRepeat(7, 5, 0, [](){
-    relayStates[0] = false;
-    digitalWrite(relayPins[0], LOW);
-    addLog("Schedule: Relay 1 OFF (7:05 AM)");
-    recordRelayEvent(1, false, "schedule");
-  });
-}
-
-void checkSchedules() {
-  Alarm.delay(0); // This will process scheduled alarms
 }
