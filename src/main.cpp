@@ -166,6 +166,9 @@ float dailyTempAverage[TEMP_HISTORY_SIZE] = {0};
 float dailyHumAverage[TEMP_HISTORY_SIZE] = {0};
 int currentDayIndex = 0;
 unsigned long lastDayUpdate = 0;
+float tempSum = 0;
+float humSum = 0;
+int sampleCount = 0;
 
 // Forward declarations for security and event functions
 bool isIPBlocked(const String& ip);
@@ -3000,7 +3003,7 @@ void handleScene() {
   
   applyScene(idx);
   
-  StaticJsonDocument<256> doc;
+  DynamicJsonDocument doc(1024);
   JsonArray states = doc.createNestedArray("states");
   for (int i = 0; i < RELAY_COUNT; i++) {
     states.add(relayStates[i]);
@@ -3118,7 +3121,7 @@ void handleOTAWeb() {
     <div style="margin-top:18px; text-align:center;">
       <a href="/">Back to Dashboard</a>
     </div>
-  <div class="ota-status" id="otaStatus"></div> with:
+  <div class="ota-status" id="otaStatus"></div> 
 <div class="ota-status" id="otaStatus"></div>
 <pre id="otaConsole" style="background:#222;color:#0f0;padding:12px 8px;border-radius:8px;min-height:60px;max-height:180px;overflow:auto;font-size:0.98rem;margin-top:10px;"></pre>
 
@@ -3286,8 +3289,18 @@ void updateDailyTemperature() {
       dailyTempAverage[i] = dailyTempAverage[i-1];
       dailyHumAverage[i] = dailyHumAverage[i-1];
     }
-    dailyTempAverage[0] = currentTemp;
-    dailyHumAverage[0] = currentHum;
+    // Store the true daily average (mean of all readings)
+    if (sampleCount > 0) {
+      dailyTempAverage[0] = tempSum / sampleCount;
+      dailyHumAverage[0] = humSum / sampleCount;
+    } else {
+      dailyTempAverage[0] = currentTemp;
+      dailyHumAverage[0] = currentHum;
+    }
+    // Reset for next day
+    tempSum = 0;
+    humSum = 0;
+    sampleCount = 0;
     lastDayUpdate = now;
     DEBUG_INFO(SENSORS, "Updated daily averages: " + String(dailyTempAverage[0]) + "°C, " + String(dailyHumAverage[0]) + "%");
   }
@@ -3361,7 +3374,7 @@ void handleSensorData() {
   if (requireLogin()) return;
 
   StaticJsonDocument<4096> doc;
-  JsonArray arr = doc.createNestedArray("data");
+  JsonArray arr = doc["data"].to<JsonArray>();
   for (int i = 0; i < dataCount; i++) {
     JsonObject point = arr.createNestedObject();
     point["timestamp"] = dataPoints[i].timestamp;
@@ -3523,6 +3536,12 @@ void setup() {
   
   // Set up schedules
   setupSchedules();
+    currentTemp = dht.readTemperature();
+  currentHum = dht.readHumidity();
+  dailyTempAverage[0] = currentTemp;
+  dailyHumAverage[0] = currentHum;
+  dailyTempAverage[1] = currentTemp; // For demo: yesterday = today
+  dailyHumAverage[1] = currentHum;   // For demo: yesterday = today
   
   addLog("System initialized");
 }
@@ -3543,7 +3562,11 @@ void loop() {
     if (!isnan(newTemp) && !isnan(newHum)) {
       currentTemp = newTemp;
       currentHum = newHum;
-
+      currentTemp = newTemp;
+      currentHum = newHum;
+      tempSum += newTemp;
+      humSum += newHum;
+      sampleCount++;
       // Add to data history
       if (dataCount < MAX_DATA_POINTS) {
         time_t now;
