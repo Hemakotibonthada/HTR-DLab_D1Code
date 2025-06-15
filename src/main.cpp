@@ -602,663 +602,6 @@ void handleLogin() {
       --border-color: #eee;
       --shadow-color: rgba(0,0,0,0.07);
     }
-
-    // Add to the <style> section in handleRoot()
-
-/* Enhanced Card Hover Effects */
-.dashboard-card {
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-.dashboard-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.1);
-}
-
-/* Button Hover Effects */
-.settings-btn, .ota-btn, .quick-action-btn, .close-modal, .add-routine-btn {
-  transition: all 0.25s ease;
-  position: relative;
-  overflow: hidden;
-}
-.settings-btn:hover, .ota-btn:hover, .add-routine-btn:hover, .close-modal:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-}
-.quick-action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
-}
-.settings-btn:active, .ota-btn:active, .quick-action-btn:active, .close-modal:active {
-  transform: translateY(1px);
-}
-
-/* Ripple Effect for Buttons */
-.settings-btn:after, .ota-btn:after, .quick-action-btn:after, .add-routine-btn:after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.5);
-  opacity: 0;
-  border-radius: 100%;
-  transform: scale(1, 1) translate(-50%, -50%);
-  transform-origin: 50% 50%;
-}
-.settings-btn:focus:not(:active)::after, .ota-btn:focus:not(:active)::after, 
-.quick-action-btn:focus:not(:active)::after, .add-routine-btn:focus:not(:active)::after {
-  animation: ripple 1s ease-out;
-}
-
-@keyframes ripple {
-  0% {
-    transform: scale(0, 0);
-    opacity: 0.5;
-  }
-  20% {
-    transform: scale(25, 25);
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(40, 40);
-  }
-}
-
-/* Enhanced Toggle Switch */
-.toggle-switch {
-  transition: all 0.3s ease;
-}
-.toggle-switch:hover .slider-toggle {
-  box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
-}
-.slider-toggle:before {
-  transition: 0.4s cubic-bezier(0.18, 0.89, 0.35, 1.15);
-}
-.toggle-switch input:checked + .slider-toggle:before {
-  transform: translateX(20px);
-}
-
-/* Device Card Enhancements */
-.device-card {
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-.device-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.1);
-}
-
-/* Tab Hover Effects */
-.dashboard-tab {
-  transition: all 0.2s ease;
-  position: relative;
-}
-.dashboard-tab:hover {
-  background: rgba(234, 243, 255, 0.5);
-}
-.dashboard-tab.active:after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 10%;
-  width: 80%;
-  height: 3px;
-  background: #2563eb;
-}
-
-/* Energy Tabs Enhancement */
-.energy-tab {
-  transition: all 0.2s ease;
-}
-.energy-tab:hover {
-  transform: translateY(-2px);
-}
-
-/* Routine Card Enhancement */
-.routine-card {
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-.routine-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
-  border-color: rgba(37, 99, 235, 0.1);
-}
-
-/* Dark Mode Toggle Enhancement */
-.dark-toggle {
-  transition: all 0.3s ease;
-}
-.dark-toggle:hover {
-  transform: rotate(30deg) scale(1.1);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-}
-
-/* Bulb Icons Animation Enhancement */
-.bulb-on {
-  transition: all 0.5s ease;
-}
-.bulb-off {
-  transition: color 0.3s ease;
-}
-.bulb-icon-container:hover .bulb-off {
-  color: #666;
-}
-
-/* Enhanced Relay Status */
-#relayStatusCard > div > div {
-  transition: all 0.3s ease;
-}
-#relayStatusCard > div > div:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-/* Input Range Slider Enhancement */
-input[type=range] {
-  height: 6px;
-  appearance: none;
-  margin: 10px 0;
-  background: #d7dcdf;
-  border-radius: 5px;
-  background-image: linear-gradient(#2563eb, #2563eb);
-  background-repeat: no-repeat;
-  transition: all 0.3s ease;
-}
-input[type=range]:hover {
-  background-image: linear-gradient(#1d4ed8, #1d4ed8);
-}
-input[type=range]::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #2563eb;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  border: none;
-}
-input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
-  background: #1d4ed8;
-}
-.dark-mode input[type=range] {
-  background: #4b5563;
-  background-image: linear-gradient(#3b82f6, #3b82f6);
-  background-repeat: no-repeat;
-}
-
-/* System Info Hover */
-.system-info {
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-.system-info:hover {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-}
-.dark-mode .system-info:hover {
-  background: #1e293b;
-  border-color: #334155;
-}
-  // Add these enhanced styles to the <style> section in handleRoot()
-
-/* Enhanced Shadow Effects */
-.dashboard-card {
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); /* Improved easing */
-}
-
-.dashboard-card:hover {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow: 
-    0 12px 20px rgba(37, 99, 235, 0.15),
-    0 4px 8px rgba(37, 99, 235, 0.08),
-    0 0 0 1px rgba(37, 99, 235, 0.05);
-}
-
-/* Device Card Enhanced Effects */
-.device-card {
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  backface-visibility: hidden; /* Prevents flickering in some browsers */
-}
-
-.device-card:hover {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow: 
-    0 12px 20px rgba(37, 99, 235, 0.15),
-    0 4px 8px rgba(37, 99, 235, 0.08),
-    0 0 0 1px rgba(37, 99, 235, 0.05);
-}
-
-/* Button Animation Enhancements */
-.settings-btn, .ota-btn, .quick-action-btn, .close-modal, .add-routine-btn {
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  position: relative;
-  overflow: hidden;
-}
-
-.settings-btn:hover, .ota-btn:hover, .add-routine-btn:hover, .close-modal:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 6px 15px rgba(37, 99, 235, 0.25);
-}
-
-.settings-btn:active, .ota-btn:active, .quick-action-btn:active, .close-modal:active {
-  transform: translateY(1px) scale(0.98);
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
-}
-
-/* Improved Ripple Effect */
-.settings-btn:after, .ota-btn:after, .quick-action-btn:after, .add-routine-btn:after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.7);
-  opacity: 0;
-  border-radius: 100%;
-  transform: scale(1, 1) translate(-50%, -50%);
-  transform-origin: 50% 50%;
-}
-
-.settings-btn:focus:not(:active)::after, .ota-btn:focus:not(:active)::after, 
-.quick-action-btn:focus:not(:active)::after, .add-routine-btn:focus:not(:active)::after {
-  animation: ripple 1s cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-
-@keyframes ripple {
-  0% {
-    transform: scale(0, 0);
-    opacity: 0.6;
-  }
-  20% {
-    transform: scale(25, 25);
-    opacity: 0.4;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(40, 40);
-  }
-}
-
-/* Enhanced Toggle Switch */
-.toggle-switch {
-  transition: all 0.3s ease;
-}
-
-.toggle-switch:hover .slider-toggle {
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.5);
-}
-
-.slider-toggle {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  border-radius: 28px;
-}
-
-.slider-toggle:before {
-  position: absolute;
-  content: "";
-  height: 20px;
-  width: 20px;
-  left: 4px;
-  bottom: 4px;
-  background: #fff;
-  transition: .4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  border-radius: 50%;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
-}
-
-.toggle-switch input:checked + .slider-toggle {
-  background: #2563eb;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
-}
-
-.toggle-switch input:checked + .slider-toggle:before {
-  transform: translateX(20px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
-}
-
-/* Improved Dashboard Tabs */
-.dashboard-tab {
-  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.dashboard-tab:hover {
-  transform: translateY(-2px);
-  background: rgba(234, 243, 255, 0.7);
-}
-
-.dashboard-tab.active:after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 10%;
-  width: 80%;
-  height: 3px;
-  background: #2563eb;
-  border-radius: 1.5px;
-  animation: tabActivate 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-}
-
-@keyframes tabActivate {
-  from { width: 0; left: 50%; }
-  to { width: 80%; left: 10%; }
-}
-
-/* Enhanced Lamp Animation */
-.lamp-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  position: relative;
-  margin-left: 5px;
-  transition: transform 0.3s ease;
-}
-
-.lamp-body {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  position: relative;
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.lamp-base {
-  width: 12px;
-  height: 5px;
-  background: #888;
-  border-radius: 2px;
-  margin: 0 auto;
-  position: relative;
-  top: -2px;
-  transition: all 0.3s ease;
-}
-
-.lamp-on .lamp-body {
-  background: #ffeb3b;
-  box-shadow: 
-    0 0 15px rgba(255, 235, 59, 0.8),
-    0 0 30px rgba(255, 235, 59, 0.3);
-  animation: glow 2s infinite alternate;
-}
-
-.lamp-off .lamp-body {
-  background: #eaeaea;
-  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.1);
-}
-
-.lamp-icon:hover {
-  transform: translateY(-3px);
-}
-
-.lamp-on:hover .lamp-body {
-  animation: glowIntense 1.2s infinite alternate;
-}
-
-@keyframes glow {
-  from { 
-    box-shadow: 0 0 5px rgba(255, 235, 59, 0.6), 0 0 10px rgba(255, 235, 59, 0.3); 
-  }
-  to { 
-    box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), 0 0 25px rgba(255, 235, 59, 0.5), 0 0 35px rgba(255, 235, 59, 0.3); 
-  }
-}
-
-@keyframes glowIntense {
-  from { 
-    box-shadow: 0 0 10px rgba(255, 235, 59, 0.7), 0 0 20px rgba(255, 235, 59, 0.4); 
-    transform: scale(1);
-  }
-  to { 
-    box-shadow: 0 0 20px rgba(255, 235, 59, 0.9), 0 0 30px rgba(255, 235, 59, 0.6), 0 0 40px rgba(255, 235, 59, 0.4);
-    transform: scale(1.05);
-  }
-}
-
-/* Enhanced Bulb Animation */
-.bulb-icon-container {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  position: relative;
-  margin-left: 5px;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.bulb-icon-container:hover {
-  transform: translateY(-3px) scale(1.1);
-}
-
-.bulb-on {
-  color: #27ae60;
-  filter: drop-shadow(0 0 5px rgba(39, 174, 96, 0.6));
-  animation: glow-bulb 2s infinite alternate;
-  transition: all 0.5s ease;
-}
-
-.bulb-off {
-  color: #444;
-  transition: color 0.3s ease, filter 0.3s ease;
-}
-
-.bulb-icon-container:hover .bulb-off {
-  color: #666;
-  filter: drop-shadow(0 0 2px rgba(102, 102, 102, 0.3));
-}
-
-@keyframes glow-bulb {
-  from { 
-    filter: drop-shadow(0 0 3px rgba(39, 174, 96, 0.4));
-  }
-  to { 
-    filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.6)) drop-shadow(0 0 12px rgba(39, 174, 96, 0.4));
-  }
-}
-
-/* Animated Status Cards */
-#relayStatusCard > div > div {
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: translateZ(0);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border: 1px solid transparent;
-}
-
-#relayStatusCard > div > div:hover {
-  transform: translateY(-5px) scale(1.03);
-  box-shadow: 
-    0 8px 16px rgba(0, 0, 0, 0.1),
-    0 3px 6px rgba(0, 0, 0, 0.08);
-  border-color: rgba(37, 99, 235, 0.1);
-}
-
-/* Enhanced Range Slider */
-input[type=range] {
-  height: 6px;
-  appearance: none;
-  margin: 10px 0;
-  background: linear-gradient(to right, #d7dcdf 0%, #d7dcdf 100%);
-  border-radius: 5px;
-  transition: all 0.3s ease;
-  background-repeat: no-repeat;
-  cursor: pointer;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-input[type=range]:focus {
-  outline: none;
-}
-
-input[type=range]::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #2563eb;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border: none;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-}
-
-input[type=range]::-webkit-slider-thumb:hover {
-  transform: scale(1.3);
-  background: #1d4ed8;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
-}
-
-/* Dark Mode Toggle Animation */
-.dark-toggle {
-  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-}
-
-.dark-toggle:hover {
-  transform: rotate(45deg) scale(1.15);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-}
-
-.dark-toggle:active {
-  transform: rotate(45deg) scale(0.95);
-}
-
-/* System Info Card */
-.system-info {
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border: 1px solid transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.system-info:hover {
-  transform: translateY(-5px);
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-}
-
-.dark-mode .system-info:hover {
-  background: #1e293b;
-  border-color: #334155;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
-}
-
-/* Routine Card Animation */
-.routine-card {
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border: 1px solid transparent;
-}
-
-.routine-card:hover {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow: 
-    0 12px 20px rgba(37, 99, 235, 0.15),
-    0 4px 8px rgba(37, 99, 235, 0.08),
-    0 0 0 1px rgba(37, 99, 235, 0.05);
-}
-
-/* Animation for Camera Modal */
-.camera-modal {
-  transition: opacity 0.3s ease;
-  opacity: 0;
-  display: flex;
-  visibility: hidden;
-}
-
-.camera-modal.active {
-  opacity: 1;
-  visibility: visible;
-}
-
-.camera-content {
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: scale(0.8);
-}
-
-.camera-modal.active .camera-content {
-  transform: scale(1);
-}
-
-/* Material Icons Animation */
-.material-icons {
-  transition: transform 0.3s ease;
-}
-
-.dashboard-card:hover .material-icons,
-.device-card:hover .material-icons,
-.routine-card:hover .material-icons {
-  transform: scale(1.2);
-}
-
-/* Page Transition Animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.dashboard-main {
-  animation: fadeIn 0.5s ease-out;
-}
-    
-.lamp-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  position: relative;
-  margin-left: 5px;
-}
-.lamp-body {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  position: relative;
-  transition: all 0.3s ease;
-}
-.lamp-base {
-  width: 10px;
-  height: 4px;
-  background: #888;
-  border-radius: 2px;
-  margin: 0 auto;
-  position: relative;
-  top: -2px;
-}
-.lamp-on .lamp-body {
-  background: #ffeb3b;
-  box-shadow: 0 0 15px rgba(255, 235, 59, 0.8);
-  animation: glow 1.5s infinite alternate;
-}
-.lamp-off .lamp-body {
-  background: #ccc;
-  box-shadow: none;
-}
-@keyframes glow {
-  from { box-shadow: 0 0 5px rgba(255, 235, 59, 0.8); }
-  to { box-shadow: 0 0 15px rgba(255, 235, 59, 0.8), 0 0 20px rgba(255, 235, 59, 0.5); }
-}
     .dark-mode {
       --bg-color: #121212;
       --card-bg: #1e1e1e;
@@ -1948,7 +1291,10 @@ void handleRoot() {
       <button class="quick-action-btn" onclick="applyScene(4)"><span class="material-icons">power</span> All On</button>
       <button class="quick-action-btn" onclick="applyScene(5)"><span class="material-icons">power_off</span> All Off</button>
       <button class="quick-action-btn" onclick="window.location.href='/logs'"><span class="material-icons">list</span> Logs</button>
-    </div>
+      <button class="quick-action-btn" onclick="window.location.href='/schedules'">
+       <span class="material-icons">schedule</span> Schedules
+      </button>
+      </div>
     <div class="dashboard-tabs">
       <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
       <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
@@ -2260,7 +1606,30 @@ fetch('/sensor', { credentials: 'include' })
     renderRoutines();
     updateSystemInfo();
     setInterval(updateSystemInfo, 10000);
+let espOnline = true;
+let espStatusTimer = null;
 
+function checkESPStatus() {
+  fetch('/systeminfo', { credentials: 'include', cache: 'no-store' })
+    .then(r => {
+      if (!r.ok) throw new Error('ESP32 offline');
+      return r.json();
+    })
+    .then(info => {
+      if (!espOnline) {
+        espOnline = true;
+        document.getElementById('espStatus').innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+      }
+    })
+    .catch(() => {
+      if (espOnline) {
+        espOnline = false;
+        document.getElementById('espStatus').innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+      }
+    });
+}
+checkESPStatus();
+espStatusTimer = setInterval(checkESPStatus, 2000);
     // --- Relay Status Update ---
 // ...inside handleRoot()'s <script> section, replace updateRelayStatus with:
 function updateRelayStatus() {
@@ -3407,6 +2776,186 @@ void setupSchedules() {
     scheduleCount++;
   }
 }
+// ...existing code...
+
+// --- Add this handler for schedule management API and UI ---
+
+void handleSchedules() {
+  if (requireLogin()) return;
+
+  if (server.method() == HTTP_GET) {
+    // Build HTML UI for schedules
+    String html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Light Schedules</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; background: #eef3fc; color: #222; }
+    .sched-container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px #e3e9f7; padding: 32px; }
+    h2 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+    th, td { padding: 10px 8px; text-align: center; }
+    th { background: #f8fafc; }
+    tr:nth-child(even) { background: #f4f7fb; }
+    .days { display: flex; gap: 2px; justify-content: center; }
+    .days label { font-size: 0.95em; margin: 0 2px; }
+    .btn { padding: 7px 14px; border: none; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
+    .btn:active { background: #1746a2; }
+    .btn-danger { background: #e74c3c; }
+    .btn-add { margin-bottom: 18px; }
+    .toggle { width: 18px; height: 18px; }
+    .success { color: #27ae60; text-align: center; margin-bottom: 10px; }
+    .error { color: #e74c3c; text-align: center; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="sched-container">
+    <h2>Light Schedules</h2>
+    <div id="msg"></div>
+    <button class="btn btn-add" onclick="addRow()">+ Add Schedule</button>
+    <form id="schedForm">
+      <table>
+        <thead>
+          <tr>
+            <th>Active</th>
+            <th>Time</th>
+            <th>Relay</th>
+            <th>State</th>
+            <th>Days</th>
+            <th>Repeat</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody id="schedTable"></tbody>
+      </table>
+      <button class="btn" type="submit">Save Schedules</button>
+    </form>
+    <div style="margin-top:18px;text-align:center;">
+      <a href="/">Back to Dashboard</a>
+    </div>
+  </div>
+<script>
+let relays = %RELAY_NAMES%;
+let schedules = %SCHEDULES%;
+
+// Render table
+function renderTable() {
+  let tbody = document.getElementById('schedTable');
+  tbody.innerHTML = '';
+  schedules.forEach((s, idx) => {
+    let daysHtml = '';
+    ['S','M','T','W','T','F','S'].forEach((d, i) => {
+      daysHtml += `<label><input type="checkbox" ${s.days[i]?'checked':''} onchange="setDay(${idx},${i},this.checked)"> ${d}</label>`;
+    });
+    tbody.innerHTML += `<tr>
+      <td><input type="checkbox" ${s.active?'checked':''} onchange="setVal(${idx},'active',this.checked)"></td>
+      <td><input type="time" value="${('0'+s.hour).slice(-2)}:${('0'+s.minute).slice(-2)}" onchange="setTime(${idx},this.value)"></td>
+      <td>
+        <select onchange="setVal(${idx},'relayNum',this.value)">
+          ${relays.map((r,i)=>`<option value="${i+1}"${s.relayNum==i+1?' selected':''}>${r}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <select onchange="setVal(${idx},'state',this.value)">
+          <option value="1"${s.state?' selected':''}>ON</option>
+          <option value="0"${!s.state?' selected':''}>OFF</option>
+        </select>
+      </td>
+      <td class="days">${daysHtml}</td>
+      <td><input type="checkbox" ${s.repeat?'checked':''} onchange="setVal(${idx},'repeat',this.checked)"></td>
+      <td><button type="button" class="btn btn-danger" onclick="delRow(${idx})">Delete</button></td>
+    </tr>`;
+  });
+}
+function setVal(idx, key, val) {
+  if (key=='active'||key=='repeat') schedules[idx][key]=!!val;
+  else if (key=='relayNum') schedules[idx][key]=parseInt(val);
+  else if (key=='state') schedules[idx][key]=val=='1';
+}
+function setTime(idx, val) {
+  let [h,m]=val.split(':'); schedules[idx].hour=parseInt(h); schedules[idx].minute=parseInt(m);
+}
+function setDay(idx, d, val) { schedules[idx].days[d]=!!val; }
+function delRow(idx) { schedules.splice(idx,1); renderTable(); }
+function addRow() {
+  if (schedules.length>=10) return alert('Max 10 schedules');
+  schedules.push({active:true,hour:7,minute:0,relayNum:1,state:true,days:[1,1,1,1,1,1,1],repeat:true});
+  renderTable();
+}
+document.getElementById('schedForm').onsubmit = function(e) {
+  e.preventDefault();
+  fetch('/schedules', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({schedules}),
+    credentials:'include'
+  })
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById('msg').innerHTML = d.success ? '<div class="success">Schedules saved!</div>' : '<div class="error">'+(d.error||'Failed')+'</div>';
+  });
+};
+renderTable();
+</script>
+</body>
+</html>
+)rawliteral";
+    // Fill placeholders
+    String relayNames = "[";
+    for (int i = 0; i < RELAY_COUNT; i++) {
+      relayNames += "\"" + String(roomNames[i]) + "\"";
+      if (i < RELAY_COUNT - 1) relayNames += ",";
+    }
+    relayNames += "]";
+    html.replace("%RELAY_NAMES%", relayNames);
+
+    // Serialize schedules to JSON
+    DynamicJsonDocument doc(2048);
+    JsonArray arr = doc.to<JsonArray>();
+    for (int i = 0; i < scheduleCount; i++) {
+      JsonObject s = arr.createNestedObject();
+      s["active"] = schedules[i].active;
+      s["hour"] = schedules[i].hour;
+      s["minute"] = schedules[i].minute;
+      s["relayNum"] = schedules[i].relayNum;
+      s["state"] = schedules[i].state;
+      JsonArray days = s.createNestedArray("days");
+      for (int d = 0; d < 7; d++) days.add(schedules[i].days[d]);
+      s["repeat"] = schedules[i].repeat;
+    }
+    String schedJson;
+    serializeJson(arr, schedJson);
+    html.replace("%SCHEDULES%", schedJson);
+
+    server.send(200, "text/html", html);
+  } else if (server.method() == HTTP_POST) {
+    // Save schedules from JSON
+    DynamicJsonDocument doc(2048);
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+    if (err) {
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+      return;
+    }
+    JsonArray arr = doc["schedules"];
+    if (!arr || arr.size() > MAX_SCHEDULES) {
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"Too many schedules\"}");
+      return;
+    }
+    scheduleCount = arr.size();
+    for (int i = 0; i < scheduleCount; i++) {
+      schedules[i].active = arr[i]["active"];
+      schedules[i].hour = arr[i]["hour"];
+      schedules[i].minute = arr[i]["minute"];
+      schedules[i].relayNum = arr[i]["relayNum"];
+      schedules[i].state = arr[i]["state"];
+      for (int d = 0; d < 7; d++) schedules[i].days[d] = arr[i]["days"][d];
+      schedules[i].repeat = arr[i]["repeat"];
+    }
+    server.send(200, "application/json", "{\"success\":true}");
+  }
+}
 
 void checkSchedules() {
   // Check all active schedules
@@ -3522,6 +3071,9 @@ void setup() {
   server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
   server.on("/systeminfo", HTTP_GET, handleSystemInfo);
   server.on("/deviceStatus", HTTP_GET, handleDeviceStatus);
+  server.on("/schedules", HTTP_GET, handleSchedules);
+  server.on("/schedules", HTTP_POST, handleSchedules);
+
   server.onNotFound(handleNotFound);
   
   server.begin();
