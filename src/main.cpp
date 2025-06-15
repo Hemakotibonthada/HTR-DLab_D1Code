@@ -47,6 +47,7 @@
 #define DEBUG_HTTP false       // HTTP server requests debugging
 #define DEBUG_FILESYSTEM false // SPIFFS file operations debugging
 
+
 // Colors for better readability in Serial Monitor
 #define DEBUG_COLOR_ERROR "\033[31m"    // Red
 #define DEBUG_COLOR_WARNING "\033[33m"  // Yellow
@@ -54,6 +55,7 @@
 #define DEBUG_COLOR_VERBOSE "\033[32m"  // Green
 #define DEBUG_COLOR_RESET "\033[0m"     // Reset to default
 #define TEMP_HISTORY_SIZE 7 
+
 
 // Debug print macros
 #if DEBUG_LEVEL > 0
@@ -153,6 +155,9 @@ DHT dht(DHTPIN, DHTTYPE);
 WebServer server(80);
 WiFiClientSecure client;
 
+
+#define MAX_ROUTINES 10
+
 // Global Variables
 String savedUsername, savedPassword, savedBirthday, sessionToken = "";
 bool relayStates[RELAY_COUNT] = {false};
@@ -177,8 +182,61 @@ void recordRelayEvent(int relayNum, bool state, const String& source);
 void setupSchedules();
 void checkSchedules();
 void checkSchedules();
+void addLog(const String& entry);
 
 // ----------- Helper Functions -----------
+struct Routine {
+  String name;
+  String time; // "HH:MM" 24h format
+  int relayNum;
+  bool state; // true=ON, false=OFF
+  bool active;
+};
+Routine routines[MAX_ROUTINES];
+int routineCount = 0;
+// Add a new routine
+bool addRoutine(const String& name, const String& time, int relayNum, bool state) {
+  if (routineCount >= MAX_ROUTINES) return false;
+  routines[routineCount].name = name;
+  routines[routineCount].time = time;
+  routines[routineCount].relayNum = relayNum;
+  routines[routineCount].state = state;
+  routines[routineCount].active = true;
+  routineCount++;
+  addLog("Routine added: " + name + " at " + time + " for Relay " + String(relayNum) + (state ? " ON" : " OFF"));
+  return true;
+}
+
+// Remove a routine by index
+bool removeRoutine(int idx) {
+  if (idx < 0 || idx >= routineCount) return false;
+  for (int i = idx; i < routineCount - 1; i++) {
+    routines[i] = routines[i + 1];
+  }
+  routineCount--;
+  addLog("Routine removed at index: " + String(idx));
+  return true;
+}
+
+// Check and execute routines (call in loop)
+void checkRoutines() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+  char nowStr[6];
+  snprintf(nowStr, sizeof(nowStr), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+
+  for (int i = 0; i < routineCount; i++) {
+    if (routines[i].active && routines[i].time == String(nowStr)) {
+      int relayIdx = routines[i].relayNum - 1;
+      if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+        relayStates[relayIdx] = routines[i].state;
+        digitalWrite(relayPins[relayIdx], relayStates[relayIdx] ? HIGH : LOW);
+        addLog("Routine triggered: " + routines[i].name + " (Relay " + String(routines[i].relayNum) + (routines[i].state ? " ON" : " OFF") + ")");
+        routines[i].active = false; // One-time routine, deactivate after running
+      }
+    }
+  }
+}
 
 struct SensorDataPoint {
   time_t timestamp;
@@ -541,7 +599,40 @@ void applyScene(int sceneIndex) {
   saveRelayStates();
   addLog("Applied scene: " + String(scenes[sceneIndex].name));
 }
+void handleRoutinesGet() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.createNestedArray("routines");
+  for (int i = 0; i < routineCount; i++) {
+    JsonObject r = arr.createNestedObject();
+    r["name"] = routines[i].name;
+    r["time"] = routines[i].time;
+    r["relayNum"] = routines[i].relayNum;
+    r["state"] = routines[i].state;
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
 
+void handleRoutinesPost() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(256);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  String name = doc["name"];
+  String time = doc["time"];
+  int relay = doc["relay"];
+  bool state = doc["state"];
+  if (!addRoutine(name, time, relay, state)) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Max routines reached or invalid data\"}");
+    return;
+  }
+  server.send(200, "application/json", "{\"success\":true}");
+}
 void handleButtonPress() {
   static unsigned long lastDebounceTime = 0;
   static int lastButtonState = HIGH;
@@ -990,9 +1081,17 @@ void handleRoot() {
       margin: 0; padding: 0;
       color: #222;
     }
+    .sidebar {
+      width: 220px; background: #1e3a8a; color: #fff; height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; align-items:center; padding-top:32px; z-index: 100;
+    }
+    .sidebar .logo { font-size:1.5rem; font-weight:700; margin-bottom:32px; }
+    .sidebar button { background:none; border:none; color:#fff; font-size:1.1rem; margin:12px 0; cursor:pointer; width:100%; text-align:left; padding:10px 24px; border-radius:8px; transition:background 0.2s;}
+    .sidebar button.active, .sidebar button:hover { background:#2563eb; }
+    .main-content { margin-left:220px; padding:32px; }
     .header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 18px 32px 10px 32px; background: #fff; box-shadow: 0 2px 8px #e3e9f7;
+      margin-left: 220px;
     }
     .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
     .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
@@ -1002,6 +1101,17 @@ void handleRoot() {
     .dashboard-card {
       background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
       padding: 24px 32px; flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 8px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .dashboard-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
     }
     .dashboard-card .material-icons { font-size: 2rem; color: #2563eb; }
     .dashboard-card .card-title { font-size: 1.1rem; font-weight: 600; }
@@ -1018,6 +1128,16 @@ void handleRoot() {
       background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
       padding: 22px 20px; flex: 1 1 260px; min-width: 240px; max-width: 340px;
       display: flex; flex-direction: column; gap: 10px; align-items: flex-start; position: relative;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .device-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
     }
     .device-card .material-icons { font-size: 2rem; }
     .device-card .device-title { font-size: 1.1rem; font-weight: 600; }
@@ -1037,6 +1157,9 @@ void handleRoot() {
     .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
     .slider-row { display: flex; align-items: center; gap: 10px; }
     .slider-row input[type=range] { width: 120px; }
+    .quick-actions { display: flex; gap: 12px; margin: 18px 0 18px 0; }
+    .quick-action-btn { background: #fff; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    .quick-action-btn:hover { background: #2563eb; color: #fff; }
     .energy-section { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 24px 32px; margin-bottom: 32px; }
     .energy-header { display: flex; align-items: center; justify-content: space-between; }
     .energy-title { font-size: 1.2rem; font-weight: 700; }
@@ -1051,6 +1174,16 @@ void handleRoot() {
     .routine-card {
       background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
       padding: 22px 20px; min-width: 260px; display: flex; flex-direction: column; gap: 8px; position: relative;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .routine-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
     }
     .routine-card .material-icons { font-size: 1.5rem; }
     .routine-title { font-size: 1.1rem; font-weight: 600; }
@@ -1059,56 +1192,8 @@ void handleRoot() {
     .routine-toggle { position: absolute; top: 22px; right: 22px; }
     .add-routine-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 1rem; cursor: pointer; }
     .footer { margin: 32px 0 0 0; text-align: center; color: #aaa; font-size: 1rem; }
-    .camera-modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0; top: 0; width: 100vw; height: 100vh;
-      background: rgba(0,0,0,0.7);
-      align-items: center; justify-content: center;
-    }
-    .camera-modal.active { display: flex; }
-    .camera-content {
-      background: #fff;
-      border-radius: 12px;
-      padding: 18px;
-      box-shadow: 0 2px 16px #2228;
-      max-width: 90vw;
-      max-height: 90vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .camera-content h2 {
-      margin: 0 0 12px 0;
-      font-size: 1.2rem;
-      color: #2563eb;
-    }
-    .camera-stream {
-      width: 480px;
-      max-width: 80vw;
-      height: 320px;
-      max-height: 60vh;
-      background: #222;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      object-fit: contain;
-    }
-    .close-modal {
-      background: #2563eb;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 18px;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 8px;
-    }
-    .quick-actions { display: flex; gap: 12px; margin: 18px 0 18px 0; }
-    .quick-action-btn { background: #fff; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
-    .quick-action-btn:hover { background: #2563eb; color: #fff; }
-    .system-info { margin: 24px 0; background: #f8fafc; border-radius: 12px; padding: 18px 24px; font-size: 1.05rem; color: #444; }
-    .system-info span { font-weight: 600; }
+    .system-info { margin: 24px 0; background: #f8fafc; border-radius: 12px; padding: 18px 24px; font-size: 1.05rem; color: #444; transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); border-radius: 12px;}
+    .system-info:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);}
     .log-section { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e3e9f7; padding: 18px 24px; margin-bottom: 24px; }
     .log-section h3 { margin-top: 0; color: #2563eb; }
     .log-list { max-height: 120px; overflow-y: auto; font-size: 0.98rem; color: #333; background: #f8fafc; border-radius: 8px; padding: 8px 12px; }
@@ -1122,130 +1207,22 @@ void handleRoot() {
     @media (max-width: 900px) {
       .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
       .energy-section, .dashboard-main { padding: 0 5px; }
+      .main-content, .header { margin-left: 0; padding: 12px; }
+      .sidebar { position: static; width: 100vw; height: auto; flex-direction: row; justify-content: flex-start; }
     }
-// Add this CSS to the <style> section in handleRoot()
-.bulb-icon-container {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  position: relative;
-  margin-left: 5px;
-}
-.bulb-on {
-  color: #27ae60; /* Green color for ON state */
-  filter: drop-shadow(0 0 5px rgba(39, 174, 96, 0.6));
-  animation: glow-bulb 1.5s infinite alternate;
-}
-.bulb-off {
-  color: #444;
-}
-@keyframes glow-bulb {
-  from { filter: drop-shadow(0 0 3px rgba(39, 174, 96, 0.4)); }
-  to { filter: drop-shadow(0 0 8px rgba(39, 174, 96, 0.6)); }
-}// Add to the <style> section in handleRoot()
-
-/* Premium Card Shadow Effects */
-.dashboard-card, .device-card, .routine-card, .scene-item {
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border: 1px solid transparent;
-  position: relative;
-  overflow: hidden;
-  will-change: transform, box-shadow;
-}
-
-.dashboard-card:hover, .device-card:hover, .routine-card:hover, .scene-item:hover {
-  transform: translateY(-8px);
-  box-shadow: 
-    0 14px 24px rgba(37, 99, 235, 0.15),
-    0 6px 12px rgba(37, 99, 235, 0.08),
-    0 0 0 1px rgba(37, 99, 235, 0.05);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
-/* Subtle Background Color Change on Hover */
-.dashboard-card:hover {
-  background: linear-gradient(to bottom right, #ffffff, #f8faff);
-}
-
-.dark-mode .dashboard-card:hover, 
-.dark-mode .device-card:hover, 
-.dark-mode .routine-card:hover,
-.dark-mode .scene-item:hover {
-  background: linear-gradient(to bottom right, #232a36, #293241);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 
-    0 14px 24px rgba(0, 0, 0, 0.25),
-    0 6px 12px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(59, 130, 246, 0.2);
-}
-
-/* Subtle Glow Effect on Hover */
-.dashboard-card:after,
-.device-card:after,
-.routine-card:after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: transparent;
-  pointer-events: none;
-  border-radius: inherit;
-  transition: background 0.4s ease-in-out;
-}
-
-.dashboard-card:hover:after,
-.device-card:hover:after,
-.routine-card:hover:after {
-  background: radial-gradient(
-    circle at 50% 0%, 
-    rgba(59, 130, 246, 0.08),
-    transparent 50%
-  );
-}
-
-/* Card Content Subtle Lift on Hover */
-.dashboard-card > *:not(.material-icons),
-.device-card > *:not(.material-icons, .toggle-switch),
-.routine-card > *:not(.material-icons, .routine-toggle) {
-  transform: translateY(0);
-  transition: transform 0.4s ease-out;
-}
-
-.dashboard-card:hover > *:not(.material-icons),
-.device-card:hover > *:not(.material-icons, .toggle-switch),
-.routine-card:hover > *:not(.material-icons, .routine-toggle) {
-  transform: translateY(-2px);
-}
-
-/* Make Card Values More Prominent on Hover */
-.dashboard-card:hover .card-value {
-  color: #2563eb;
-  transform: scale(1.05);
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-}
-
-.dark-mode .dashboard-card:hover .card-value {
-  color: #60a5fa;
-}
-
-/* System Info Card Enhanced Effects */
-.system-info {
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border-radius: 12px;
-}
-
-.system-info:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
-  
   </style>
 </head>
 <body>
+  <div class="sidebar">
+    <div class="logo">SmartHome Hub</div>
+    <button class="active">Dashboard</button>
+    <button onclick="window.location.href='/settings'">Settings</button>
+    <button onclick="window.location.href='/schedules'">Schedules</button>
+    <button onclick="window.location.href='/logs'">Logs</button>
+    <button onclick="window.location.href='/ota'">OTA Update</button>
+  </div>
   <div class="header">
-    <div class="logo"><span class="material-icons">home</span> SmartHome</div>
+    <div class="logo"><span class="material-icons">home</span> Welcome Home</div>
     <div>
       <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
       <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
@@ -1253,436 +1230,410 @@ void handleRoot() {
       <button class="settings-btn" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
     </div>
   </div>
-  <div class="dashboard-main">
-    <div class="dashboard-cards">
-      <div class="dashboard-card">
-        <span class="material-icons">thermostat</span>
-        <div class="card-title">Indoor Temperature</div>
-        <div class="card-value" id="tempCard">--°C</div>
-        <div class="card-sub" id="tempSub"></div>
-      </div>
-      <div class="dashboard-card">
-        <span class="material-icons">water_drop</span>
-        <div class="card-title">Humidity</div>
-        <div class="card-value" id="humCard">--%</div>
-        <div class="card-sub" id="humSub"></div>
-      </div>
-      <div class="dashboard-card">
-        <span class="material-icons">bolt</span>
-        <div class="card-title">Energy Usage</div>
-        <div class="card-value" id="energyCard">-- kWh</div>
-        <div class="card-sub" id="energySub"></div>
-      </div>
-      <div class="dashboard-card">
-        <span class="material-icons">devices</span>
-        <div class="card-title">Active Devices</div>
-        <div class="card-value" id="activeDevices">--</div>
-        <div class="card-sub" id="activeDevicesSub"></div>
-      </div>
-    </div>
-    <div class="dashboard-card" id="relayStatusCard" style="margin-bottom:24px;">
-      <span class="material-icons">toggle_on</span>
-      <div class="card-title">Live Relay Status</div>
-      <div id="relayStatusList"></div>
-    </div>
-    <div class="quick-actions">
-      <button class="quick-action-btn" onclick="applyScene(0)"><span class="material-icons">nights_stay</span> Good Night</button>
-      <button class="quick-action-btn" onclick="applyScene(1)"><span class="material-icons">wb_sunny</span> Good Morning</button>
-      <button class="quick-action-btn" onclick="applyScene(4)"><span class="material-icons">power</span> All On</button>
-      <button class="quick-action-btn" onclick="applyScene(5)"><span class="material-icons">power_off</span> All Off</button>
-      <button class="quick-action-btn" onclick="window.location.href='/logs'"><span class="material-icons">list</span> Logs</button>
-      <button class="quick-action-btn" onclick="window.location.href='/schedules'">
-       <span class="material-icons">schedule</span> Schedules
-      </button>
-      </div>
-    <div class="dashboard-tabs">
-      <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
-      <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
-      <button class="dashboard-tab" onclick="showRoom('kitchen', this)">Kitchen</button>
-      <button class="dashboard-tab" onclick="showRoom('bedroom', this)">Bedroom</button>
-      <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
-      <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
-    </div>
-    <div class="devices-row" id="devicesRow"></div>
-    <!-- Camera Modal -->
-    <div class="camera-modal" id="cameraModal">
-      <div class="camera-content">
-        <h2>ESP32 Camera Live Stream</h2>
-        <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
-        <button class="close-modal" onclick="closeCameraModal()">Close</button>
-      </div>
-    </div>
-    <div class="energy-section">
-      <div class="energy-header">
-        <div class="energy-title">Energy Consumption</div>
-        <div class="energy-tabs">
-          <button class="energy-tab active" onclick="setEnergyRange('day', this)">Day</button>
-          <button class="energy-tab" onclick="setEnergyRange('week', this)">Week</button>
-          <button class="energy-tab" onclick="setEnergyRange('month', this)">Month</button>
+  <div class="main-content">
+    <div class="dashboard-main">
+      <div class="dashboard-cards">
+        <div class="dashboard-card">
+          <span class="material-icons">thermostat</span>
+          <div class="card-title">Indoor Temperature</div>
+          <div class="card-value" id="tempCard">--°C</div>
+          <div class="card-sub" id="tempSub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">water_drop</span>
+          <div class="card-title">Humidity</div>
+          <div class="card-value" id="humCard">--%</div>
+          <div class="card-sub" id="humSub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">bolt</span>
+          <div class="card-title">Energy Usage</div>
+          <div class="card-value" id="energyCard">-- kWh</div>
+          <div class="card-sub" id="energySub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">devices</span>
+          <div class="card-title">Active Devices</div>
+          <div class="card-value" id="activeDevices">--</div>
+          <div class="card-sub" id="activeDevicesSub"></div>
         </div>
       </div>
-      <canvas id="energyChart"></canvas>
-    </div>
-    <div class="routines-section">
-      <div class="routines-header">
-        <div class="routines-title">Automation Routines</div>
-        <button class="add-routine-btn" onclick="alert('Routine creation coming soon!')">+ New Routine</button>
+
+
+      <div class="quick-actions">
+        <button class="quick-action-btn" onclick="applyScene(0)">
+          <span class="material-icons">nights_stay</span> Good Night
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(1)">
+          <span class="material-icons">wb_sunny</span> Good Morning
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(4)">
+          <span class="material-icons">power</span> All On
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(5)">
+          <span class="material-icons">power_off</span> All Off
+        </button>
+        <button class="quick-action-btn" onclick="window.location.href='/logs'">
+          <span class="material-icons">list</span> Logs
+        </button>
+        <button class="quick-action-btn" onclick="window.location.href='/schedules'">
+          <span class="material-icons">schedule</span> Schedules
+        </button>
       </div>
-      <div class="routines-list" id="routinesList"></div>
+
+      <div class="dashboard-tabs">
+        <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
+        <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
+        <button class="dashboard-tab" onclick="showRoom('kitchen', this)">Kitchen</button>
+        <button class="dashboard-tab" onclick="showRoom('bedroom', this)">Bedroom</button>
+        <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
+        <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
+      </div>
+
+      <div class="devices-row" id="devicesRow"></div>
+
+      <!-- Camera Modal -->
+      <div class="camera-modal" id="cameraModal" style="display:none;">
+        <div class="camera-content">
+          <h2>ESP32 Camera Live Stream</h2>
+          <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
+          <button class="close-modal" onclick="closeCameraModal()">Close</button>
+        </div>
+      </div>
+
+      <div class="energy-section">
+        <div class="energy-header">
+          <div class="energy-title">Energy Consumption</div>
+          <div class="energy-tabs">
+            <button class="energy-tab active" onclick="setEnergyRange('day', this)">Day</button>
+            <button class="energy-tab" onclick="setEnergyRange('week', this)">Week</button>
+            <button class="energy-tab" onclick="setEnergyRange('month', this)">Month</button>
+          </div>
+        </div>
+        <canvas id="energyChart"></canvas>
+      </div>
+
+     <div class="routines-section">
+  <div class="routines-header">
+    <div class="routines-title">Automation Routines</div>
+    <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
+  </div>
+  <div class="routines-list" id="routinesList"></div>
+</div>
+<!-- Routine Modal -->
+<div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
+    <h3>Add Routine</h3>
+    <div style="margin-bottom:10px;">
+      <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
+      <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
+      <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
+        <option value="1">Relay 1</option>
+        <option value="2">Relay 2</option>
+        <option value="3">Relay 3</option>
+        <option value="4">Relay 4</option>
+        <option value="5">Relay 5</option>
+        <option value="6">Relay 6</option>
+        <option value="7">Relay 7</option>
+        <option value="8">Relay 8</option>
+      </select>
+      <select id="routineState" style="width:100%;padding:8px;">
+        <option value="1">ON</option>
+        <option value="0">OFF</option>
+      </select>
     </div>
-    <div class="system-info" id="systemInfo">
-      <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
-      <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
-      <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
-    </div>
-    <div class="log-section">
-      <h3>Recent System Logs</h3>
-      <div class="log-list" id="logList"></div>
-    </div>
-    <div class="footer">
-      ESP32 Home Automation Dashboard<br>
-      Connected to: ESP32-WROOM-32
+    <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
+    <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
+    <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
+  </div>
+</div>
+
+      <div class="system-info" id="systemInfo">
+        <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
+        <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
+        <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
+      </div>
+
+      <div class="log-section">
+        <h3>Recent System Logs</h3>
+        <div class="log-list" id="logList"></div>
+      </div>
+
+      <div class="footer">
+        ESP32 Home Automation Dashboard<br>
+        Connected to: ESP32-WROOM-32
+      </div>
     </div>
   </div>
   <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
   <script>
-    // --- Device and Routine Data (simulate for now) ---
-    let devices = [
-      { id: 'light1', room: 'living', type: 'light', name: 'Living Room Light', state: false, brightness: 80, onFor: '3 hours' },
-      { id: 'thermo', room: 'living', type: 'thermostat', name: 'Thermostat', state: true, temp: 23 },
-      { id: 'tv', room: 'living', type: 'tv', name: 'Smart TV', state: true, playing: 'Netflix', volume: 12 },
-      { id: 'lock', room: 'living', type: 'lock', name: 'Front Door Lock', state: false, last: 'Today, 10:42 AM' },
-      { id: 'curtain', room: 'bedroom', type: 'curtain', name: 'Bedroom Curtains', state: true, pos: 100 },
-      { id: 'esp32cam', room: 'bedroom', type: 'esp32cam', name: 'ESP32 Camera', state: true }
-    ];
-    let routines = [
-      { id: 'morning', name: 'Morning Routine', icon: 'wb_sunny', time: '7:00 AM, Daily', enabled: true, steps: ['Open bedroom curtains', 'Turn on kitchen lights', 'Start coffee machine'] },
-      { id: 'night', name: 'Night Routine', icon: 'nights_stay', time: '10:30 PM, Daily', enabled: true, steps: ['Turn off all lights', 'Close all curtains', 'Lock all doors', 'Set thermostat to 20°C'] },
-      { id: 'away', name: 'Away Mode', icon: 'logout', time: 'Manual activation', enabled: false, steps: ['Turn off all devices', 'Lock all doors', 'Activate security cameras', 'Random light patterns'] }
-    ];
-    let energyData = {
-      day: { labels: ['12 AM','3 AM','6 AM','9 AM','12 PM','3 PM','6 PM','9 PM','12 AM'], values: [0.8,1.1,1.0,1.5,2.2,2.1,2.7,3.1,3.8] },
-      week: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], values: [18,16,19,21,20,22,18] },
-      month: { labels: ['W1','W2','W3','W4'], values: [70, 75, 80, 78] }
-    };
-
-    // --- Dashboard Cards ---
-  // Replace the updateDashboardCards function:
-
-function updateDashboardCards() {
-  //document.getElementById('tempCard').textContent = '24°C';
-  //document.getElementById('tempSub').textContent = '↑ 2°C from yesterday';
-  //document.getElementById('humCard').textContent = '65%';
-  document.getElementById('energyCard').textContent = '3.8 kWh';
-  // The active devices values will be updated by updateSystemInfo()
-}
-    // --- Device Cards ---
-    function showRoom(room, btn) {
-      document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-      let row = document.getElementById('devicesRow');
-      row.innerHTML = '';
-      let filtered = room === 'all' ? devices : devices.filter(d => d.room === room);
-      filtered.forEach(dev => {
-        let html = `<div class="device-card">
-          <span class="material-icons">${
-            dev.type === 'light' ? 'wb_incandescent' :
-            dev.type === 'thermostat' ? 'thermostat' :
-            dev.type === 'tv' ? 'tv' :
-            dev.type === 'lock' ? 'lock' :
-            dev.type === 'curtain' ? 'window' :
-            dev.type === 'esp32cam' ? 'videocam' :
-            dev.type === 'camera' ? 'videocam' : 'devices'
-          }</span>
-          <div class="device-title">${dev.name}</div>
-          <div class="device-status">${
-            dev.type === 'light' ? 'On for ' + dev.onFor :
-            dev.type === 'tv' ? (dev.playing ? dev.playing + ' playing' : '') :
-            dev.type === 'lock' ? (dev.state ? 'Locked' : 'Unlocked') :
-            dev.type === 'curtain' ? (dev.state ? 'Open' : 'Closed') :
-            dev.type === 'esp32cam' ? 'Live Stream' :
-            dev.type === 'camera' ? (dev.recording ? 'Recording' : 'Idle') : ''
-          }</div>
-          ${
-            dev.type === 'esp32cam'
-              ? `<button class="settings-btn" style="margin-top:10px;" onclick="openCameraModal()">View Stream</button>`
-              : `<div class="toggle-switch">
-                  <input type="checkbox" id="dev-${dev.id}" ${dev.state ? 'checked' : ''} onchange="toggleDevice('${dev.id}', this.checked)">
-                  <span class="slider-toggle"></span>
-                </div>`
-          }`;
-        if (dev.type === 'light') {
-          html += `<div class="slider-row">Brightness <input type="range" min="0" max="100" value="${dev.brightness}" onchange="setBrightness('${dev.id}', this.value)"> <span>${dev.brightness}%</span></div>`;
-        }
-        if (dev.type === 'thermostat') {
-          html += `<div class="slider-row">Temperature <input type="range" min="16" max="30" value="${dev.temp}" onchange="setThermo('${dev.id}', this.value)"> <span>${dev.temp}°C</span></div>`;
-        }
-        if (dev.type === 'tv') {
-          html += `<div class="slider-row"><button onclick="tvCmd('${dev.id}','ch+');event.stopPropagation()">Channel +</button> <button onclick="tvCmd('${dev.id}','ch-');event.stopPropagation()">Channel -</button></div>
-                   <div class="slider-row"><button onclick="tvCmd('${dev.id}','vol+');event.stopPropagation()">Volume +</button> <button onclick="tvCmd('${dev.id}','vol-');event.stopPropagation()">Volume -</button></div>`;
-        }
-        if (dev.type === 'lock') {
-          html += `<button class="settings-btn" style="margin-top:10px;" onclick="toggleLock('${dev.id}')">${dev.state ? 'Unlock' : 'Lock'}</button>
-                   <div class="device-status">Last accessed: ${dev.last}</div>`;
-        }
-        if (dev.type === 'curtain') {
-          html += `<div class="slider-row">Position <input type="range" min="0" max="100" value="${dev.pos}" onchange="setCurtain('${dev.id}', this.value)"> <span>${dev.pos}%</span></div>`;
-        }
-        if (dev.type === 'camera') {
-          html += `<div style="background:#222; color:#fff; border-radius:8px; width:100%; height:60px; display:flex; align-items:center; justify-content:center; margin-top:10px;"><span class="material-icons" style="font-size:2.2rem;">play_circle</span></div>`;
-        }
-        html += `</div>`;
-        row.innerHTML += html;
-      });
-    }
-
-    // --- Camera Modal Logic ---
-    function openCameraModal() {
-      document.getElementById('cameraModal').classList.add('active');
-      document.getElementById('cameraStream').src = "http://192.168.1.150/stream";
-    }
-    function closeCameraModal() {
-      document.getElementById('cameraModal').classList.remove('active');
-      document.getElementById('cameraStream').src = "";
-    }
-
-    // --- Energy Chart ---
-    let energyChart, energyRange = 'day';
-    function setEnergyRange(range, btn) {
-      document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
-      btn.classList.add('active');
-      energyRange = range;
-      renderEnergyChart();
-    }
-    function renderEnergyChart() {
-      let data = energyData[energyRange];
-      if (!energyChart) {
-        energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
-          type: 'line',
-          data: { labels: data.labels, datasets: [{ label: 'kWh', data: data.values, borderColor: '#2563eb', fill: true, backgroundColor: 'rgba(37,99,235,0.08)' }] },
-          options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-        });
-      } else {
-        energyChart.data.labels = data.labels;
-        energyChart.data.datasets[0].data = data.values;
-        energyChart.update();
-      }
-    }
-
-    // --- Routines ---
-    function renderRoutines() {
-      let list = document.getElementById('routinesList');
-      list.innerHTML = '';
-      routines.forEach(r => {
-        let html = `<div class="routine-card">
-          <span class="material-icons">${r.icon}</span>
-          <div class="routine-title">${r.name}</div>
-          <div class="routine-time">${r.time}</div>
-          <ul class="routine-list">${r.steps.map(s => `<li>${s}</li>`).join('')}</ul>
-          <div class="routine-toggle">
-            <label class="toggle-switch">
-              <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleRoutine('${r.id}', this.checked)">
-              <span class="slider-toggle"></span>
-            </label>
-          </div>
-        </div>`;
-        list.innerHTML += html;
-      });
-    }
-    function toggleRoutine(id, state) {
-      let r = routines.find(x => x.id === id);
-      if (r) r.enabled = state;
-      renderRoutines();
-    }
-
-    // --- Quick Actions ---
-    function applyScene(idx) {
-      fetch('/scene?idx=' + idx, { credentials: 'include' })
-        .then(r => r.json())
-        .then(() => showRoom('all', document.querySelector('.dashboard-tab.active')));
-    }
-
-    // --- Device Controls (simulate for now) ---
-    function toggleDevice(id, state) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.state = state;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function setBrightness(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.brightness = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function setThermo(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.temp = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function setCurtain(id, val) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.pos = val;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function toggleLock(id) {
-      let dev = devices.find(d => d.id === id);
-      if (dev) dev.state = !dev.state;
-      showRoom('all', document.querySelector('.dashboard-tab.active'));
-    }
-    function tvCmd(id, cmd) {
-      alert('TV command: ' + cmd);
-    }
-
-    // --- System Info ---
-// Replace the updateSystemInfo function with this version:
-
-function updateSystemInfo() {
-  // ...inside updateSystemInfo() in your dashboard JS...
-fetch('/sensor', { credentials: 'include' })
-  .then(r => r.json())
-  .then(data => {
-    document.getElementById('tempCard').textContent = data.temperature + '°C';
-    document.getElementById('humCard').textContent = data.humidity + '%';
-
-    // Temperature trend
-    const tempDiff = data.temperature - data.yesterdayTemp;
-    const tempSign = tempDiff > 0 ? '↑' : (tempDiff < 0 ? '↓' : '');
-    const absTempDiff = Math.abs(tempDiff).toFixed(1);
-
-    if (data.yesterdayTemp > 0) {
-      document.getElementById('tempSub').textContent =
-        `${tempSign} ${absTempDiff}°C from yesterday`;
-    } else {
-      document.getElementById('tempSub').textContent = '';
-    }
-
-    // Humidity trend
-    const humDiff = data.humidity - data.yesterdayHum;
-    const humSign = humDiff > 0 ? '↑' : (humDiff < 0 ? '↓' : '');
-    const absHumDiff = Math.abs(humDiff).toFixed(1);
-
-    if (data.yesterdayHum > 0) {
-      document.getElementById('humSub').textContent =
-        `${humSign} ${absHumDiff}% from yesterday`;
-    } else {
-      document.getElementById('humSub').textContent = '';
-    }
-  });
-    
-  // Keep the rest of the function
-  fetch('/logs', { credentials: 'include' })
-    .then(r => r.text())
-    .then(logs => {
-      let logLines = logs.trim().split('\n').slice(-10);
-      document.getElementById('logList').innerHTML = logLines.map(l => `<div>${l}</div>`).join('');
-    });
-  fetch('/systeminfo', { credentials: 'include' })
-    .then(r => r.json())
-    .then(info => {
-      document.getElementById('uptime').textContent = info.uptime;
-      document.getElementById('ipAddr').textContent = info.ip;
-      document.getElementById('freeHeap').textContent = info.heap;
-    });
-  fetch('/deviceStatus', { credentials: 'include' })
-    .then(r => r.json())
-    .then(devices => {
-      document.getElementById('activeDevices').textContent = devices.activeCount + '/' + devices.totalCount;
-      document.getElementById('activeDevicesSub').textContent = '+' + devices.newDevices + ' devices added today';
-    });
-}
-
-    // --- Dark Mode ---
+    // --- UI Logic for Dashboard ---
     function toggleDarkMode() {
       document.body.classList.toggle('dark-mode');
       localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
     }
-    (function() {
-      if (localStorage.getItem('dark-mode') === 'true') document.body.classList.add('dark-mode');
-    })();
-
-    // --- Init ---
-    updateDashboardCards();
-    showRoom('all', document.querySelector('.dashboard-tab.active'));
-    renderEnergyChart();
-    renderRoutines();
-    updateSystemInfo();
-    setInterval(updateSystemInfo, 10000);
-let espOnline = true;
-let espStatusTimer = null;
-
-function checkESPStatus() {
-  fetch('/systeminfo', { credentials: 'include', cache: 'no-store' })
-    .then(r => {
-      if (!r.ok) throw new Error('ESP32 offline');
-      return r.json();
-    })
-    .then(info => {
-      if (!espOnline) {
-        espOnline = true;
-        document.getElementById('espStatus').innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+function showRoutineModal() {
+  document.getElementById('routineModal').style.display = 'flex';
+}
+function closeRoutineModal() {
+  document.getElementById('routineModal').style.display = 'none';
+  document.getElementById('routineError').style.display = 'none';
+}
+function addRoutine() {
+  const name = document.getElementById('routineName').value;
+  const time = document.getElementById('routineTime').value;
+  const relay = document.getElementById('routineRelay').value;
+  const state = document.getElementById('routineState').value;
+  const error = document.getElementById('routineError');
+  if (!name || !time) {
+    error.textContent = "Name and time required";
+    error.style.display = 'block';
+    return;
+  }
+  fetch('/routines', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
+  })
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.success) {
+      closeRoutineModal();
+      loadRoutines();
+    } else {
+      error.textContent = j.error || "Failed to add routine";
+      error.style.display = 'block';
+    }
+  });
+}
+function loadRoutines() {
+  fetch('/routines')
+    .then(r=>r.json())
+    .then(json=>{
+      let html = '';
+      if(json.routines && json.routines.length) {
+        json.routines.forEach(r=>{
+          html += `<div class="routine-card">
+            <span class="material-icons">alarm</span>
+            <div class="routine-title">${r.name}</div>
+            <div class="routine-time">${r.time}</div>
+            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
+          </div>`;
+        });
+      } else {
+        html = '<div style="color:#888;">No routines yet.</div>';
+      }
+      document.getElementById('routinesList').innerHTML = html;
+    });
+}
+function updateESPStatus() {
+  fetch('/wifiStatus')
+    .then(r => r.json())
+    .then(json => {
+      const statusEl = document.getElementById('espStatus');
+      if (json.connected) {
+        statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+      } else {
+        statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
       }
     })
     .catch(() => {
-      if (espOnline) {
-        espOnline = false;
-        document.getElementById('espStatus').innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-      }
+      // If fetch fails (ESP32 offline), show disconnected
+      const statusEl = document.getElementById('espStatus');
+      statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
     });
 }
-checkESPStatus();
-espStatusTimer = setInterval(checkESPStatus, 2000);
-    // --- Relay Status Update ---
-// ...inside handleRoot()'s <script> section, replace updateRelayStatus with:
-function updateRelayStatus() {
-  fetch('/relayStatus', { credentials: 'include' })
-    .then(r => r.json())
-    .then(data => {
-      let html = '<div style="display:flex;flex-wrap:wrap;gap:15px;justify-content:flex-start;">';
-      if (data.relays) {
-        data.relays.forEach(relay => {
-          html += `
-            <div style="display:flex;flex-direction:column;align-items:center;background:#f8f9fa;border-radius:8px;padding:12px;min-width:110px;margin-bottom:10px;">
-              <span style="font-weight:600;margin-bottom:8px;text-align:center;">${relay.name || 'Relay ' + relay.num}</span>
-              <span class="bulb-icon-container" style="margin-bottom:5px;">
-                ${relay.state ? 
-                  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-lightbulb-fill bulb-on" viewBox="0 0 16 16">
-                    <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13h-5a.5.5 0 0 1-.46-.302l-.761-1.77a2 2 0 0 0-.453-.618A5.98 5.98 0 0 1 2 6m3 8.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1-.5-.5"/>
-                  </svg>` : 
-                  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-lightbulb bulb-off" viewBox="0 0 16 16">
-                    <path d="M2 6a6 6 0 1 1 10.174 4.31c-.203.196-.359.4-.453.619l-.762 1.769A.5.5 0 0 1 10.5 13a.5.5 0 0 1 0 1 .5.5 0 0 1 0 1l-.224.447a1 1 0 0 1-.894.553H6.618a1 1 0 0 1-.894-.553L5.5 15a.5.5 0 0 1 0-1 .5.5 0 0 1 0-1 .5.5 0 0 1-.46-.302l-.761-1.77a2 2 0 0 0-.453-.618A5.98 5.98 0 0 1 2 6m6-5a5 5 0 0 0-3.479 8.592c.263.254.514.564.676.941L5.83 12h4.342l.632-1.467c.162-.377.413-.687.676-.941A5 5 0 0 0 8 1"/>
-                  </svg>`
-                }
-              </span>
-              <label class="toggle-switch">
-                <input type="checkbox" ${relay.state ? 'checked' : ''} onchange="toggleRelay(${relay.num}, this.checked)">
+// 
+    // Load dark mode preference
+    (function() {
+      if (localStorage.getItem('dark-mode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+    })();
+
+    // Quick Actions
+    function applyScene(idx) {
+      fetch('/scene?idx=' + idx, { credentials: 'include' })
+        .then(r => r.json())
+        .then(() => {
+          updateRelayStatus();
+          loadDevices();
+        });
+    }
+
+    // Tabs
+    function showRoom(room, btn) {
+      document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      // Optionally filter devices here
+    }
+
+    // Relay Status
+    function updateRelayStatus() {
+      fetch('/relayStatus', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let html = '';
+          json.relays.forEach(relay => {
+            html += `<div style="margin-bottom:8px;">
+              <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
+              <span style="font-weight:600;">${relay.name}</span>
+              <label class="toggle-switch" style="margin-left:12px;">
+                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
                 <span class="slider-toggle"></span>
               </label>
-              <span style="color:${relay.state ? '#27ae60' : '#e74c3c'};font-weight:700;">
-                ${relay.state ? 'ON' : 'OFF'}
-              </span>
             </div>`;
+          });
+          document.getElementById('relayStatusList').innerHTML = html;
         });
+    }
+    function toggleRelay(num, state) {
+      fetch(`/relay?num=${num}&state=${state?1:0}`, { credentials: 'include' })
+        .then(() => {
+          updateRelayStatus();
+          loadDevices();
+        });
+    }
+
+    // Device Cards
+    function loadDevices() {
+      fetch('/relayStatus', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let html = '';
+          let activeCount = 0;
+          json.relays.forEach(relay => {
+            if (relay.state) activeCount++;
+            html += `<div class="device-card">
+              <span class="material-icons" style="color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'lightbulb':'lightbulb_outline'}</span>
+              <div class="device-title">${relay.name}</div>
+              <div class="device-status">${relay.state?'ON':'OFF'}</div>
+              <label class="toggle-switch">
+                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
+                <span class="slider-toggle"></span>
+              </label>
+            </div>`;
+          });
+          document.getElementById('devicesRow').innerHTML = html;
+          document.getElementById('activeDevices').textContent = activeCount;
+          document.getElementById('activeDevicesSub').textContent = activeCount + " of " + json.relays.length + " ON";
+        });
+    }
+
+    // Energy Chart
+    let energyChart;
+    function loadEnergy(range='day') {
+      fetch('/sensor/data', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let labels = [], data = [];
+          json.data.forEach(point => {
+            labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
+            data.push(point.temperature); // Example: use temperature as energy
+          });
+          if (!energyChart) {
+            energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+              type: 'line',
+              data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
+              options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+          } else {
+            energyChart.data.labels = labels;
+            energyChart.data.datasets[0].data = data;
+            energyChart.update();
+          }
+        });
+    }
+    function setEnergyRange(range, btn) {
+      document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      loadEnergy(range);
+    }
+
+
+function loadRoutines() {
+  fetch('/routines')
+    .then(r=>r.json())
+    .then(json=>{
+      let html = '';
+      if(json.routines && json.routines.length) {
+        json.routines.forEach(r=>{
+          html += `<div class="routine-card">
+            <span class="material-icons">alarm</span>
+            <div class="routine-title">${r.name}</div>
+            <div class="routine-time">${r.time}</div>
+            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
+          </div>`;
+        });
+      } else {
+        html = '<div style="color:#888;">No routines yet.</div>';
       }
-      html += '</div>';
-      document.getElementById('relayStatusList').innerHTML = html;
+      document.getElementById('routinesList').innerHTML = html;
     });
 }
 
-// Add this function to your <script> section:
-function toggleRelay(num, state) {
-  fetch('/relay?num=' + num + '&state=' + (state ? 1 : 0), { credentials: 'include' })
-    .then(r => r.json())
-    .then(() => updateRelayStatus());
-}
-    // Call once and set interval
-    updateRelayStatus();
-    setInterval(updateRelayStatus, 1000);
+    // System Info
+    function loadSystemInfo() {
+      fetch('/systeminfo', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          document.getElementById('uptime').textContent = json.uptime;
+          document.getElementById('ipAddr').textContent = json.ip;
+          document.getElementById('freeHeap').textContent = json.heap;
+        });
+    }
+
+    // Logs
+    function loadLogs() {
+      fetch('/logs', { credentials: 'include' })
+        .then(r => r.text())
+        .then(txt => {
+          document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
+        });
+    }
+
+    // Sensor Cards
+    function loadSensorCards() {
+      fetch('/sensor', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
+          document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
+          document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
+          document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
+        });
+    }
+
+    // Camera Modal
+    function closeCameraModal() {
+      document.getElementById('cameraModal').style.display = 'none';
+    }
+
+    // Initial load
+    window.onload = function() {
+      updateRelayStatus();
+      loadDevices();
+      loadEnergy();
+      loadRoutines();
+      loadSystemInfo();
+      loadLogs();
+      loadSensorCards();
+      updateESPStatus();
+      setInterval(updateESPStatus, 2000);
+    }
   </script>
 </body>
 </html>
 )rawliteral";
   server.send(200, "text/html", html);
 }
-
+void handleWiFiStatus() {
+  StaticJsonDocument<64> doc;
+  doc["connected"] = (WiFi.status() == WL_CONNECTED);
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
 void handleSettings() {
   if (requireLogin()) return;
   
@@ -2776,9 +2727,9 @@ void setupSchedules() {
     scheduleCount++;
   }
 }
-// ...existing code...
 
-// --- Add this handler for schedule management API and UI ---
+
+
 
 void handleSchedules() {
   if (requireLogin()) return;
@@ -2789,116 +2740,162 @@ void handleSchedules() {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Light Schedules</title>
+  <title>Automation Schedule</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
-    body { font-family: Arial, sans-serif; background: #eef3fc; color: #222; }
-    .sched-container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px #e3e9f7; padding: 32px; }
-    h2 { text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
-    th, td { padding: 10px 8px; text-align: center; }
-    th { background: #f8fafc; }
-    tr:nth-child(even) { background: #f4f7fb; }
-    .days { display: flex; gap: 2px; justify-content: center; }
-    .days label { font-size: 0.95em; margin: 0 2px; }
-    .btn { padding: 7px 14px; border: none; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
-    .btn:active { background: #1746a2; }
-    .btn-danger { background: #e74c3c; }
-    .btn-add { margin-bottom: 18px; }
-    .toggle { width: 18px; height: 18px; }
-    .success { color: #27ae60; text-align: center; margin-bottom: 10px; }
-    .error { color: #e74c3c; text-align: center; margin-bottom: 10px; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #eef3fc; color: #222; margin:0; }
+    .main-flex { display: flex; gap: 32px; max-width: 1200px; margin: 40px auto; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 32px; flex: 1; min-width: 320px; }
+    .card h3 { margin-top: 0; }
+    .days-row { display: flex; gap: 8px; margin: 12px 0; }
+    .day-btn { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f4f7fb; color: #2563eb; font-weight: 600; cursor: pointer; border:2px solid #f4f7fb; transition:all 0.2s; }
+    .day-btn.selected { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .4s; border-radius: 28px; }
+    .slider-toggle:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background: #fff; transition: .4s; border-radius: 50%; }
+    .toggle-switch input:checked + .slider-toggle { background: #2563eb; }
+    .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
+    .save-btn { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:12px 28px; font-size:1.1rem; cursor:pointer; float:right; }
+    .section-title { font-weight:600; margin-top:24px; }
+    .adv-options label { display:block; margin-bottom:8px; }
+    .cond-box { background:#f8fafc; border-radius:8px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+    .priority-select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #e0e0e0; }
+    @media (max-width: 900px) { .main-flex { flex-direction: column; } }
   </style>
 </head>
 <body>
-  <div class="sched-container">
-    <h2>Light Schedules</h2>
-    <div id="msg"></div>
-    <button class="btn btn-add" onclick="addRow()">+ Add Schedule</button>
-    <form id="schedForm">
-      <table>
-        <thead>
-          <tr>
-            <th>Active</th>
-            <th>Time</th>
-            <th>Relay</th>
-            <th>State</th>
-            <th>Days</th>
-            <th>Repeat</th>
-            <th>Delete</th>
-          </tr>
-        </thead>
-        <tbody id="schedTable"></tbody>
-      </table>
-      <button class="btn" type="submit">Save Schedules</button>
-    </form>
-    <div style="margin-top:18px;text-align:center;">
-      <a href="/">Back to Dashboard</a>
+  <form id="automationForm">
+    <div class="main-flex">
+      <!-- Automation Details -->
+      <div class="card">
+        <h3>Automation Details</h3>
+        <label>Name<br><input type="text" id="autoName" style="width:100%;padding:8px;" required></label>
+        <label class="section-title">Description<br>
+          <textarea id="autoDesc" style="width:100%;padding:8px;" rows="3"></textarea>
+        </label>
+        <label class="section-title">Status<br>
+          <label class="toggle-switch">
+            <input type="checkbox" id="autoActive" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </label>
+        <label class="section-title">Devices</label>
+        <div id="devicesList">
+          <!-- Example device chips -->
+          <div class="cond-box"><span class="material-icons" style="color:#fbc02d;">lightbulb</span> Living Room Light</div>
+          <div class="cond-box"><span class="material-icons" style="color:#e57373;">thermostat</span> Thermostat</div>
+        </div>
+      </div>
+      <!-- Schedule Type & Time -->
+      <div class="card">
+        <h3>Schedule Type</h3>
+        <label><input type="radio" name="schedType" value="daily" checked> Daily Schedule</label><br>
+        <label><input type="radio" name="schedType" value="weekly"> Weekly Schedule</label><br>
+        <label><input type="radio" name="schedType" value="custom"> Custom Schedule</label>
+        <div class="section-title">Days</div>
+        <div class="days-row">
+          <span class="day-btn selected" data-day="1">M</span>
+          <span class="day-btn selected" data-day="2">T</span>
+          <span class="day-btn selected" data-day="3">W</span>
+          <span class="day-btn selected" data-day="4">T</span>
+          <span class="day-btn selected" data-day="5">F</span>
+          <span class="day-btn" data-day="6">S</span>
+          <span class="day-btn" data-day="0">S</span>
+        </div>
+        <div class="section-title">Time</div>
+        <label>Start Time <input type="time" id="startTime" value="07:00"></label>
+        <label>End Time (Optional) <input type="time" id="endTime" value="07:30"></label>
+        <div class="section-title">Repeat</div>
+        <select id="repeatSelect" class="priority-select">
+          <option value="everyday">Every day</option>
+          <option value="weekdays">Weekdays</option>
+          <option value="weekends">Weekends</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <!-- Advanced Options -->
+      <div class="card">
+        <h3>Advanced Options</h3>
+        <div class="adv-options">
+          <label><input type="checkbox"> Run only when someone is home</label>
+          <label><input type="checkbox"> Skip on holidays</label>
+          <label><input type="checkbox" checked> Send notification when run</label>
+          <label><input type="checkbox"> Run only if light level is below threshold</label>
+        </div>
+        <div class="section-title">Conditions</div>
+        <div class="cond-box"><span class="material-icons" style="color:#2196f3;">cloud</span> Weather <span style="font-size:0.95em;color:#888;">Only run if not raining</span></div>
+        <button type="button" class="save-btn" onclick="alert('Add Condition')">+ Add Condition</button>
+        <div class="section-title">Priority</div>
+        <select class="priority-select">
+          <option>Normal</option>
+          <option>High</option>
+          <option>Low</option>
+        </select>
+        <button type="submit" class="save-btn" style="margin-top:24px;">Save Schedule</button>
+      </div>
     </div>
-  </div>
-<script>
-let relays = %RELAY_NAMES%;
-let schedules = %SCHEDULES%;
-
-// Render table
-function renderTable() {
-  let tbody = document.getElementById('schedTable');
-  tbody.innerHTML = '';
-  schedules.forEach((s, idx) => {
-    let daysHtml = '';
-    ['S','M','T','W','T','F','S'].forEach((d, i) => {
-      daysHtml += `<label><input type="checkbox" ${s.days[i]?'checked':''} onchange="setDay(${idx},${i},this.checked)"> ${d}</label>`;
+  </form>
+  <script>
+    // Day button toggle
+    document.querySelectorAll('.day-btn').forEach(btn => {
+      btn.onclick = () => btn.classList.toggle('selected');
     });
-    tbody.innerHTML += `<tr>
-      <td><input type="checkbox" ${s.active?'checked':''} onchange="setVal(${idx},'active',this.checked)"></td>
-      <td><input type="time" value="${('0'+s.hour).slice(-2)}:${('0'+s.minute).slice(-2)}" onchange="setTime(${idx},this.value)"></td>
-      <td>
-        <select onchange="setVal(${idx},'relayNum',this.value)">
-          ${relays.map((r,i)=>`<option value="${i+1}"${s.relayNum==i+1?' selected':''}>${r}</option>`).join('')}
-        </select>
-      </td>
-      <td>
-        <select onchange="setVal(${idx},'state',this.value)">
-          <option value="1"${s.state?' selected':''}>ON</option>
-          <option value="0"${!s.state?' selected':''}>OFF</option>
-        </select>
-      </td>
-      <td class="days">${daysHtml}</td>
-      <td><input type="checkbox" ${s.repeat?'checked':''} onchange="setVal(${idx},'repeat',this.checked)"></td>
-      <td><button type="button" class="btn btn-danger" onclick="delRow(${idx})">Delete</button></td>
-    </tr>`;
-  });
-}
-function setVal(idx, key, val) {
-  if (key=='active'||key=='repeat') schedules[idx][key]=!!val;
-  else if (key=='relayNum') schedules[idx][key]=parseInt(val);
-  else if (key=='state') schedules[idx][key]=val=='1';
-}
-function setTime(idx, val) {
-  let [h,m]=val.split(':'); schedules[idx].hour=parseInt(h); schedules[idx].minute=parseInt(m);
-}
-function setDay(idx, d, val) { schedules[idx].days[d]=!!val; }
-function delRow(idx) { schedules.splice(idx,1); renderTable(); }
-function addRow() {
-  if (schedules.length>=10) return alert('Max 10 schedules');
-  schedules.push({active:true,hour:7,minute:0,relayNum:1,state:true,days:[1,1,1,1,1,1,1],repeat:true});
-  renderTable();
-}
-document.getElementById('schedForm').onsubmit = function(e) {
+    // TODO: Add JS to collect form data and send to backend
+    // Replace your automationForm.onsubmit handler with this:
+
+document.getElementById('automationForm').onsubmit = function(e) {
   e.preventDefault();
+
+  // Gather selected days (0=Sunday, 1=Monday, ...)
+  let days = Array(7).fill(false);
+  document.querySelectorAll('.day-btn.selected').forEach(btn => {
+    days[parseInt(btn.dataset.day)] = true;
+  });
+
+  // Gather other fields
+  const name = document.getElementById('autoName').value;
+  const desc = document.getElementById('autoDesc').value;
+  const active = document.getElementById('autoActive').checked;
+  const startTime = document.getElementById('startTime').value;
+  const endTime = document.getElementById('endTime').value;
+  const repeat = document.getElementById('repeatSelect').value;
+  // For demo, just use relay 1 and ON state
+  const relayNum = 1;
+  const state = true;
+
+  // Parse start time
+  const [hour, minute] = startTime.split(':').map(Number);
+
+  // Build schedule object
+  const schedule = {
+    active,
+    hour,
+    minute,
+    relayNum,
+    state,
+    days,
+    repeat: true // or set based on your repeat logic
+  };
+
+  // Send to backend
   fetch('/schedules', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({schedules}),
-    credentials:'include'
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({schedules: [schedule]})
   })
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById('msg').innerHTML = d.success ? '<div class="success">Schedules saved!</div>' : '<div class="error">'+(d.error||'Failed')+'</div>';
+  .then(r => r.json())
+  .then(j => {
+    if (j.success) {
+      alert('Schedule saved!');
+      window.location.reload();
+    } else {
+      alert('Failed to save: ' + (j.error || 'Unknown error'));
+    }
   });
 };
-renderTable();
-</script>
+  </script>
 </body>
 </html>
 )rawliteral";
@@ -3073,7 +3070,9 @@ void setup() {
   server.on("/deviceStatus", HTTP_GET, handleDeviceStatus);
   server.on("/schedules", HTTP_GET, handleSchedules);
   server.on("/schedules", HTTP_POST, handleSchedules);
-
+  server.on("/wifiStatus", HTTP_GET, handleWiFiStatus);
+  server.on("/routines", HTTP_GET, handleRoutinesGet);
+  server.on("/routines", HTTP_POST, handleRoutinesPost);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -3095,10 +3094,11 @@ void setup() {
   dailyTempAverage[1] = currentTemp; // For demo: yesterday = today
   dailyHumAverage[1] = currentHum;   // For demo: yesterday = today
   
+  addRoutine("Wake Up Lights", "07:00", 1, true);
   addLog("System initialized");
 }
 
-// ...existing code...
+
 void loop() {
   server.handleClient();
   handleButtonPress();
@@ -3142,6 +3142,7 @@ void loop() {
   }
 
   checkSchedules();
+  checkRoutines();
   updateDailyTemperature();
 
   // WiFi reconnect logic
