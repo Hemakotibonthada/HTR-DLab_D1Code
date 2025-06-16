@@ -259,6 +259,7 @@ struct Schedule {
   bool state;
   bool repeat;
   AlarmID_t alarmId;
+  String name; // <-- Add this line
 };
 
 Schedule schedules[MAX_SCHEDULES];
@@ -1081,6 +1082,30 @@ void handleRoot() {
       margin: 0; padding: 0;
       color: #222;
     }
+      /* Add to your <style> section */
+.device-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px #e3e9f7;
+  padding: 22px 20px;
+  min-width: 260px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  position: relative;
+  border: 1px solid transparent;
+  overflow: hidden;
+  will-change: transform, box-shadow;
+  margin-bottom: 18px;
+}
+.device-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+  border-color: rgba(59, 130, 246, 0.2);
+  background: linear-gradient(to bottom right, #ffffff, #f8faff);
+}
     .sidebar {
       width: 220px; background: #1e3a8a; color: #fff; height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; align-items:center; padding-top:32px; z-index: 100;
     }
@@ -1496,30 +1521,131 @@ function updateESPStatus() {
     }
 
     // Device Cards
-    function loadDevices() {
-      fetch('/relayStatus', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let html = '';
-          let activeCount = 0;
-          json.relays.forEach(relay => {
-            if (relay.state) activeCount++;
-            html += `<div class="device-card">
-              <span class="material-icons" style="color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'lightbulb':'lightbulb_outline'}</span>
-              <div class="device-title">${relay.name}</div>
-              <div class="device-status">${relay.state?'ON':'OFF'}</div>
-              <label class="toggle-switch">
-                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
-                <span class="slider-toggle"></span>
-              </label>
-            </div>`;
-          });
-          document.getElementById('devicesRow').innerHTML = html;
-          document.getElementById('activeDevices').textContent = activeCount;
-          document.getElementById('activeDevicesSub').textContent = activeCount + " of " + json.relays.length + " ON";
-        });
-    }
+   function loadDevices() {
+  fetch('/relayStatus', { credentials: 'include' })
+    .then(r => r.json())
+    .then(json => {
+      let html = '';
 
+      // Example: Living Room Light (with brightness and color)
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#fbc02d;font-size:2.2rem;">lightbulb</span>
+            <span style="font-weight:700;font-size:1.1rem;">Living Room Light</span><br>
+            <span style="font-size:0.95em;color:#888;">Philips Hue</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin:12px 0 8px 0;">
+          <div style="font-size:0.98em;">Brightness</div>
+          <input type="range" min="0" max="100" value="75" style="width:100%;">
+        </div>
+        <div style="font-size:0.98em;">Color</div>
+        <div style="display:flex;gap:8px;margin:8px 0;">
+          <span style="width:22px;height:22px;border-radius:50%;background:#f44336;display:inline-block;"></span>
+          <span style="width:22px;height:22px;border-radius:50%;background:#2196f3;display:inline-block;"></span>
+          <span style="width:22px;height:22px;border-radius:50%;background:#4caf50;display:inline-block;"></span>
+          <span style="width:22px;height:22px;border-radius:50%;background:#ffeb3b;display:inline-block;"></span>
+          <span style="width:22px;height:22px;border-radius:50%;background:#9c27b0;display:inline-block;"></span>
+          <span style="width:22px;height:22px;border-radius:50%;background:#eee;display:inline-block;border:1px solid #ccc;text-align:center;line-height:22px;">+</span>
+        </div>
+        <div style="font-size:0.92em;color:#888;">Last updated: 2 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Example: Thermostat
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#e57373;font-size:2.2rem;">thermostat</span>
+            <span style="font-weight:700;font-size:1.1rem;">Living Room Thermostat</span><br>
+            <span style="font-size:0.95em;color:#888;">Nest</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <div style="display:inline-block;width:80px;height:80px;border-radius:50%;background:#fff3f3;border:6px solid #e57373;position:relative;">
+            <div style="font-size:2rem;font-weight:700;line-height:80px;">22°C</div>
+            <div style="position:absolute;bottom:8px;width:100%;font-size:0.95em;color:#888;">Target: 23°C</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:1.1em;">Temperature <b>23°C</b></div>
+        <div style="font-size:0.92em;color:#888;">Last updated: 5 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Example: Door Lock
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#43a047;font-size:2.2rem;">lock</span>
+            <span style="font-weight:700;font-size:1.1rem;">Front Door Lock</span><br>
+            <span style="font-size:0.95em;color:#888;">August</span>
+          </div>
+          <span style="background:#43a047;color:#fff;padding:2px 12px;border-radius:12px;font-size:0.98em;">Locked</span>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <span class="material-icons" style="font-size:3.5rem;color:#43a047;">lock</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.98em;color:#222;">
+          <span>Last Locked<br><b>10:32 AM</b></span>
+          <span>Last Unlocked<br><b>8:15 AM</b></span>
+          <span>Battery<br><b>85%</b></span>
+        </div>
+        <div style="font-size:0.92em;color:#888;">Last updated: 1 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Example: Camera
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#2196f3;font-size:2.2rem;">videocam</span>
+            <span style="font-weight:700;font-size:1.1rem;">Front Door Camera</span><br>
+            <span style="font-size:0.95em;color:#888;">Ring</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <span class="material-icons" style="font-size:3.5rem;color:#bbb;">videocam</span>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
+          <button style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Live View</button>
+          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Recordings</button>
+          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Settings</button>
+        </div>
+        <div style="font-size:0.92em;color:#888;">Last motion: 15 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Add New Device card
+      html += `
+      <div class="device-card" style="border:2px dashed #2563eb;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;">
+        <div style="background:#eaf3ff;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+          <span class="material-icons" style="color:#2563eb;font-size:2.2rem;">add</span>
+        </div>
+        <div style="font-weight:600;font-size:1.1rem;">Add New Device</div>
+        <div style="font-size:0.98em;color:#888;text-align:center;margin:8px 0 0 0;">Connect a new smart device to your system</div>
+      </div>
+      `;
+
+      document.getElementById('devicesRow').innerHTML = html;
+    });
+}
     // Energy Chart
     let energyChart;
     function loadEnergy(range='day') {
@@ -2744,31 +2870,37 @@ void handleSchedules() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #eef3fc; color: #222; margin:0; }
-    .main-flex { display: flex; gap: 32px; max-width: 1200px; margin: 40px auto; }
-    .card { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 32px; flex: 1; min-width: 320px; }
-    .card h3 { margin-top: 0; }
-    .days-row { display: flex; gap: 8px; margin: 12px 0; }
-    .day-btn { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f4f7fb; color: #2563eb; font-weight: 600; cursor: pointer; border:2px solid #f4f7fb; transition:all 0.2s; }
-    .day-btn.selected { background: #2563eb; color: #fff; border-color: #2563eb; }
-    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; }
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .slider-toggle { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .4s; border-radius: 28px; }
-    .slider-toggle:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background: #fff; transition: .4s; border-radius: 50%; }
-    .toggle-switch input:checked + .slider-toggle { background: #2563eb; }
-    .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
-    .save-btn { background:#2563eb; color:#fff; border:none; border-radius:8px; padding:12px 28px; font-size:1.1rem; cursor:pointer; float:right; }
-    .section-title { font-weight:600; margin-top:24px; }
-    .adv-options label { display:block; margin-bottom:8px; }
-    .cond-box { background:#f8fafc; border-radius:8px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
-    .priority-select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #e0e0e0; }
-    @media (max-width: 900px) { .main-flex { flex-direction: column; } }
+    body { background: #f4f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #222; }
+    .main-flex { display: flex; gap: 32px; max-width: 1400px; margin: 40px auto; justify-content: center; }
+    .card { background: #fff; border-radius: 18px; box-shadow: 0 4px 24px #e3e9f7; padding: 36px 32px; flex: 1; min-width: 320px; max-width: 350px; transition: box-shadow 0.2s; }
+    .card:hover { box-shadow: 0 8px 32px #2563eb22; }
+    .card h3 { margin-top: 0; font-size: 1.3rem; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; }
+    #savedSchedules table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    #savedSchedules th, #savedSchedules td { padding: 8px 6px; text-align: center; font-size: 1rem; }
+    #savedSchedules th { background: #f4f7fb; color: #2563eb; font-weight: 600; border-bottom: 2px solid #e3e9f7; }
+    #savedSchedules tr { border-bottom: 1px solid #f0f0f0; }
+    #savedSchedules tr:last-child { border-bottom: none; }
+    input[type="text"], textarea, select, input[type="time"] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 6px; font-size: 1rem; background: #f8fafc; transition: border 0.2s; }
+    input[type="text"]:focus, textarea:focus, select:focus, input[type="time"]:focus { border: 1.5px solid #2563eb; outline: none; }
+    .save-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 14px 0; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 18px; font-weight: 600; box-shadow: 0 2px 8px #2563eb22; transition: background 0.2s; }
+    .save-btn:hover { background: #1746a2; }
+    .days-row { display: flex; gap: 8px; margin: 12px 0; justify-content: center; }
+    .day-btn { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f4f7fb; color: #2563eb; font-weight: 600; cursor: pointer; border:2px solid #f4f7fb; transition:all 0.2s; font-size: 1.1rem; }
+    .day-btn.selected { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 2px 8px #2563eb33; }
+    .section-title { font-weight:600; margin-top:24px; color: #2563eb; font-size: 1.05rem; }
+    .adv-options label { display:block; margin-bottom:8px; font-size: 0.98rem; }
+    .cond-box { background:#f8fafc; border-radius:8px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; gap:8px; font-size: 0.98rem; }
+    .priority-select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #e0e0e0; margin-top: 6px; }
+    @media (max-width: 1100px) { .main-flex { flex-direction: column; align-items: center; } .card { max-width: 98vw; } }
   </style>
 </head>
 <body>
   <form id="automationForm">
     <div class="main-flex">
-      <!-- Automation Details -->
+      <div class="card" style="margin:32px auto;max-width:900px;">
+        <h3>Saved Schedules</h3>
+        <div id="savedSchedules"></div>
+      </div>
       <div class="card">
         <h3>Automation Details</h3>
         <label>Name<br><input type="text" id="autoName" style="width:100%;padding:8px;" required></label>
@@ -2783,12 +2915,10 @@ void handleSchedules() {
         </label>
         <label class="section-title">Devices</label>
         <div id="devicesList">
-          <!-- Example device chips -->
           <div class="cond-box"><span class="material-icons" style="color:#fbc02d;">lightbulb</span> Living Room Light</div>
           <div class="cond-box"><span class="material-icons" style="color:#e57373;">thermostat</span> Thermostat</div>
         </div>
       </div>
-      <!-- Schedule Type & Time -->
       <div class="card">
         <h3>Schedule Type</h3>
         <label><input type="radio" name="schedType" value="daily" checked> Daily Schedule</label><br>
@@ -2815,7 +2945,6 @@ void handleSchedules() {
           <option value="custom">Custom</option>
         </select>
       </div>
-      <!-- Advanced Options -->
       <div class="card">
         <h3>Advanced Options</h3>
         <div class="adv-options">
@@ -2838,97 +2967,96 @@ void handleSchedules() {
     </div>
   </form>
   <script>
-    // Day button toggle
     document.querySelectorAll('.day-btn').forEach(btn => {
       btn.onclick = () => btn.classList.toggle('selected');
     });
-    // TODO: Add JS to collect form data and send to backend
-    // Replace your automationForm.onsubmit handler with this:
 
-document.getElementById('automationForm').onsubmit = function(e) {
-  e.preventDefault();
+    document.getElementById('automationForm').onsubmit = function(e) {
+      e.preventDefault();
+      let days = Array(7).fill(false);
+      document.querySelectorAll('.day-btn.selected').forEach(btn => {
+        days[parseInt(btn.dataset.day)] = true;
+      });
+      const name = document.getElementById('autoName').value;
+      const desc = document.getElementById('autoDesc').value;
+      const active = document.getElementById('autoActive').checked;
+      const startTime = document.getElementById('startTime').value;
+      const endTime = document.getElementById('endTime').value;
+      const repeat = document.getElementById('repeatSelect').value;
+      const relayNum = 1;
+      const state = true;
+      const [hour, minute] = startTime.split(':').map(Number);
+      const schedule = {
+        name,
+        active,
+        hour,
+        minute,
+        relayNum,
+        state,
+        days,
+        repeat: true
+      };
+      fetch('/schedules', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({schedules: [schedule]})
+      })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          alert('Schedule saved!');
+          window.location.reload();
+        } else {
+          alert('Failed to save: ' + (j.error || 'Unknown error'));
+        }
+      });
+    };
 
-  // Gather selected days (0=Sunday, 1=Monday, ...)
-  let days = Array(7).fill(false);
-  document.querySelectorAll('.day-btn.selected').forEach(btn => {
-    days[parseInt(btn.dataset.day)] = true;
-  });
-
-  // Gather other fields
-  const name = document.getElementById('autoName').value;
-  const desc = document.getElementById('autoDesc').value;
-  const active = document.getElementById('autoActive').checked;
-  const startTime = document.getElementById('startTime').value;
-  const endTime = document.getElementById('endTime').value;
-  const repeat = document.getElementById('repeatSelect').value;
-  // For demo, just use relay 1 and ON state
-  const relayNum = 1;
-  const state = true;
-
-  // Parse start time
-  const [hour, minute] = startTime.split(':').map(Number);
-
-  // Build schedule object
-  const schedule = {
-    active,
-    hour,
-    minute,
-    relayNum,
-    state,
-    days,
-    repeat: true // or set based on your repeat logic
-  };
-
-  // Send to backend
-  fetch('/schedules', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({schedules: [schedule]})
-  })
-  .then(r => r.json())
-  .then(j => {
-    if (j.success) {
-      alert('Schedule saved!');
-      window.location.reload();
-    } else {
-      alert('Failed to save: ' + (j.error || 'Unknown error'));
+    function loadSavedSchedules() {
+      fetch('/schedules/list', { credentials: 'include' })
+        .then(r => r.json())
+        .then(schedules => {
+          let html = '';
+          if (schedules.length === 0) {
+            html = '<div style="color:#888;">No schedules saved.</div>';
+          } else {
+            html = `<table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Time</th>
+                  <th>Days</th>
+                  <th>Relay</th>
+                  <th>State</th>
+                  <th>Active</th>
+                </tr>
+              </thead>
+              <tbody>`;
+            schedules.forEach(s => {
+              html += `<tr>
+                <td>${s.name || ''}</td>
+                <td>${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')}</td>
+                <td>${s.days.map((d,i)=>d?['S','M','T','W','T','F','S'][i]:'').filter(Boolean).join(' ')}</td>
+                <td><span class="material-icons" style="color:#fbc02d;vertical-align:middle;">lightbulb</span> Relay ${s.relayNum}</td>
+                <td>${s.state ? '<span style="color:#27ae60;font-weight:600;">ON</span>' : '<span style="color:#e74c3c;font-weight:600;">OFF</span>'}</td>
+                <td>${s.active ? '<span style="color:#2563eb;font-weight:600;">Yes</span>' : 'No'}</td>
+              </tr>`;
+            });
+            html += '</tbody></table>';
+          }
+          document.getElementById('savedSchedules').innerHTML = html;
+        });
     }
-  });
-};
+    window.onload = function() {
+      loadSavedSchedules();
+    };
   </script>
 </body>
 </html>
 )rawliteral";
-    // Fill placeholders
-    String relayNames = "[";
-    for (int i = 0; i < RELAY_COUNT; i++) {
-      relayNames += "\"" + String(roomNames[i]) + "\"";
-      if (i < RELAY_COUNT - 1) relayNames += ",";
-    }
-    relayNames += "]";
-    html.replace("%RELAY_NAMES%", relayNames);
-
-    // Serialize schedules to JSON
-    DynamicJsonDocument doc(2048);
-    JsonArray arr = doc.to<JsonArray>();
-    for (int i = 0; i < scheduleCount; i++) {
-      JsonObject s = arr.createNestedObject();
-      s["active"] = schedules[i].active;
-      s["hour"] = schedules[i].hour;
-      s["minute"] = schedules[i].minute;
-      s["relayNum"] = schedules[i].relayNum;
-      s["state"] = schedules[i].state;
-      JsonArray days = s.createNestedArray("days");
-      for (int d = 0; d < 7; d++) days.add(schedules[i].days[d]);
-      s["repeat"] = schedules[i].repeat;
-    }
-    String schedJson;
-    serializeJson(arr, schedJson);
-    html.replace("%SCHEDULES%", schedJson);
 
     server.send(200, "text/html", html);
   } else if (server.method() == HTTP_POST) {
-    // Save schedules from JSON
     DynamicJsonDocument doc(2048);
     DeserializationError err = deserializeJson(doc, server.arg("plain"));
     if (err) {
@@ -2949,9 +3077,51 @@ document.getElementById('automationForm').onsubmit = function(e) {
       schedules[i].state = arr[i]["state"];
       for (int d = 0; d < 7; d++) schedules[i].days[d] = arr[i]["days"][d];
       schedules[i].repeat = arr[i]["repeat"];
+      schedules[i].name = arr[i]["name"] | "";
     }
     server.send(200, "application/json", "{\"success\":true}");
   }
+}
+void handleSchedulesList() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.to<JsonArray>();
+  for (int i = 0; i < scheduleCount; i++) {
+    JsonObject s = arr.createNestedObject();
+    s["name"] = schedules[i].name;
+    s["hour"] = schedules[i].hour;
+    s["minute"] = schedules[i].minute;
+    s["relayNum"] = schedules[i].relayNum;
+    s["state"] = schedules[i].state;
+    JsonArray days = s.createNestedArray("days");
+    for (int d = 0; d < 7; d++) days.add(schedules[i].days[d]);
+    s["active"] = schedules[i].active;
+  }
+  String json;
+  serializeJson(arr, json);
+  server.send(200, "application/json", json);
+}
+void saveSchedulesToEEPROM() {
+  EEPROM.begin(EEPROM_SIZE);
+  int addr = 200; // Pick a safe offset (not overlapping credentials etc.)
+  EEPROM.write(addr++, scheduleCount);
+  for (int i = 0; i < scheduleCount; i++) {
+    EEPROM.write(addr++, schedules[i].active);
+    EEPROM.write(addr++, schedules[i].hour);
+    EEPROM.write(addr++, schedules[i].minute);
+    EEPROM.write(addr++, schedules[i].relayNum);
+    EEPROM.write(addr++, schedules[i].state);
+    EEPROM.write(addr++, schedules[i].repeat);
+    // Save days
+    for (int d = 0; d < 7; d++) EEPROM.write(addr++, schedules[i].days[d]);
+    // Save name (up to 15 chars)
+    for (int c = 0; c < 15; c++) {
+      char ch = (c < schedules[i].name.length()) ? schedules[i].name[c] : 0;
+      EEPROM.write(addr++, ch);
+    }
+  }
+  EEPROM.commit();
+  EEPROM.end();
 }
 
 void checkSchedules() {
@@ -2987,6 +3157,26 @@ void checkSchedules() {
       }
     }
   }
+}
+  void loadSchedulesFromEEPROM() {
+  EEPROM.begin(EEPROM_SIZE);
+  int addr = 200;
+  scheduleCount = EEPROM.read(addr++);
+  if (scheduleCount > MAX_SCHEDULES) scheduleCount = 0;
+  for (int i = 0; i < scheduleCount; i++) {
+    schedules[i].active = EEPROM.read(addr++);
+    schedules[i].hour = EEPROM.read(addr++);
+    schedules[i].minute = EEPROM.read(addr++);
+    schedules[i].relayNum = EEPROM.read(addr++);
+    schedules[i].state = EEPROM.read(addr++);
+    schedules[i].repeat = EEPROM.read(addr++);
+    for (int d = 0; d < 7; d++) schedules[i].days[d] = EEPROM.read(addr++);
+    // Load name (up to 15 chars)
+    char nameBuf[16] = {0};
+    for (int c = 0; c < 15; c++) nameBuf[c] = EEPROM.read(addr++);
+    schedules[i].name = String(nameBuf);
+  }
+  EEPROM.end();
 }
 // --- Add your setup and loop functions ---
 void setup() {
@@ -3073,6 +3263,7 @@ void setup() {
   server.on("/wifiStatus", HTTP_GET, handleWiFiStatus);
   server.on("/routines", HTTP_GET, handleRoutinesGet);
   server.on("/routines", HTTP_POST, handleRoutinesPost);
+  server.on("/schedules/list", HTTP_GET, handleSchedulesList);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -3081,7 +3272,7 @@ void setup() {
   if (MDNS.begin("homeautomation")) {
     DEBUG_INFO(WIFI, "mDNS responder started");
   }
-  
+loadSchedulesFromEEPROM();
   // Check for birthday
   checkBirthday();
   
