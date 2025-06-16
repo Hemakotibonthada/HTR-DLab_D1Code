@@ -1079,69 +1079,12 @@ void handleRoot() {
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    #offlineBanner {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100vw;
-      background: #e74c3c;
-      color: #fff;
-      text-align: center;
-      padding: 8px 0;
-      z-index: 9999;
-      font-weight: 600;
-      letter-spacing: 1px;
-    }
-    body.offline #offlineBanner { display: block; }
     body {
       background: #eef3fc;
       font-family: 'Segoe UI', Arial, sans-serif;
       margin: 0; padding: 0;
       color: #222;
     }
-     <style>
-   #offlineBanner {
-      display: none;
-      position: fixed;
-      top: 0; left: 0; width: 100vw;
-      background: #e74c3c;
-      color: #fff;
-      text-align: center;
-      padding: 8px 0;
-      z-index: 9999;
-      font-weight: 600;
-      letter-spacing: 1px;
-    }
-    body.offline #offlineBanner { display: block; }
-    body {
-      background: #eef3fc;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      margin: 0; padding: 0;
-      color: #222;
-    }
-      /* Add to your <style> section */
-.device-card {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 12px #e3e9f7;
-  padding: 22px 20px;
-  min-width: 260px;
-  max-width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: flex-start;
-  position: relative;
-  border: 1px solid transparent;
-  overflow: hidden;
-  will-change: transform, box-shadow;
-  margin-bottom: 18px;
-}
-.device-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
-  border-color: rgba(59, 130, 246, 0.2);
-  background: linear-gradient(to bottom right, #ffffff, #f8faff);
-}
     .sidebar {
       width: 220px; background: #1e3a8a; color: #fff; height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; align-items:center; padding-top:32px; z-index: 100;
     }
@@ -1274,7 +1217,6 @@ void handleRoot() {
   </style>
 </head>
 <body>
-<div id="offlineBanner">Device Disconnected - Showing Last Known Data</div>
   <div class="sidebar">
     <div class="logo">SmartHome Hub</div>
     <button class="active">Dashboard</button>
@@ -1320,6 +1262,8 @@ void handleRoot() {
           <div class="card-sub" id="activeDevicesSub"></div>
         </div>
       </div>
+
+
       <div class="quick-actions">
         <button class="quick-action-btn" onclick="applyScene(0)">
           <span class="material-icons">nights_stay</span> Good Night
@@ -1340,6 +1284,7 @@ void handleRoot() {
           <span class="material-icons">schedule</span> Schedules
         </button>
       </div>
+
       <div class="dashboard-tabs">
         <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
         <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
@@ -1348,7 +1293,18 @@ void handleRoot() {
         <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
         <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
       </div>
+
       <div class="devices-row" id="devicesRow"></div>
+
+      <!-- Camera Modal -->
+      <div class="camera-modal" id="cameraModal" style="display:none;">
+        <div class="camera-content">
+          <h2>ESP32 Camera Live Stream</h2>
+          <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
+          <button class="close-modal" onclick="closeCameraModal()">Close</button>
+        </div>
+      </div>
+
       <div class="energy-section">
         <div class="energy-header">
           <div class="energy-title">Energy Consumption</div>
@@ -1360,22 +1316,53 @@ void handleRoot() {
         </div>
         <canvas id="energyChart"></canvas>
       </div>
-      <div class="routines-section">
-        <div class="routines-header">
-          <div class="routines-title">Automation Routines</div>
-          <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
-        </div>
-        <div class="routines-list" id="routinesList"></div>
-      </div>
+
+     <div class="routines-section">
+  <div class="routines-header">
+    <div class="routines-title">Automation Routines</div>
+    <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
+  </div>
+  <div class="routines-list" id="routinesList"></div>
+</div>
+<!-- Routine Modal -->
+<div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
+    <h3>Add Routine</h3>
+    <div style="margin-bottom:10px;">
+      <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
+      <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
+      <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
+        <option value="1">Relay 1</option>
+        <option value="2">Relay 2</option>
+        <option value="3">Relay 3</option>
+        <option value="4">Relay 4</option>
+        <option value="5">Relay 5</option>
+        <option value="6">Relay 6</option>
+        <option value="7">Relay 7</option>
+        <option value="8">Relay 8</option>
+      </select>
+      <select id="routineState" style="width:100%;padding:8px;">
+        <option value="1">ON</option>
+        <option value="0">OFF</option>
+      </select>
+    </div>
+    <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
+    <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
+    <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
+  </div>
+</div>
+
       <div class="system-info" id="systemInfo">
         <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
         <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
         <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
       </div>
+
       <div class="log-section">
         <h3>Recent System Logs</h3>
         <div class="log-list" id="logList"></div>
       </div>
+
       <div class="footer">
         ESP32 Home Automation Dashboard<br>
         Connected to: ESP32-WROOM-32
@@ -1384,73 +1371,49 @@ void handleRoot() {
   </div>
   <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
   <script>
-    // Persistent fetch: always show last known data, update if online
-    function persistentFetch(key, url, renderFn, fallback = []) {
-      let cached = localStorage.getItem(key);
-      if (cached) {
-        try { renderFn(JSON.parse(cached)); } catch (e) { renderFn(fallback); }
-      } else {
-        renderFn(fallback);
-      }
-      fetch(url, { credentials: 'include' })
-        .then(r => r.json())
-        .then(data => {
-          renderFn(data);
-          localStorage.setItem(key, JSON.stringify(data));
-          document.body.classList.remove('offline');
-        })
-        .catch(() => {
-          document.body.classList.add('offline');
-        });
-    }
     // --- UI Logic for Dashboard ---
     function toggleDarkMode() {
       document.body.classList.toggle('dark-mode');
       localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
     }
-    (function() {
-      if (localStorage.getItem('dark-mode') === 'true') {
-        document.body.classList.add('dark-mode');
-      }
-    })();
-    function showRoutineModal() {
-      document.getElementById('routineModal').style.display = 'flex';
+function showRoutineModal() {
+  document.getElementById('routineModal').style.display = 'flex';
+}
+function closeRoutineModal() {
+  document.getElementById('routineModal').style.display = 'none';
+  document.getElementById('routineError').style.display = 'none';
+}
+function addRoutine() {
+  const name = document.getElementById('routineName').value;
+  const time = document.getElementById('routineTime').value;
+  const relay = document.getElementById('routineRelay').value;
+  const state = document.getElementById('routineState').value;
+  const error = document.getElementById('routineError');
+  if (!name || !time) {
+    error.textContent = "Name and time required";
+    error.style.display = 'block';
+    return;
+  }
+  fetch('/routines', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
+  })
+  .then(r=>r.json())
+  .then(j=>{
+    if(j.success) {
+      closeRoutineModal();
+      loadRoutines();
+    } else {
+      error.textContent = j.error || "Failed to add routine";
+      error.style.display = 'block';
     }
-    function closeRoutineModal() {
-      document.getElementById('routineModal').style.display = 'none';
-      document.getElementById('routineError').style.display = 'none';
-    }
-    function addRoutine() {
-      const name = document.getElementById('routineName').value;
-      const time = document.getElementById('routineTime').value;
-      const relay = document.getElementById('routineRelay').value;
-      const state = document.getElementById('routineState').value;
-      const error = document.getElementById('routineError');
-      if (!name || !time) {
-        error.textContent = "Name and time required";
-        error.style.display = 'block';
-        return;
-      }
-      fetch('/routines', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
-      })
-      .then(r=>r.json())
-      .then(j=>{
-        if(j.success) {
-          closeRoutineModal();
-          loadRoutines();
-        } else {
-          error.textContent = j.error || "Failed to add routine";
-          error.style.display = 'block';
-        }
-      });
-    }
-    function loadRoutines() {
-      persistentFetch('routines', '/routines', renderRoutines, []);
-    }
-    function renderRoutines(json) {
+  });
+}
+function loadRoutines() {
+  fetch('/routines')
+    .then(r=>r.json())
+    .then(json=>{
       let html = '';
       if(json.routines && json.routines.length) {
         json.routines.forEach(r=>{
@@ -1465,23 +1428,34 @@ void handleRoot() {
         html = '<div style="color:#888;">No routines yet.</div>';
       }
       document.getElementById('routinesList').innerHTML = html;
-    }
-    function updateESPStatus() {
-      fetch('/wifiStatus')
-        .then(r => r.json())
-        .then(json => {
-          const statusEl = document.getElementById('espStatus');
-          if (json.connected) {
-            statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
-          } else {
-            statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-          }
-        })
-        .catch(() => {
-          const statusEl = document.getElementById('espStatus');
-          statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-        });
-    }
+    });
+}
+function updateESPStatus() {
+  fetch('/wifiStatus')
+    .then(r => r.json())
+    .then(json => {
+      const statusEl = document.getElementById('espStatus');
+      if (json.connected) {
+        statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+      } else {
+        statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+      }
+    })
+    .catch(() => {
+      // If fetch fails (ESP32 offline), show disconnected
+      const statusEl = document.getElementById('espStatus');
+      statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+    });
+}
+// 
+    // Load dark mode preference
+    (function() {
+      if (localStorage.getItem('dark-mode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+    })();
+
+    // Quick Actions
     function applyScene(idx) {
       fetch('/scene?idx=' + idx, { credentials: 'include' })
         .then(r => r.json())
@@ -1490,29 +1464,32 @@ void handleRoot() {
           loadDevices();
         });
     }
+
+    // Tabs
     function showRoom(room, btn) {
       document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
       btn.classList.add('active');
       // Optionally filter devices here
     }
+
+    // Relay Status
     function updateRelayStatus() {
-      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
-    }
-    function renderRelays(json) {
-      let html = '';
-      if(json.relays) {
-        json.relays.forEach(relay => {
-          html += `<div style="margin-bottom:8px;">
-            <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
-            <span style="font-weight:600;">${relay.name}</span>
-            <label class="toggle-switch" style="margin-left:12px;">
-              <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
-              <span class="slider-toggle"></span>
-            </label>
-          </div>`;
+      fetch('/relayStatus', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let html = '';
+          json.relays.forEach(relay => {
+            html += `<div style="margin-bottom:8px;">
+              <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
+              <span style="font-weight:600;">${relay.name}</span>
+              <label class="toggle-switch" style="margin-left:12px;">
+                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
+                <span class="slider-toggle"></span>
+              </label>
+            </div>`;
+          });
+          document.getElementById('relayStatusList').innerHTML = html;
         });
-      }
-      if(document.getElementById('relayStatusList')) document.getElementById('relayStatusList').innerHTML = html;
     }
     function toggleRelay(num, state) {
       fetch(`/relay?num=${num}&state=${state?1:0}`, { credentials: 'include' })
@@ -1521,176 +1498,122 @@ void handleRoot() {
           loadDevices();
         });
     }
+
+    // Device Cards
     function loadDevices() {
-      // You can use persistentFetch here if you want to cache device status
       fetch('/relayStatus', { credentials: 'include' })
         .then(r => r.json())
         .then(json => {
           let html = '';
-          // Example: Living Room Light (with brightness and color)
-          html += `
-          <div class="device-card">
-            <div style="display:flex;align-items:center;justify-content:space-between;">
-              <div>
-                <span class="material-icons" style="color:#fbc02d;font-size:2.2rem;">lightbulb</span>
-                <span style="font-weight:700;font-size:1.1rem;">Living Room Light</span><br>
-                <span style="font-size:0.95em;color:#888;">Philips Hue</span>
-              </div>
+          let activeCount = 0;
+          json.relays.forEach(relay => {
+            if (relay.state) activeCount++;
+            html += `<div class="device-card">
+              <span class="material-icons" style="color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'lightbulb':'lightbulb_outline'}</span>
+              <div class="device-title">${relay.name}</div>
+              <div class="device-status">${relay.state?'ON':'OFF'}</div>
               <label class="toggle-switch">
-                <input type="checkbox" checked>
+                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
                 <span class="slider-toggle"></span>
               </label>
-            </div>
-            <div style="margin:12px 0 8px 0;">
-              <div style="font-size:0.98em;">Brightness</div>
-              <input type="range" min="0" max="100" value="75" style="width:100%;">
-            </div>
-            <div style="font-size:0.98em;">Color</div>
-            <div style="display:flex;gap:8px;margin:8px 0;">
-              <span style="width:22px;height:22px;border-radius:50%;background:#f44336;display:inline-block;"></span>
-              <span style="width:22px;height:22px;border-radius:50%;background:#2196f3;display:inline-block;"></span>
-              <span style="width:22px;height:22px;border-radius:50%;background:#4caf50;display:inline-block;"></span>
-              <span style="width:22px;height:22px;border-radius:50%;background:#ffeb3b;display:inline-block;"></span>
-              <span style="width:22px;height:22px;border-radius:50%;background:#9c27b0;display:inline-block;"></span>
-              <span style="width:22px;height:22px;border-radius:50%;background:#eee;display:inline-block;border:1px solid #ccc;text-align:center;line-height:22px;">+</span>
-            </div>
-            <div style="font-size:0.92em;color:#888;">Last updated: 2 min ago &nbsp; <a href="#">Details</a></div>
-          </div>
-          `;
-            // Example: Thermostat
-      html += `
-      <div class="device-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <span class="material-icons" style="color:#e57373;font-size:2.2rem;">thermostat</span>
-            <span style="font-weight:700;font-size:1.1rem;">Living Room Thermostat</span><br>
-            <span style="font-size:0.95em;color:#888;">Nest</span>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" checked>
-            <span class="slider-toggle"></span>
-          </label>
-        </div>
-        <div style="margin:18px 0 8px 0;text-align:center;">
-          <div style="display:inline-block;width:80px;height:80px;border-radius:50%;background:#fff3f3;border:6px solid #e57373;position:relative;">
-            <div style="font-size:2rem;font-weight:700;line-height:80px;">22°C</div>
-            <div style="position:absolute;bottom:8px;width:100%;font-size:0.95em;color:#888;">Target: 23°C</div>
-          </div>
-        </div>
-        <div style="text-align:center;font-size:1.1em;">Temperature <b>23°C</b></div>
-        <div style="font-size:0.92em;color:#888;">Last updated: 5 min ago &nbsp; <a href="#">Details</a></div>
-      </div>
-      `;
-
-      // Example: Door Lock
-      html += `
-      <div class="device-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <span class="material-icons" style="color:#43a047;font-size:2.2rem;">lock</span>
-            <span style="font-weight:700;font-size:1.1rem;">Front Door Lock</span><br>
-            <span style="font-size:0.95em;color:#888;">August</span>
-          </div>
-          <span style="background:#43a047;color:#fff;padding:2px 12px;border-radius:12px;font-size:0.98em;">Locked</span>
-        </div>
-        <div style="margin:18px 0 8px 0;text-align:center;">
-          <span class="material-icons" style="font-size:3.5rem;color:#43a047;">lock</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:0.98em;color:#222;">
-          <span>Last Locked<br><b>10:32 AM</b></span>
-          <span>Last Unlocked<br><b>8:15 AM</b></span>
-          <span>Battery<br><b>85%</b></span>
-        </div>
-        <div style="font-size:0.92em;color:#888;">Last updated: 1 min ago &nbsp; <a href="#">Details</a></div>
-      </div>
-      `;
-
-      // Example: Camera
-      html += `
-      <div class="device-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <span class="material-icons" style="color:#2196f3;font-size:2.2rem;">videocam</span>
-            <span style="font-weight:700;font-size:1.1rem;">Front Door Camera</span><br>
-            <span style="font-size:0.95em;color:#888;">Ring</span>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" checked>
-            <span class="slider-toggle"></span>
-          </label>
-        </div>
-        <div style="margin:18px 0 8px 0;text-align:center;">
-          <span class="material-icons" style="font-size:3.5rem;color:#bbb;">videocam</span>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
-          <button style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Live View</button>
-          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Recordings</button>
-          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Settings</button>
-        </div>
-        <div style="font-size:0.92em;color:#888;">Last motion: 15 min ago &nbsp; <a href="#">Details</a></div>
-      </div>
-      `;
-
-      // Add New Device card
-      html += `
-      <div class="device-card" style="border:2px dashed #2563eb;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;">
-        <div style="background:#eaf3ff;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
-          <span class="material-icons" style="color:#2563eb;font-size:2.2rem;">add</span>
-        </div>
-        <div style="font-weight:600;font-size:1.1rem;">Add New Device</div>
-        <div style="font-size:0.98em;color:#888;text-align:center;margin:8px 0 0 0;">Connect a new smart device to your system</div>
-      </div>
-      `;
-
-      document.getElementById('devicesRow').innerHTML = html;
-    });
-  }
-  let energyChart;
-  function loadEnergy(range='day') {
-    persistentFetch('energyData', '/sensor/data', renderEnergyChart, {data:[]});
-  }
-  function renderEnergyChart(json) {
-    let labels = [], data = [];
-    if(json.data) {
-        json.data.forEach(point => {
-          labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
-          data.push(point.temperature);
+            </div>`;
+          });
+          document.getElementById('devicesRow').innerHTML = html;
+          document.getElementById('activeDevices').textContent = activeCount;
+          document.getElementById('activeDevicesSub').textContent = activeCount + " of " + json.relays.length + " ON";
         });
-      }
-      if (!energyChart) {
-        energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
-          type: 'line',
-          data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
-          options: { responsive: true, plugins: { legend: { display: false } } }
+    }
+
+    // Energy Chart
+    let energyChart;
+    function loadEnergy(range='day') {
+      fetch('/sensor/data', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let labels = [], data = [];
+          json.data.forEach(point => {
+            labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
+            data.push(point.temperature); // Example: use temperature as energy
+          });
+          if (!energyChart) {
+            energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+              type: 'line',
+              data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
+              options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+          } else {
+            energyChart.data.labels = labels;
+            energyChart.data.datasets[0].data = data;
+            energyChart.update();
+          }
         });
-      } else {
-        energyChart.data.labels = labels;
-        energyChart.data.datasets[0].data = data;
-        energyChart.update();
-      }
     }
     function setEnergyRange(range, btn) {
       document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
       btn.classList.add('active');
       loadEnergy(range);
     }
-    function renderSensorCards(json) {
-      document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
-      document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
-      document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
-      document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
+
+
+function loadRoutines() {
+  fetch('/routines')
+    .then(r=>r.json())
+    .then(json=>{
+      let html = '';
+      if(json.routines && json.routines.length) {
+        json.routines.forEach(r=>{
+          html += `<div class="routine-card">
+            <span class="material-icons">alarm</span>
+            <div class="routine-title">${r.name}</div>
+            <div class="routine-time">${r.time}</div>
+            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
+          </div>`;
+        });
+      } else {
+        html = '<div style="color:#888;">No routines yet.</div>';
+      }
+      document.getElementById('routinesList').innerHTML = html;
+    });
+}
+
+    // System Info
+    function loadSystemInfo() {
+      fetch('/systeminfo', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          document.getElementById('uptime').textContent = json.uptime;
+          document.getElementById('ipAddr').textContent = json.ip;
+          document.getElementById('freeHeap').textContent = json.heap;
+        });
     }
-    function renderLogs(txt) {
-      document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
+
+    // Logs
+    function loadLogs() {
+      fetch('/logs', { credentials: 'include' })
+        .then(r => r.text())
+        .then(txt => {
+          document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
+        });
     }
-    function renderSystemInfo(json) {
-      document.getElementById('uptime').textContent = json.uptime || '--';
-      document.getElementById('ipAddr').textContent = json.ip || '--';
-      document.getElementById('freeHeap').textContent = json.heap || '--';
+
+    // Sensor Cards
+    function loadSensorCards() {
+      fetch('/sensor', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
+          document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
+          document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
+          document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
+        });
     }
+
+    // Camera Modal
     function closeCameraModal() {
       document.getElementById('cameraModal').style.display = 'none';
     }
+
+    // Initial load
     window.onload = function() {
       updateRelayStatus();
       loadDevices();
@@ -1700,41 +1623,9 @@ void handleRoot() {
       loadLogs();
       loadSensorCards();
       updateESPStatus();
-      persistentFetch('routines', '/routines', renderRoutines, []);
-      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
-      persistentFetch('sensor', '/sensor', renderSensorCards, {});
-      persistentFetch('logs', '/logs', renderLogs, []);
-      persistentFetch('energyData', '/sensor/data', renderEnergyChart, []);
       setInterval(updateESPStatus, 2000);
     }
   </script>
-  <!-- Routine Modal -->
-  <div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
-    <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
-      <h3>Add Routine</h3>
-      <div style="margin-bottom:10px;">
-        <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
-        <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
-        <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
-          <option value="1">Relay 1</option>
-          <option value="2">Relay 2</option>
-          <option value="3">Relay 3</option>
-          <option value="4">Relay 4</option>
-          <option value="5">Relay 5</option>
-          <option value="6">Relay 6</option>
-          <option value="7">Relay 7</option>
-          <option value="8">Relay 8</option>
-        </select>
-        <select id="routineState" style="width:100%;padding:8px;">
-          <option value="1">ON</option>
-          <option value="0">OFF</option>
-        </select>
-      </div>
-      <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
-      <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
-      <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
-    </div>
-  </div>
 </body>
 </html>
 )rawliteral";
@@ -1772,6 +1663,7 @@ void handleSettings() {
       --border-color: #eee;
       --shadow-color: rgba(0,0,0,0.07);
     }
+
     .dark-mode {
       --bg-color: #121212;
       --card-bg: #1e1e1e;
@@ -1782,6 +1674,7 @@ void handleSettings() {
       --border-color: #333;
       --shadow-color: rgba(0,0,0,0.3);
     }
+
     body {
       background: var(--bg-color);
       color: var(--text-color);
@@ -1900,24 +1793,18 @@ void handleSettings() {
     .scene-toggle label {
       margin-left: 8px;
     }
-    @media (max-width: 700px) {
-      .settings-container { padding: 16px; }
-      .scene-item { min-width: 140px; }
-    }
-    @media (max-width: 480px) {
-      .settings-container { padding: 6px; }
-      .scene-item { min-width: 100px; }
-    }
   </style>
 </head>
 <body>
   <div class="settings-container">
     <div class="settings-title">System Settings</div>
+    
     <div class="settings-tabs">
       <div class="settings-tab active" onclick="showTab('credentials')">Credentials</div>
       <div class="settings-tab" onclick="showTab('scenes')">Scenes</div>
       <div class="settings-tab" onclick="showTab('system')">System</div>
     </div>
+    
     <div id="credentials" class="settings-content active">
       <form id="credentialsForm">
         <div class="input-group">
@@ -1937,6 +1824,7 @@ void handleSettings() {
         <div id="credSuccess" class="success-message"></div>
       </form>
     </div>
+    
     <div id="scenes" class="settings-content">
       <div class="scene-config">
         %SCENE_CONFIG%
@@ -1945,6 +1833,7 @@ void handleSettings() {
       <div id="sceneError" class="error-message"></div>
       <div id="sceneSuccess" class="success-message"></div>
     </div>
+    
     <div id="system" class="settings-content">
       <div class="input-group">
         <label for="restart">Restart System</label>
@@ -1960,20 +1849,21 @@ void handleSettings() {
       </div>
     </div>
   </div>
+  
   <script>
-    // Tab switching logic
     function showTab(tabId) {
       document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
       document.querySelectorAll('.settings-content').forEach(content => content.classList.remove('active'));
       document.querySelector(`.settings-tab[onclick="showTab('${tabId}')"]`).classList.add('active');
       document.getElementById(tabId).classList.add('active');
     }
-    // Save credentials
+    
     function saveCredentials() {
       const form = document.getElementById('credentialsForm');
       const formData = new FormData(form);
       const errorEl = document.getElementById('credError');
       const successEl = document.getElementById('credSuccess');
+      
       fetch('/settings/credentials', {
         method: 'POST',
         body: formData,
@@ -1998,7 +1888,7 @@ void handleSettings() {
         errorEl.style.display = 'block';
       });
     }
-    // Save scenes
+    
     function saveScenes() {
       const scenes = [];
       document.querySelectorAll('.scene-item').forEach(item => {
@@ -2011,6 +1901,7 @@ void handleSettings() {
         });
         scenes.push(scene);
       });
+      
       fetch('/settings/scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2021,6 +1912,7 @@ void handleSettings() {
       .then(data => {
         const errorEl = document.getElementById('sceneError');
         const successEl = document.getElementById('sceneSuccess');
+        
         if (data.success) {
           errorEl.style.display = 'none';
           successEl.textContent = 'Scenes updated successfully!';
@@ -2033,7 +1925,7 @@ void handleSettings() {
         }
       });
     }
-    // Restart system
+    
     function restartSystem() {
       if (confirm('Are you sure you want to restart the system?')) {
         fetch('/system/restart', { credentials: 'include' })
@@ -2045,7 +1937,8 @@ void handleSettings() {
           });
       }
     }
-    // (Optional) Load sensor data for chart
+    
+    // Load sensor data for chart
     fetch('/sensor/data', { credentials: 'include' })
       .then(response => response.json())
       .then(data => {
@@ -2937,22 +2830,10 @@ void handleSchedules() {
             <span class="slider-toggle"></span>
           </label>
         </label>
-        <label class="section-title">Device<br>
-          <select id="relayNum" style="width:100%;padding:8px;">
-            <option value="1">Relay 1 - Living Room</option>
-            <option value="2">Relay 2 - Bedroom</option>
-            <option value="3">Relay 3 - Kitchen</option>
-            <option value="4">Relay 4 - Bathroom</option>
-            <option value="5">Relay 5 - Garage</option>
-            <option value="6">Relay 6 - Porch</option>
-            <option value="7">Relay 7 - Study</option>
-            <option value="8">Relay 8 - Spare</option>
-          </select>
-        </label>
-        <div id="devicesList">
-          <div class="cond-box"><span class="material-icons" style="color:#fbc02d;">lightbulb</span> Living Room Light</div>
-          <div class="cond-box"><span class="material-icons" style="color:#e57373;">thermostat</span> Thermostat</div>
-        </div>
+       <label class="section-title">Device<br>
+  <select id="relayNum" style="width:100%;padding:8px;"></select>
+</label>
+<div id="selectedDevice" style="margin:10px 0 0 0;color:#2563eb;font-weight:600;"></div>
       </div>
       <div class="card">
         <h3>Schedule Type</h3>
@@ -3010,7 +2891,35 @@ void handleSchedules() {
     document.querySelectorAll('.day-btn').forEach(btn => {
       btn.onclick = () => btn.classList.toggle('selected');
     });
-
+    function renderRelayDropdown() {
+  const relayNames = [
+    "Relay 1 - Living Room",
+    "Relay 2 - Bedroom",
+    "Relay 3 - Kitchen",
+    "Relay 4 - Bathroom",
+    "Relay 5 - Garage",
+    "Relay 6 - Porch",
+    "Relay 7 - Study",
+    "Relay 8 - Spare"
+  ];
+  const relayNum = document.getElementById('relayNum');
+  relayNum.innerHTML = '';
+  relayNames.forEach((name, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx + 1;
+    opt.text = name;
+    relayNum.appendChild(opt);
+  });
+}
+function showSelectedDevice() {
+  const relayNum = document.getElementById('relayNum');
+  const selected = relayNum.options[relayNum.selectedIndex].text;
+  document.getElementById('selectedDevice').innerHTML = `<b>Selected:</b> ${selected}`;
+}
+document.addEventListener('DOMContentLoaded', function() {
+  renderRelayDropdown();
+  document.getElementById('relayNum').addEventListener('change', showSelectedDevice);
+});
     document.getElementById('automationForm').onsubmit = function(e) {
       e.preventDefault();
       let days = Array(7).fill(false);
