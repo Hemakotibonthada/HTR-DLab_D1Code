@@ -1,0 +1,674 @@
+void handleRoot() {
+  if (requireLogin()) return;
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartHome</title>
+  <link href="https://fonts.googleapis.com/css?family=Segoe+UI:700,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw;
+      background: #e74c3c;
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 9999;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    body.offline #offlineBanner { display: block; }
+    body {
+      background: #eef3fc;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0; padding: 0;
+      color: #222;
+    }
+     <style>
+   #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw;
+      background: #e74c3c;
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 9999;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    body.offline #offlineBanner { display: block; }
+    body {
+      background: #eef3fc;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0; padding: 0;
+      color: #222;
+    }
+      /* Add to your <style> section */
+.device-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px #e3e9f7;
+  padding: 22px 20px;
+  min-width: 260px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  position: relative;
+  border: 1px solid transparent;
+  overflow: hidden;
+  will-change: transform, box-shadow;
+  margin-bottom: 18px;
+}
+.device-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+  border-color: rgba(59, 130, 246, 0.2);
+  background: linear-gradient(to bottom right, #ffffff, #f8faff);
+}
+    .sidebar {
+      width: 220px; background: #1e3a8a; color: #fff; height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; align-items:center; padding-top:32px; z-index: 100;
+    }
+    .sidebar .logo { font-size:1.5rem; font-weight:700; margin-bottom:32px; }
+    .sidebar button { background:none; border:none; color:#fff; font-size:1.1rem; margin:12px 0; cursor:pointer; width:100%; text-align:left; padding:10px 24px; border-radius:8px; transition:background 0.2s;}
+    .sidebar button.active, .sidebar button:hover { background:#2563eb; }
+    .main-content { margin-left:220px; padding:32px; }
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 32px 10px 32px; background: #fff; box-shadow: 0 2px 8px #e3e9f7;
+      margin-left: 220px;
+    }
+    .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
+    .header .settings-btn, .header .ota-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; margin-left: 8px;}
+    .dashboard-main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+    .dashboard-cards { display: flex; gap: 24px; margin-bottom: 24px; }
+    .dashboard-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 24px 32px; flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 8px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .dashboard-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
+    }
+    .dashboard-card .material-icons { font-size: 2rem; color: #2563eb; }
+    .dashboard-card .card-title { font-size: 1.1rem; font-weight: 600; }
+    .dashboard-card .card-value { font-size: 2rem; font-weight: 700; }
+    .dashboard-card .card-sub { font-size: 0.98rem; color: #888; }
+    .dashboard-tabs { display: flex; gap: 18px; margin: 18px 0 12px 0; }
+    .dashboard-tab {
+      background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #2563eb;
+      padding: 8px 18px; border-radius: 8px 8px 0 0; cursor: pointer; transition: background 0.2s;
+    }
+    .dashboard-tab.active, .dashboard-tab:hover { background: #eaf3ff; color: #222; }
+    .devices-row { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 24px; }
+    .device-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 22px 20px; flex: 1 1 260px; min-width: 240px; max-width: 340px;
+      display: flex; flex-direction: column; gap: 10px; align-items: flex-start; position: relative;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .device-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
+    }
+    .device-card .material-icons { font-size: 2rem; }
+    .device-card .device-title { font-size: 1.1rem; font-weight: 600; }
+    .device-card .device-status { font-size: 0.98rem; color: #888; }
+    .device-card .toggle-switch { position: absolute; top: 22px; right: 22px; }
+    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .slider-toggle {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: #ccc; transition: .4s; border-radius: 28px;
+    }
+    .slider-toggle:before {
+      position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
+      background: #fff; transition: .4s; border-radius: 50%; box-shadow: 0 2px 6px #e3e9f7;
+    }
+    .toggle-switch input:checked + .slider-toggle { background: #2563eb; }
+    .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    .slider-row input[type=range] { width: 120px; }
+    .quick-actions { display: flex; gap: 12px; margin: 18px 0 18px 0; }
+    .quick-action-btn { background: #fff; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+    .quick-action-btn:hover { background: #2563eb; color: #fff; }
+    .energy-section { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 24px 32px; margin-bottom: 32px; }
+    .energy-header { display: flex; align-items: center; justify-content: space-between; }
+    .energy-title { font-size: 1.2rem; font-weight: 700; }
+    .energy-tabs { display: flex; gap: 10px; }
+    .energy-tab { background: #eaf3ff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 1rem; color: #2563eb; cursor: pointer; }
+    .energy-tab.active { background: #2563eb; color: #fff; }
+    #energyChart { width: 100%; height: 180px; margin-top: 10px; }
+    .routines-section { margin-bottom: 32px; }
+    .routines-header { display: flex; align-items: center; justify-content: space-between; }
+    .routines-title { font-size: 1.2rem; font-weight: 700; }
+    .routines-list { display: flex; gap: 24px; margin-top: 18px; }
+    .routine-card {
+      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
+      padding: 22px 20px; min-width: 260px; display: flex; flex-direction: column; gap: 8px; position: relative;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: 1px solid transparent;
+      overflow: hidden;
+      will-change: transform, box-shadow;
+    }
+    .routine-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
+      border-color: rgba(59, 130, 246, 0.2);
+      background: linear-gradient(to bottom right, #ffffff, #f8faff);
+    }
+    .routine-card .material-icons { font-size: 1.5rem; }
+    .routine-title { font-size: 1.1rem; font-weight: 600; }
+    .routine-time { font-size: 0.98rem; color: #888; }
+    .routine-list { margin: 10px 0 0 0; padding: 0 0 0 18px; color: #27ae60; font-size: 0.98rem; }
+    .routine-toggle { position: absolute; top: 22px; right: 22px; }
+    .add-routine-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 1rem; cursor: pointer; }
+    .footer { margin: 32px 0 0 0; text-align: center; color: #aaa; font-size: 1rem; }
+    .system-info { margin: 24px 0; background: #f8fafc; border-radius: 12px; padding: 18px 24px; font-size: 1.05rem; color: #444; transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); border-radius: 12px;}
+    .system-info:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);}
+    .log-section { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e3e9f7; padding: 18px 24px; margin-bottom: 24px; }
+    .log-section h3 { margin-top: 0; color: #2563eb; }
+    .log-list { max-height: 120px; overflow-y: auto; font-size: 0.98rem; color: #333; background: #f8fafc; border-radius: 8px; padding: 8px 12px; }
+    .dark-toggle { position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: #fff; border: none; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; }
+    .dark-mode { background: #181c24 !important; color: #e0e0e0 !important; }
+    .dark-mode .dashboard-card, .dark-mode .device-card, .dark-mode .energy-section, .dark-mode .routine-card, .dark-mode .log-section { background: #232a36 !important; color: #e0e0e0 !important; }
+    .dark-mode .dashboard-tab, .dark-mode .energy-tab { color: #90cdf4 !important; }
+    .dark-mode .dashboard-tab.active, .dark-mode .energy-tab.active { background: #2563eb !important; color: #fff !important; }
+    .dark-mode .quick-action-btn { background: #232a36 !important; color: #90cdf4 !important; border-color: #2563eb !important; }
+    .dark-mode .quick-action-btn:hover { background: #2563eb !important; color: #fff !important; }
+    @media (max-width: 900px) {
+      .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
+      .energy-section, .dashboard-main { padding: 0 5px; }
+      .main-content, .header { margin-left: 0; padding: 12px; }
+      .sidebar { position: static; width: 100vw; height: auto; flex-direction: row; justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<div id="offlineBanner">Device Disconnected - Showing Last Known Data</div>
+  <div class="sidebar">
+    <div class="logo">SmartHome Hub</div>
+    <button class="active">Dashboard</button>
+    <button onclick="window.location.href='/settings'">Settings</button>
+    <button onclick="window.location.href='/schedules'">Schedules</button>
+    <button onclick="window.location.href='/logs'">Logs</button>
+    <button onclick="window.location.href='/ota'">OTA Update</button>
+  </div>
+  <div class="header">
+    <div class="logo"><span class="material-icons">home</span> Welcome Home</div>
+    <div>
+      <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
+      <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
+      <button class="ota-btn" onclick="window.location.href='/ota'">OTA Update</button>
+      <button class="settings-btn" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
+    </div>
+  </div>
+  <div class="main-content">
+    <div class="dashboard-main">
+      <div class="dashboard-cards">
+        <div class="dashboard-card">
+          <span class="material-icons">thermostat</span>
+          <div class="card-title">Indoor Temperature</div>
+          <div class="card-value" id="tempCard">--°C</div>
+          <div class="card-sub" id="tempSub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">water_drop</span>
+          <div class="card-title">Humidity</div>
+          <div class="card-value" id="humCard">--%</div>
+          <div class="card-sub" id="humSub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">bolt</span>
+          <div class="card-title">Energy Usage</div>
+          <div class="card-value" id="energyCard">-- kWh</div>
+          <div class="card-sub" id="energySub"></div>
+        </div>
+        <div class="dashboard-card">
+          <span class="material-icons">devices</span>
+          <div class="card-title">Active Devices</div>
+          <div class="card-value" id="activeDevices">--</div>
+          <div class="card-sub" id="activeDevicesSub"></div>
+        </div>
+      </div>
+      <div class="quick-actions">
+        <button class="quick-action-btn" onclick="applyScene(0)">
+          <span class="material-icons">nights_stay</span> Good Night
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(1)">
+          <span class="material-icons">wb_sunny</span> Good Morning
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(4)">
+          <span class="material-icons">power</span> All On
+        </button>
+        <button class="quick-action-btn" onclick="applyScene(5)">
+          <span class="material-icons">power_off</span> All Off
+        </button>
+        <button class="quick-action-btn" onclick="window.location.href='/logs'">
+          <span class="material-icons">list</span> Logs
+        </button>
+        <button class="quick-action-btn" onclick="window.location.href='/schedules'">
+          <span class="material-icons">schedule</span> Schedules
+        </button>
+      </div>
+      <div class="dashboard-tabs">
+        <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
+        <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
+        <button class="dashboard-tab" onclick="showRoom('kitchen', this)">Kitchen</button>
+        <button class="dashboard-tab" onclick="showRoom('bedroom', this)">Bedroom</button>
+        <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
+        <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
+      </div>
+      <div class="devices-row" id="devicesRow"></div>
+      <div class="energy-section">
+        <div class="energy-header">
+          <div class="energy-title">Energy Consumption</div>
+          <div class="energy-tabs">
+            <button class="energy-tab active" onclick="setEnergyRange('day', this)">Day</button>
+            <button class="energy-tab" onclick="setEnergyRange('week', this)">Week</button>
+            <button class="energy-tab" onclick="setEnergyRange('month', this)">Month</button>
+          </div>
+        </div>
+        <canvas id="energyChart"></canvas>
+      </div>
+      <div class="routines-section">
+        <div class="routines-header">
+          <div class="routines-title">Automation Routines</div>
+          <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
+        </div>
+        <div class="routines-list" id="routinesList"></div>
+      </div>
+      <div class="system-info" id="systemInfo">
+        <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
+        <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
+        <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
+      </div>
+      <div class="log-section">
+        <h3>Recent System Logs</h3>
+        <div class="log-list" id="logList"></div>
+      </div>
+      <div class="footer">
+        ESP32 Home Automation Dashboard<br>
+        Connected to: ESP32-WROOM-32
+      </div>
+    </div>
+  </div>
+  <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
+  <script>
+    // Persistent fetch: always show last known data, update if online
+    function persistentFetch(key, url, renderFn, fallback = []) {
+      let cached = localStorage.getItem(key);
+      if (cached) {
+        try { renderFn(JSON.parse(cached)); } catch (e) { renderFn(fallback); }
+      } else {
+        renderFn(fallback);
+      }
+      fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          renderFn(data);
+          localStorage.setItem(key, JSON.stringify(data));
+          document.body.classList.remove('offline');
+        })
+        .catch(() => {
+          document.body.classList.add('offline');
+        });
+    }
+    // --- UI Logic for Dashboard ---
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
+    }
+    (function() {
+      if (localStorage.getItem('dark-mode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+    })();
+    function showRoutineModal() {
+      document.getElementById('routineModal').style.display = 'flex';
+    }
+    function closeRoutineModal() {
+      document.getElementById('routineModal').style.display = 'none';
+      document.getElementById('routineError').style.display = 'none';
+    }
+    function addRoutine() {
+      const name = document.getElementById('routineName').value;
+      const time = document.getElementById('routineTime').value;
+      const relay = document.getElementById('routineRelay').value;
+      const state = document.getElementById('routineState').value;
+      const error = document.getElementById('routineError');
+      if (!name || !time) {
+        error.textContent = "Name and time required";
+        error.style.display = 'block';
+        return;
+      }
+      fetch('/routines', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
+      })
+      .then(r=>r.json())
+      .then(j=>{
+        if(j.success) {
+          closeRoutineModal();
+          loadRoutines();
+        } else {
+          error.textContent = j.error || "Failed to add routine";
+          error.style.display = 'block';
+        }
+      });
+    }
+    function loadRoutines() {
+      persistentFetch('routines', '/routines', renderRoutines, []);
+    }
+    function renderRoutines(json) {
+      let html = '';
+      if(json.routines && json.routines.length) {
+        json.routines.forEach(r=>{
+          html += `<div class="routine-card">
+            <span class="material-icons">alarm</span>
+            <div class="routine-title">${r.name}</div>
+            <div class="routine-time">${r.time}</div>
+            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
+          </div>`;
+        });
+      } else {
+        html = '<div style="color:#888;">No routines yet.</div>';
+      }
+      document.getElementById('routinesList').innerHTML = html;
+    }
+    function updateESPStatus() {
+      fetch('/wifiStatus')
+        .then(r => r.json())
+        .then(json => {
+          const statusEl = document.getElementById('espStatus');
+          if (json.connected) {
+            statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+          } else {
+            statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+          }
+        })
+        .catch(() => {
+          const statusEl = document.getElementById('espStatus');
+          statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+        });
+    }
+    function applyScene(idx) {
+      fetch('/scene?idx=' + idx, { credentials: 'include' })
+        .then(r => r.json())
+        .then(() => {
+          updateRelayStatus();
+          loadDevices();
+        });
+    }
+    function showRoom(room, btn) {
+      document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      // Optionally filter devices here
+    }
+    function updateRelayStatus() {
+      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
+    }
+    function renderRelays(json) {
+      let html = '';
+      if(json.relays) {
+        json.relays.forEach(relay => {
+          html += `<div style="margin-bottom:8px;">
+            <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
+            <span style="font-weight:600;">${relay.name}</span>
+            <label class="toggle-switch" style="margin-left:12px;">
+              <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
+              <span class="slider-toggle"></span>
+            </label>
+          </div>`;
+        });
+      }
+      if(document.getElementById('relayStatusList')) document.getElementById('relayStatusList').innerHTML = html;
+    }
+    function toggleRelay(num, state) {
+      fetch(`/relay?num=${num}&state=${state?1:0}`, { credentials: 'include' })
+        .then(() => {
+          updateRelayStatus();
+          loadDevices();
+        });
+    }
+    function loadDevices() {
+      // You can use persistentFetch here if you want to cache device status
+      fetch('/relayStatus', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let html = '';
+          // Example: Living Room Light (with brightness and color)
+          html += `
+          <div class="device-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <span class="material-icons" style="color:#fbc02d;font-size:2.2rem;">lightbulb</span>
+                <span style="font-weight:700;font-size:1.1rem;">Living Room Light</span><br>
+                <span style="font-size:0.95em;color:#888;">Philips Hue</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="slider-toggle"></span>
+              </label>
+            </div>
+            <div style="margin:12px 0 8px 0;">
+              <div style="font-size:0.98em;">Brightness</div>
+              <input type="range" min="0" max="100" value="75" style="width:100%;">
+            </div>
+            <div style="font-size:0.98em;">Color</div>
+            <div style="display:flex;gap:8px;margin:8px 0;">
+              <span style="width:22px;height:22px;border-radius:50%;background:#f44336;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#2196f3;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#4caf50;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#ffeb3b;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#9c27b0;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#eee;display:inline-block;border:1px solid #ccc;text-align:center;line-height:22px;">+</span>
+            </div>
+            <div style="font-size:0.92em;color:#888;">Last updated: 2 min ago &nbsp; <a href="#">Details</a></div>
+          </div>
+          `;
+            // Example: Thermostat
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#e57373;font-size:2.2rem;">thermostat</span>
+            <span style="font-weight:700;font-size:1.1rem;">Living Room Thermostat</span><br>
+            <span style="font-size:0.95em;color:#888;">Nest</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <div style="display:inline-block;width:80px;height:80px;border-radius:50%;background:#fff3f3;border:6px solid #e57373;position:relative;">
+            <div style="font-size:2rem;font-weight:700;line-height:80px;">22°C</div>
+            <div style="position:absolute;bottom:8px;width:100%;font-size:0.95em;color:#888;">Target: 23°C</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:1.1em;">Temperature <b>23°C</b></div>
+        <div style="font-size:0.92em;color:#888;">Last updated: 5 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Example: Door Lock
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#43a047;font-size:2.2rem;">lock</span>
+            <span style="font-weight:700;font-size:1.1rem;">Front Door Lock</span><br>
+            <span style="font-size:0.95em;color:#888;">August</span>
+          </div>
+          <span style="background:#43a047;color:#fff;padding:2px 12px;border-radius:12px;font-size:0.98em;">Locked</span>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <span class="material-icons" style="font-size:3.5rem;color:#43a047;">lock</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.98em;color:#222;">
+          <span>Last Locked<br><b>10:32 AM</b></span>
+          <span>Last Unlocked<br><b>8:15 AM</b></span>
+          <span>Battery<br><b>85%</b></span>
+        </div>
+        <div style="font-size:0.92em;color:#888;">Last updated: 1 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Example: Camera
+      html += `
+      <div class="device-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <span class="material-icons" style="color:#2196f3;font-size:2.2rem;">videocam</span>
+            <span style="font-weight:700;font-size:1.1rem;">Front Door Camera</span><br>
+            <span style="font-size:0.95em;color:#888;">Ring</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="slider-toggle"></span>
+          </label>
+        </div>
+        <div style="margin:18px 0 8px 0;text-align:center;">
+          <span class="material-icons" style="font-size:3.5rem;color:#bbb;">videocam</span>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;">
+          <button style="background:#2563eb;color:#fff;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Live View</button>
+          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Recordings</button>
+          <button style="background:#f4f7fb;color:#2563eb;border:none;border-radius:6px;padding:4px 14px;cursor:pointer;">Settings</button>
+        </div>
+        <div style="font-size:0.92em;color:#888;">Last motion: 15 min ago &nbsp; <a href="#">Details</a></div>
+      </div>
+      `;
+
+      // Add New Device card
+      html += `
+      <div class="device-card" style="border:2px dashed #2563eb;background:#f8fafc;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:220px;">
+        <div style="background:#eaf3ff;width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
+          <span class="material-icons" style="color:#2563eb;font-size:2.2rem;">add</span>
+        </div>
+        <div style="font-weight:600;font-size:1.1rem;">Add New Device</div>
+        <div style="font-size:0.98em;color:#888;text-align:center;margin:8px 0 0 0;">Connect a new smart device to your system</div>
+      </div>
+      `;
+
+      document.getElementById('devicesRow').innerHTML = html;
+    });
+  }
+  let energyChart;
+  function loadEnergy(range='day') {
+    persistentFetch('energyData', '/sensor/data', renderEnergyChart, {data:[]});
+  }
+  function renderEnergyChart(json) {
+    let labels = [], data = [];
+    if(json.data) {
+        json.data.forEach(point => {
+          labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
+          data.push(point.temperature);
+        });
+      }
+      if (!energyChart) {
+        energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
+          options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+      } else {
+        energyChart.data.labels = labels;
+        energyChart.data.datasets[0].data = data;
+        energyChart.update();
+      }
+    }
+    function setEnergyRange(range, btn) {
+      document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
+      btn.classList.add('active');
+      loadEnergy(range);
+    }
+    function renderSensorCards(json) {
+      document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
+      document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
+      document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
+      document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
+    }
+    function renderLogs(txt) {
+      document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
+    }
+    function renderSystemInfo(json) {
+      document.getElementById('uptime').textContent = json.uptime || '--';
+      document.getElementById('ipAddr').textContent = json.ip || '--';
+      document.getElementById('freeHeap').textContent = json.heap || '--';
+    }
+    function closeCameraModal() {
+      document.getElementById('cameraModal').style.display = 'none';
+    }
+    window.onload = function() {
+      updateRelayStatus();
+      loadDevices();
+      loadEnergy();
+      loadRoutines();
+      loadSystemInfo();
+      loadLogs();
+      loadSensorCards();
+      updateESPStatus();
+      persistentFetch('routines', '/routines', renderRoutines, []);
+      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
+      persistentFetch('sensor', '/sensor', renderSensorCards, {});
+      persistentFetch('logs', '/logs', renderLogs, []);
+      persistentFetch('energyData', '/sensor/data', renderEnergyChart, []);
+      setInterval(updateESPStatus, 2000);
+    }
+  </script>
+  <!-- Routine Modal -->
+  <div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
+      <h3>Add Routine</h3>
+      <div style="margin-bottom:10px;">
+        <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
+        <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
+        <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
+          <option value="1">Relay 1</option>
+          <option value="2">Relay 2</option>
+          <option value="3">Relay 3</option>
+          <option value="4">Relay 4</option>
+          <option value="5">Relay 5</option>
+          <option value="6">Relay 6</option>
+          <option value="7">Relay 7</option>
+          <option value="8">Relay 8</option>
+        </select>
+        <select id="routineState" style="width:100%;padding:8px;">
+          <option value="1">ON</option>
+          <option value="0">OFF</option>
+        </select>
+      </div>
+      <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
+      <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
+      <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</body>
+</html>
+)rawliteral";
+  server.send(200, "text/html", html);
+}
