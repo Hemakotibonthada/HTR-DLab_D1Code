@@ -183,6 +183,7 @@ void setupSchedules();
 void checkSchedules();
 void checkSchedules();
 void addLog(const String& entry);
+void saveSchedulesToEEPROM();
 
 // ----------- Helper Functions -----------
 struct Routine {
@@ -252,14 +253,16 @@ int dataCount = 0;
 struct Schedule {
   int id;
   bool active;
-  int hour;
-  int minute;
+  int startHour;
+  int startMinute;
+  int endHour;
+  int endMinute;
   bool days[7]; // Sun-Sat
   int relayNum;
-  bool state;
+  bool state; // keep for compatibility, but not used for on/off anymore
   bool repeat;
   AlarmID_t alarmId;
-  String name; // <-- Add this line
+  String name;
 };
 
 Schedule schedules[MAX_SCHEDULES];
@@ -1076,6 +1079,39 @@ void handleRoot() {
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
+    #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw;
+      background: #e74c3c;
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 9999;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    body.offline #offlineBanner { display: block; }
+    body {
+      background: #eef3fc;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0; padding: 0;
+      color: #222;
+    }
+     <style>
+   #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw;
+      background: #e74c3c;
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 9999;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    body.offline #offlineBanner { display: block; }
     body {
       background: #eef3fc;
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -1238,6 +1274,7 @@ void handleRoot() {
   </style>
 </head>
 <body>
+<div id="offlineBanner">Device Disconnected - Showing Last Known Data</div>
   <div class="sidebar">
     <div class="logo">SmartHome Hub</div>
     <button class="active">Dashboard</button>
@@ -1283,8 +1320,6 @@ void handleRoot() {
           <div class="card-sub" id="activeDevicesSub"></div>
         </div>
       </div>
-
-
       <div class="quick-actions">
         <button class="quick-action-btn" onclick="applyScene(0)">
           <span class="material-icons">nights_stay</span> Good Night
@@ -1305,7 +1340,6 @@ void handleRoot() {
           <span class="material-icons">schedule</span> Schedules
         </button>
       </div>
-
       <div class="dashboard-tabs">
         <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
         <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
@@ -1314,18 +1348,7 @@ void handleRoot() {
         <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
         <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
       </div>
-
       <div class="devices-row" id="devicesRow"></div>
-
-      <!-- Camera Modal -->
-      <div class="camera-modal" id="cameraModal" style="display:none;">
-        <div class="camera-content">
-          <h2>ESP32 Camera Live Stream</h2>
-          <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
-          <button class="close-modal" onclick="closeCameraModal()">Close</button>
-        </div>
-      </div>
-
       <div class="energy-section">
         <div class="energy-header">
           <div class="energy-title">Energy Consumption</div>
@@ -1337,53 +1360,22 @@ void handleRoot() {
         </div>
         <canvas id="energyChart"></canvas>
       </div>
-
-     <div class="routines-section">
-  <div class="routines-header">
-    <div class="routines-title">Automation Routines</div>
-    <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
-  </div>
-  <div class="routines-list" id="routinesList"></div>
-</div>
-<!-- Routine Modal -->
-<div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
-  <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
-    <h3>Add Routine</h3>
-    <div style="margin-bottom:10px;">
-      <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
-      <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
-      <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
-        <option value="1">Relay 1</option>
-        <option value="2">Relay 2</option>
-        <option value="3">Relay 3</option>
-        <option value="4">Relay 4</option>
-        <option value="5">Relay 5</option>
-        <option value="6">Relay 6</option>
-        <option value="7">Relay 7</option>
-        <option value="8">Relay 8</option>
-      </select>
-      <select id="routineState" style="width:100%;padding:8px;">
-        <option value="1">ON</option>
-        <option value="0">OFF</option>
-      </select>
-    </div>
-    <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
-    <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
-    <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
-  </div>
-</div>
-
+      <div class="routines-section">
+        <div class="routines-header">
+          <div class="routines-title">Automation Routines</div>
+          <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
+        </div>
+        <div class="routines-list" id="routinesList"></div>
+      </div>
       <div class="system-info" id="systemInfo">
         <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
         <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
         <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
       </div>
-
       <div class="log-section">
         <h3>Recent System Logs</h3>
         <div class="log-list" id="logList"></div>
       </div>
-
       <div class="footer">
         ESP32 Home Automation Dashboard<br>
         Connected to: ESP32-WROOM-32
@@ -1392,49 +1384,73 @@ void handleRoot() {
   </div>
   <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
   <script>
+    // Persistent fetch: always show last known data, update if online
+    function persistentFetch(key, url, renderFn, fallback = []) {
+      let cached = localStorage.getItem(key);
+      if (cached) {
+        try { renderFn(JSON.parse(cached)); } catch (e) { renderFn(fallback); }
+      } else {
+        renderFn(fallback);
+      }
+      fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          renderFn(data);
+          localStorage.setItem(key, JSON.stringify(data));
+          document.body.classList.remove('offline');
+        })
+        .catch(() => {
+          document.body.classList.add('offline');
+        });
+    }
     // --- UI Logic for Dashboard ---
     function toggleDarkMode() {
       document.body.classList.toggle('dark-mode');
       localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
     }
-function showRoutineModal() {
-  document.getElementById('routineModal').style.display = 'flex';
-}
-function closeRoutineModal() {
-  document.getElementById('routineModal').style.display = 'none';
-  document.getElementById('routineError').style.display = 'none';
-}
-function addRoutine() {
-  const name = document.getElementById('routineName').value;
-  const time = document.getElementById('routineTime').value;
-  const relay = document.getElementById('routineRelay').value;
-  const state = document.getElementById('routineState').value;
-  const error = document.getElementById('routineError');
-  if (!name || !time) {
-    error.textContent = "Name and time required";
-    error.style.display = 'block';
-    return;
-  }
-  fetch('/routines', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
-  })
-  .then(r=>r.json())
-  .then(j=>{
-    if(j.success) {
-      closeRoutineModal();
-      loadRoutines();
-    } else {
-      error.textContent = j.error || "Failed to add routine";
-      error.style.display = 'block';
+    (function() {
+      if (localStorage.getItem('dark-mode') === 'true') {
+        document.body.classList.add('dark-mode');
+      }
+    })();
+    function showRoutineModal() {
+      document.getElementById('routineModal').style.display = 'flex';
     }
-  });
-}
-function loadRoutines() {
-  fetch('/routines')
-    .then(r=>r.json())
-    .then(json=>{
+    function closeRoutineModal() {
+      document.getElementById('routineModal').style.display = 'none';
+      document.getElementById('routineError').style.display = 'none';
+    }
+    function addRoutine() {
+      const name = document.getElementById('routineName').value;
+      const time = document.getElementById('routineTime').value;
+      const relay = document.getElementById('routineRelay').value;
+      const state = document.getElementById('routineState').value;
+      const error = document.getElementById('routineError');
+      if (!name || !time) {
+        error.textContent = "Name and time required";
+        error.style.display = 'block';
+        return;
+      }
+      fetch('/routines', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
+      })
+      .then(r=>r.json())
+      .then(j=>{
+        if(j.success) {
+          closeRoutineModal();
+          loadRoutines();
+        } else {
+          error.textContent = j.error || "Failed to add routine";
+          error.style.display = 'block';
+        }
+      });
+    }
+    function loadRoutines() {
+      persistentFetch('routines', '/routines', renderRoutines, []);
+    }
+    function renderRoutines(json) {
       let html = '';
       if(json.routines && json.routines.length) {
         json.routines.forEach(r=>{
@@ -1449,34 +1465,23 @@ function loadRoutines() {
         html = '<div style="color:#888;">No routines yet.</div>';
       }
       document.getElementById('routinesList').innerHTML = html;
-    });
-}
-function updateESPStatus() {
-  fetch('/wifiStatus')
-    .then(r => r.json())
-    .then(json => {
-      const statusEl = document.getElementById('espStatus');
-      if (json.connected) {
-        statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
-      } else {
-        statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-      }
-    })
-    .catch(() => {
-      // If fetch fails (ESP32 offline), show disconnected
-      const statusEl = document.getElementById('espStatus');
-      statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-    });
-}
-// 
-    // Load dark mode preference
-    (function() {
-      if (localStorage.getItem('dark-mode') === 'true') {
-        document.body.classList.add('dark-mode');
-      }
-    })();
-
-    // Quick Actions
+    }
+    function updateESPStatus() {
+      fetch('/wifiStatus')
+        .then(r => r.json())
+        .then(json => {
+          const statusEl = document.getElementById('espStatus');
+          if (json.connected) {
+            statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
+          } else {
+            statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+          }
+        })
+        .catch(() => {
+          const statusEl = document.getElementById('espStatus');
+          statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
+        });
+    }
     function applyScene(idx) {
       fetch('/scene?idx=' + idx, { credentials: 'include' })
         .then(r => r.json())
@@ -1485,32 +1490,29 @@ function updateESPStatus() {
           loadDevices();
         });
     }
-
-    // Tabs
     function showRoom(room, btn) {
       document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
       btn.classList.add('active');
       // Optionally filter devices here
     }
-
-    // Relay Status
     function updateRelayStatus() {
-      fetch('/relayStatus', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let html = '';
-          json.relays.forEach(relay => {
-            html += `<div style="margin-bottom:8px;">
-              <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
-              <span style="font-weight:600;">${relay.name}</span>
-              <label class="toggle-switch" style="margin-left:12px;">
-                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
-                <span class="slider-toggle"></span>
-              </label>
-            </div>`;
-          });
-          document.getElementById('relayStatusList').innerHTML = html;
+      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
+    }
+    function renderRelays(json) {
+      let html = '';
+      if(json.relays) {
+        json.relays.forEach(relay => {
+          html += `<div style="margin-bottom:8px;">
+            <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
+            <span style="font-weight:600;">${relay.name}</span>
+            <label class="toggle-switch" style="margin-left:12px;">
+              <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
+              <span class="slider-toggle"></span>
+            </label>
+          </div>`;
         });
+      }
+      if(document.getElementById('relayStatusList')) document.getElementById('relayStatusList').innerHTML = html;
     }
     function toggleRelay(num, state) {
       fetch(`/relay?num=${num}&state=${state?1:0}`, { credentials: 'include' })
@@ -1519,46 +1521,43 @@ function updateESPStatus() {
           loadDevices();
         });
     }
-
-    // Device Cards
-   function loadDevices() {
-  fetch('/relayStatus', { credentials: 'include' })
-    .then(r => r.json())
-    .then(json => {
-      let html = '';
-
-      // Example: Living Room Light (with brightness and color)
-      html += `
-      <div class="device-card">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <span class="material-icons" style="color:#fbc02d;font-size:2.2rem;">lightbulb</span>
-            <span style="font-weight:700;font-size:1.1rem;">Living Room Light</span><br>
-            <span style="font-size:0.95em;color:#888;">Philips Hue</span>
+    function loadDevices() {
+      // You can use persistentFetch here if you want to cache device status
+      fetch('/relayStatus', { credentials: 'include' })
+        .then(r => r.json())
+        .then(json => {
+          let html = '';
+          // Example: Living Room Light (with brightness and color)
+          html += `
+          <div class="device-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div>
+                <span class="material-icons" style="color:#fbc02d;font-size:2.2rem;">lightbulb</span>
+                <span style="font-weight:700;font-size:1.1rem;">Living Room Light</span><br>
+                <span style="font-size:0.95em;color:#888;">Philips Hue</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked>
+                <span class="slider-toggle"></span>
+              </label>
+            </div>
+            <div style="margin:12px 0 8px 0;">
+              <div style="font-size:0.98em;">Brightness</div>
+              <input type="range" min="0" max="100" value="75" style="width:100%;">
+            </div>
+            <div style="font-size:0.98em;">Color</div>
+            <div style="display:flex;gap:8px;margin:8px 0;">
+              <span style="width:22px;height:22px;border-radius:50%;background:#f44336;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#2196f3;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#4caf50;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#ffeb3b;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#9c27b0;display:inline-block;"></span>
+              <span style="width:22px;height:22px;border-radius:50%;background:#eee;display:inline-block;border:1px solid #ccc;text-align:center;line-height:22px;">+</span>
+            </div>
+            <div style="font-size:0.92em;color:#888;">Last updated: 2 min ago &nbsp; <a href="#">Details</a></div>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" checked>
-            <span class="slider-toggle"></span>
-          </label>
-        </div>
-        <div style="margin:12px 0 8px 0;">
-          <div style="font-size:0.98em;">Brightness</div>
-          <input type="range" min="0" max="100" value="75" style="width:100%;">
-        </div>
-        <div style="font-size:0.98em;">Color</div>
-        <div style="display:flex;gap:8px;margin:8px 0;">
-          <span style="width:22px;height:22px;border-radius:50%;background:#f44336;display:inline-block;"></span>
-          <span style="width:22px;height:22px;border-radius:50%;background:#2196f3;display:inline-block;"></span>
-          <span style="width:22px;height:22px;border-radius:50%;background:#4caf50;display:inline-block;"></span>
-          <span style="width:22px;height:22px;border-radius:50%;background:#ffeb3b;display:inline-block;"></span>
-          <span style="width:22px;height:22px;border-radius:50%;background:#9c27b0;display:inline-block;"></span>
-          <span style="width:22px;height:22px;border-radius:50%;background:#eee;display:inline-block;border:1px solid #ccc;text-align:center;line-height:22px;">+</span>
-        </div>
-        <div style="font-size:0.92em;color:#888;">Last updated: 2 min ago &nbsp; <a href="#">Details</a></div>
-      </div>
-      `;
-
-      // Example: Thermostat
+          `;
+            // Example: Thermostat
       html += `
       <div class="device-card">
         <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1645,97 +1644,53 @@ function updateESPStatus() {
 
       document.getElementById('devicesRow').innerHTML = html;
     });
-}
-    // Energy Chart
-    let energyChart;
-    function loadEnergy(range='day') {
-      fetch('/sensor/data', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let labels = [], data = [];
-          json.data.forEach(point => {
-            labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
-            data.push(point.temperature); // Example: use temperature as energy
-          });
-          if (!energyChart) {
-            energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
-              type: 'line',
-              data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
-              options: { responsive: true, plugins: { legend: { display: false } } }
-            });
-          } else {
-            energyChart.data.labels = labels;
-            energyChart.data.datasets[0].data = data;
-            energyChart.update();
-          }
+  }
+  let energyChart;
+  function loadEnergy(range='day') {
+    persistentFetch('energyData', '/sensor/data', renderEnergyChart, {data:[]});
+  }
+  function renderEnergyChart(json) {
+    let labels = [], data = [];
+    if(json.data) {
+        json.data.forEach(point => {
+          labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
+          data.push(point.temperature);
         });
+      }
+      if (!energyChart) {
+        energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
+          type: 'line',
+          data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
+          options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+      } else {
+        energyChart.data.labels = labels;
+        energyChart.data.datasets[0].data = data;
+        energyChart.update();
+      }
     }
     function setEnergyRange(range, btn) {
       document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
       btn.classList.add('active');
       loadEnergy(range);
     }
-
-
-function loadRoutines() {
-  fetch('/routines')
-    .then(r=>r.json())
-    .then(json=>{
-      let html = '';
-      if(json.routines && json.routines.length) {
-        json.routines.forEach(r=>{
-          html += `<div class="routine-card">
-            <span class="material-icons">alarm</span>
-            <div class="routine-title">${r.name}</div>
-            <div class="routine-time">${r.time}</div>
-            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
-          </div>`;
-        });
-      } else {
-        html = '<div style="color:#888;">No routines yet.</div>';
-      }
-      document.getElementById('routinesList').innerHTML = html;
-    });
-}
-
-    // System Info
-    function loadSystemInfo() {
-      fetch('/systeminfo', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          document.getElementById('uptime').textContent = json.uptime;
-          document.getElementById('ipAddr').textContent = json.ip;
-          document.getElementById('freeHeap').textContent = json.heap;
-        });
+    function renderSensorCards(json) {
+      document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
+      document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
+      document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
+      document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
     }
-
-    // Logs
-    function loadLogs() {
-      fetch('/logs', { credentials: 'include' })
-        .then(r => r.text())
-        .then(txt => {
-          document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
-        });
+    function renderLogs(txt) {
+      document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
     }
-
-    // Sensor Cards
-    function loadSensorCards() {
-      fetch('/sensor', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
-          document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
-          document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
-          document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
-        });
+    function renderSystemInfo(json) {
+      document.getElementById('uptime').textContent = json.uptime || '--';
+      document.getElementById('ipAddr').textContent = json.ip || '--';
+      document.getElementById('freeHeap').textContent = json.heap || '--';
     }
-
-    // Camera Modal
     function closeCameraModal() {
       document.getElementById('cameraModal').style.display = 'none';
     }
-
-    // Initial load
     window.onload = function() {
       updateRelayStatus();
       loadDevices();
@@ -1745,14 +1700,47 @@ function loadRoutines() {
       loadLogs();
       loadSensorCards();
       updateESPStatus();
+      persistentFetch('routines', '/routines', renderRoutines, []);
+      persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
+      persistentFetch('sensor', '/sensor', renderSensorCards, {});
+      persistentFetch('logs', '/logs', renderLogs, []);
+      persistentFetch('energyData', '/sensor/data', renderEnergyChart, []);
       setInterval(updateESPStatus, 2000);
     }
   </script>
+  <!-- Routine Modal -->
+  <div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
+      <h3>Add Routine</h3>
+      <div style="margin-bottom:10px;">
+        <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
+        <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
+        <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
+          <option value="1">Relay 1</option>
+          <option value="2">Relay 2</option>
+          <option value="3">Relay 3</option>
+          <option value="4">Relay 4</option>
+          <option value="5">Relay 5</option>
+          <option value="6">Relay 6</option>
+          <option value="7">Relay 7</option>
+          <option value="8">Relay 8</option>
+        </select>
+        <select id="routineState" style="width:100%;padding:8px;">
+          <option value="1">ON</option>
+          <option value="0">OFF</option>
+        </select>
+      </div>
+      <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
+      <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
+      <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
 </body>
 </html>
 )rawliteral";
   server.send(200, "text/html", html);
 }
+
 void handleWiFiStatus() {
   StaticJsonDocument<64> doc;
   doc["connected"] = (WiFi.status() == WL_CONNECTED);
@@ -1760,6 +1748,7 @@ void handleWiFiStatus() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+
 void handleSettings() {
   if (requireLogin()) return;
   
@@ -1783,7 +1772,6 @@ void handleSettings() {
       --border-color: #eee;
       --shadow-color: rgba(0,0,0,0.07);
     }
-
     .dark-mode {
       --bg-color: #121212;
       --card-bg: #1e1e1e;
@@ -1794,7 +1782,6 @@ void handleSettings() {
       --border-color: #333;
       --shadow-color: rgba(0,0,0,0.3);
     }
-
     body {
       background: var(--bg-color);
       color: var(--text-color);
@@ -1913,18 +1900,24 @@ void handleSettings() {
     .scene-toggle label {
       margin-left: 8px;
     }
+    @media (max-width: 700px) {
+      .settings-container { padding: 16px; }
+      .scene-item { min-width: 140px; }
+    }
+    @media (max-width: 480px) {
+      .settings-container { padding: 6px; }
+      .scene-item { min-width: 100px; }
+    }
   </style>
 </head>
 <body>
   <div class="settings-container">
     <div class="settings-title">System Settings</div>
-    
     <div class="settings-tabs">
       <div class="settings-tab active" onclick="showTab('credentials')">Credentials</div>
       <div class="settings-tab" onclick="showTab('scenes')">Scenes</div>
       <div class="settings-tab" onclick="showTab('system')">System</div>
     </div>
-    
     <div id="credentials" class="settings-content active">
       <form id="credentialsForm">
         <div class="input-group">
@@ -1944,7 +1937,6 @@ void handleSettings() {
         <div id="credSuccess" class="success-message"></div>
       </form>
     </div>
-    
     <div id="scenes" class="settings-content">
       <div class="scene-config">
         %SCENE_CONFIG%
@@ -1953,7 +1945,6 @@ void handleSettings() {
       <div id="sceneError" class="error-message"></div>
       <div id="sceneSuccess" class="success-message"></div>
     </div>
-    
     <div id="system" class="settings-content">
       <div class="input-group">
         <label for="restart">Restart System</label>
@@ -1969,21 +1960,20 @@ void handleSettings() {
       </div>
     </div>
   </div>
-  
   <script>
+    // Tab switching logic
     function showTab(tabId) {
       document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
       document.querySelectorAll('.settings-content').forEach(content => content.classList.remove('active'));
       document.querySelector(`.settings-tab[onclick="showTab('${tabId}')"]`).classList.add('active');
       document.getElementById(tabId).classList.add('active');
     }
-    
+    // Save credentials
     function saveCredentials() {
       const form = document.getElementById('credentialsForm');
       const formData = new FormData(form);
       const errorEl = document.getElementById('credError');
       const successEl = document.getElementById('credSuccess');
-      
       fetch('/settings/credentials', {
         method: 'POST',
         body: formData,
@@ -2008,7 +1998,7 @@ void handleSettings() {
         errorEl.style.display = 'block';
       });
     }
-    
+    // Save scenes
     function saveScenes() {
       const scenes = [];
       document.querySelectorAll('.scene-item').forEach(item => {
@@ -2021,7 +2011,6 @@ void handleSettings() {
         });
         scenes.push(scene);
       });
-      
       fetch('/settings/scenes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2032,7 +2021,6 @@ void handleSettings() {
       .then(data => {
         const errorEl = document.getElementById('sceneError');
         const successEl = document.getElementById('sceneSuccess');
-        
         if (data.success) {
           errorEl.style.display = 'none';
           successEl.textContent = 'Scenes updated successfully!';
@@ -2045,7 +2033,7 @@ void handleSettings() {
         }
       });
     }
-    
+    // Restart system
     function restartSystem() {
       if (confirm('Are you sure you want to restart the system?')) {
         fetch('/system/restart', { credentials: 'include' })
@@ -2057,8 +2045,7 @@ void handleSettings() {
           });
       }
     }
-    
-    // Load sensor data for chart
+    // (Optional) Load sensor data for chart
     fetch('/sensor/data', { credentials: 'include' })
       .then(response => response.json())
       .then(data => {
@@ -2149,8 +2136,6 @@ void handleSystemRestart() {
   delay(1000);
   ESP.restart();
 }
-
-
 
 void handleResetPass() {
   if (handleFileRead("/resetpass.html")) return;
@@ -2473,6 +2458,7 @@ void handleSensor() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+
 void handleSimpleLogs() {
   if (requireLogin()) return;
   
@@ -2537,7 +2523,6 @@ void handleOTAFinish() {
   ESP.restart();
 }
 
-// --- Add this HTML handler for the OTA page ---
 void handleOTAWeb() {
   if (requireLogin()) return;
   String html = R"rawliteral(
@@ -2629,7 +2614,6 @@ document.getElementById('otaForm').onsubmit = function(e) {
   server.send(200, "text/html", html);
 }
 
-// --- Add this handler at the end of your file (before setup/loop) ---
 void handleNotFound() {
   String message = "File Not Found\n\n";
   message += "URI: ";
@@ -2644,6 +2628,7 @@ void handleNotFound() {
   }
   server.send(404, "text/plain", message);
 }
+
 void handleSystemInfo() {
   if (requireLogin()) return;
 
@@ -2668,9 +2653,6 @@ void handleSystemInfo() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
-// Implementation of the missing functions
-
-// Replace the handleDeviceStatus function with this version:
 
 void handleDeviceStatus() {
   if (requireLogin()) return;
@@ -2722,7 +2704,6 @@ void handleDeviceStatus() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
-// Add after handleDeviceStatus function
 
 void updateDailyTemperature() {
   struct tm timeinfo;
@@ -2751,6 +2732,7 @@ void updateDailyTemperature() {
     DEBUG_INFO(SENSORS, "Updated daily averages: " + String(dailyTempAverage[0]) + "°C, " + String(dailyHumAverage[0]) + "%");
   }
 }
+
 bool isIPBlocked(const String& ip) {
   // Check if IP is in blocklist
   for (int i = 0; i < loginAttemptCount; i++) {
@@ -2816,6 +2798,7 @@ void recordRelayEvent(int relayNum, bool state, const String& source) {
     statusHistory[MAX_STATUS_HISTORY - 1].source = source;
   }
 }
+
 void handleSensorData() {
   if (requireLogin()) return;
 
@@ -2831,37 +2814,19 @@ void handleSensorData() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+
 void setupSchedules() {
-  // Initialize schedules array
   for (int i = 0; i < MAX_SCHEDULES; i++) {
     schedules[i].active = false;
     schedules[i].id = i;
     schedules[i].alarmId = dtINVALID_ALARM_ID;
   }
-  
-  // You could load schedules from EEPROM here if needed
-  
-  // Add a default schedule (e.g., turn on lights at 7am)
-  if (scheduleCount < MAX_SCHEDULES) {
-    schedules[scheduleCount].active = true;
-    schedules[scheduleCount].hour = 7;
-    schedules[scheduleCount].minute = 0;
-    for (int d = 0; d < 7; d++) schedules[scheduleCount].days[d] = true;
-    schedules[scheduleCount].relayNum = 1;
-    schedules[scheduleCount].state = true;
-    schedules[scheduleCount].repeat = true;
-    scheduleCount++;
-  }
 }
-
-
-
 
 void handleSchedules() {
   if (requireLogin()) return;
 
   if (server.method() == HTTP_GET) {
-    // Build HTML UI for schedules
     String html = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -2870,9 +2835,40 @@ void handleSchedules() {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
-    body { background: #f4f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #222; }
-    .main-flex { display: flex; gap: 32px; max-width: 1400px; margin: 40px auto; justify-content: center; }
-    .card { background: #fff; border-radius: 18px; box-shadow: 0 4px 24px #e3e9f7; padding: 36px 32px; flex: 1; min-width: 320px; max-width: 350px; transition: box-shadow 0.2s; }
+    #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw;
+      background: #e74c3c;
+      color: #fff;
+      text-align: center;
+      padding: 8px 0;
+      z-index: 9999;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+    body.offline #offlineBanner { display: block; }
+    body { background: #f4f7fb; font-family: 'Segoe UI', Arial, sans-serif; color: #222; margin: 0; }
+    .main-flex {
+      display: flex;
+      gap: 32px;
+      max-width: 1400px;
+      margin: 40px auto;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 4px 24px #e3e9f7;
+      padding: 36px 32px;
+      flex: 1 1 320px;
+      min-width: 0;
+      max-width: 350px;
+      transition: box-shadow 0.2s;
+      margin-bottom: 24px;
+      box-sizing: border-box;
+    }
     .card:hover { box-shadow: 0 8px 32px #2563eb22; }
     .card h3 { margin-top: 0; font-size: 1.3rem; font-weight: 700; color: #2563eb; letter-spacing: 0.5px; }
     #savedSchedules table { width: 100%; border-collapse: collapse; margin-top: 12px; }
@@ -2880,27 +2876,55 @@ void handleSchedules() {
     #savedSchedules th { background: #f4f7fb; color: #2563eb; font-weight: 600; border-bottom: 2px solid #e3e9f7; }
     #savedSchedules tr { border-bottom: 1px solid #f0f0f0; }
     #savedSchedules tr:last-child { border-bottom: none; }
-    input[type="text"], textarea, select, input[type="time"] { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 6px; font-size: 1rem; background: #f8fafc; transition: border 0.2s; }
-    input[type="text"]:focus, textarea:focus, select:focus, input[type="time"]:focus { border: 1.5px solid #2563eb; outline: none; }
+    .delete-btn { background: #e74c3c; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 1em; }
+    .delete-btn:hover { background: #c0392b; }
+    input[type="text"], textarea, select, input[type="time"] {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e0e0e0;
+      margin-top: 6px; font-size: 1rem; background: #f8fafc; transition: border 0.2s;
+      box-sizing: border-box;
+    }
+    input[type="text"]:focus, textarea:focus, select:focus, input[type="time"]:focus {
+      border: 1.5px solid #2563eb; outline: none;
+    }
     .save-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 14px 0; font-size: 1.1rem; cursor: pointer; width: 100%; margin-top: 18px; font-weight: 600; box-shadow: 0 2px 8px #2563eb22; transition: background 0.2s; }
     .save-btn:hover { background: #1746a2; }
-    .days-row { display: flex; gap: 8px; margin: 12px 0; justify-content: center; }
+    .days-row { display: flex; gap: 8px; margin: 12px 0; justify-content: center; flex-wrap: wrap; }
     .day-btn { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #f4f7fb; color: #2563eb; font-weight: 600; cursor: pointer; border:2px solid #f4f7fb; transition:all 0.2s; font-size: 1.1rem; }
     .day-btn.selected { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 2px 8px #2563eb33; }
     .section-title { font-weight:600; margin-top:24px; color: #2563eb; font-size: 1.05rem; }
     .adv-options label { display:block; margin-bottom:8px; font-size: 0.98rem; }
     .cond-box { background:#f8fafc; border-radius:8px; padding:10px 14px; margin-bottom:8px; display:flex; align-items:center; gap:8px; font-size: 0.98rem; }
     .priority-select { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #e0e0e0; margin-top: 6px; }
-    @media (max-width: 1100px) { .main-flex { flex-direction: column; align-items: center; } .card { max-width: 98vw; } }
+    @media (max-width: 1100px) {
+      .main-flex { flex-direction: column; align-items: stretch; gap: 0; }
+      .card { max-width: 98vw; margin: 18px auto; }
+    }
+    @media (max-width: 700px) {
+      .main-flex { flex-direction: column; gap: 0; margin: 10px auto; }
+      .card { max-width: 99vw; min-width: 0; width: 100%; padding: 18px 8px; }
+      .card h3 { font-size: 1.1rem; }
+      .save-btn { font-size: 1rem; padding: 10px 0; }
+      .section-title { font-size: 1rem; margin-top: 16px; }
+      .days-row { gap: 4px; }
+      .day-btn { width: 32px; height: 32px; font-size: 1rem; }
+      input[type="text"], textarea, select, input[type="time"] { font-size: 0.98rem; padding: 8px 8px; }
+      #savedSchedules th, #savedSchedules td { font-size: 0.95rem; padding: 5px 2px; }
+      #savedSchedules { overflow-x: auto; }
+    }
+    @media (max-width: 480px) {
+      .main-flex { margin: 0; }
+      .card { padding: 10px 2vw; width: 100%; min-width: 0; }
+      .save-btn { font-size: 0.98rem; }
+      .section-title { font-size: 0.98rem; }
+      .day-btn { width: 28px; height: 28px; font-size: 0.95rem; }
+      #savedSchedules { overflow-x: auto; }
+    }
   </style>
 </head>
 <body>
+<div id="offlineBanner">Device Disconnected - Showing Last Known Data</div>
   <form id="automationForm">
     <div class="main-flex">
-      <div class="card" style="margin:32px auto;max-width:900px;">
-        <h3>Saved Schedules</h3>
-        <div id="savedSchedules"></div>
-      </div>
       <div class="card">
         <h3>Automation Details</h3>
         <label>Name<br><input type="text" id="autoName" style="width:100%;padding:8px;" required></label>
@@ -2913,7 +2937,18 @@ void handleSchedules() {
             <span class="slider-toggle"></span>
           </label>
         </label>
-        <label class="section-title">Devices</label>
+        <label class="section-title">Device<br>
+          <select id="relayNum" style="width:100%;padding:8px;">
+            <option value="1">Relay 1 - Living Room</option>
+            <option value="2">Relay 2 - Bedroom</option>
+            <option value="3">Relay 3 - Kitchen</option>
+            <option value="4">Relay 4 - Bathroom</option>
+            <option value="5">Relay 5 - Garage</option>
+            <option value="6">Relay 6 - Porch</option>
+            <option value="7">Relay 7 - Study</option>
+            <option value="8">Relay 8 - Spare</option>
+          </select>
+        </label>
         <div id="devicesList">
           <div class="cond-box"><span class="material-icons" style="color:#fbc02d;">lightbulb</span> Living Room Light</div>
           <div class="cond-box"><span class="material-icons" style="color:#e57373;">thermostat</span> Thermostat</div>
@@ -2965,6 +3000,11 @@ void handleSchedules() {
         <button type="submit" class="save-btn" style="margin-top:24px;">Save Schedule</button>
       </div>
     </div>
+    <!-- Move Saved Schedules below the main-flex for no overlap -->
+    <div class="card" style="margin:32px auto;max-width:900px;">
+      <h3>Saved Schedules</h3>
+      <div id="savedSchedules"></div>
+    </div>
   </form>
   <script>
     document.querySelectorAll('.day-btn').forEach(btn => {
@@ -2983,14 +3023,13 @@ void handleSchedules() {
       const startTime = document.getElementById('startTime').value;
       const endTime = document.getElementById('endTime').value;
       const repeat = document.getElementById('repeatSelect').value;
-      const relayNum = 1;
+      const relayNum = parseInt(document.getElementById('relayNum').value);
       const state = true;
-      const [hour, minute] = startTime.split(':').map(Number);
       const schedule = {
         name,
         active,
-        hour,
-        minute,
+        startTime,
+        endTime,
         relayNum,
         state,
         days,
@@ -3012,6 +3051,23 @@ void handleSchedules() {
       });
     };
 
+    function deleteSchedule(idx) {
+      if (!confirm('Delete this schedule?')) return;
+      fetch('/schedules/delete', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({index: idx})
+      })
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) {
+          loadSavedSchedules();
+        } else {
+          alert('Failed to delete: ' + (j.error || 'Unknown error'));
+        }
+      });
+    }
+
     function loadSavedSchedules() {
       fetch('/schedules/list', { credentials: 'include' })
         .then(r => r.json())
@@ -3029,18 +3085,41 @@ void handleSchedules() {
                   <th>Relay</th>
                   <th>State</th>
                   <th>Active</th>
+                  <th>Delete</th>
                 </tr>
               </thead>
               <tbody>`;
-            schedules.forEach(s => {
-              html += `<tr>
-                <td>${s.name || ''}</td>
-                <td>${String(s.hour).padStart(2,'0')}:${String(s.minute).padStart(2,'0')}</td>
-                <td>${s.days.map((d,i)=>d?['S','M','T','W','T','F','S'][i]:'').filter(Boolean).join(' ')}</td>
-                <td><span class="material-icons" style="color:#fbc02d;vertical-align:middle;">lightbulb</span> Relay ${s.relayNum}</td>
-                <td>${s.state ? '<span style="color:#27ae60;font-weight:600;">ON</span>' : '<span style="color:#e74c3c;font-weight:600;">OFF</span>'}</td>
-                <td>${s.active ? '<span style="color:#2563eb;font-weight:600;">Yes</span>' : 'No'}</td>
-              </tr>`;
+            schedules.forEach((s, idx) => {
+html += `<tr>
+  <td>${s.name || ''}</td>
+  <td>${
+    (typeof s.startHour === 'number' && typeof s.startMinute === 'number')
+      ? String(s.startHour).padStart(2, '0') + ':' + String(s.startMinute).padStart(2, '0')
+      : '--:--'
+  }${
+    (typeof s.endHour === 'number' && typeof s.endMinute === 'number' && s.endHour >= 0 && s.endMinute >= 0)
+      ? ' - ' + String(s.endHour).padStart(2, '0') + ':' + String(s.endMinute).padStart(2, '0')
+      : ''
+  }
+  <div style="font-size:0.95em;color:#888;">
+    ${
+      (typeof s.startHour === 'number' && typeof s.startMinute === 'number')
+        ? `ON at ${String(s.startHour).padStart(2, '0')}:${String(s.startMinute).padStart(2, '0')}`
+        : ''
+    }
+    ${
+      (typeof s.endHour === 'number' && typeof s.endMinute === 'number' && s.endHour >= 0 && s.endMinute >= 0)
+        ? `, OFF at ${String(s.endHour).padStart(2, '0')}:${String(s.endMinute).padStart(2, '0')}`
+        : ''
+    }
+  </div>
+  </td>
+  <td>${s.days && s.days.map((d,i)=>d?['S','M','T','W','T','F','S'][i]:'').filter(Boolean).join(' ')}</td>
+  <td><span class="material-icons" style="color:#fbc02d;vertical-align:middle;">lightbulb</span> Relay ${s.relayNum}</td>
+  <td>${s.state ? '<span style="color:#27ae60;font-weight:600;">ON</span>' : '<span style="color:#e74c3c;font-weight:600;">OFF</span>'}</td>
+  <td>${s.active ? '<span style="color:#2563eb;font-weight:600;">Yes</span>' : 'No'}</td>
+  <td><button class="delete-btn" onclick="deleteSchedule(${idx})">Delete</button></td>
+</tr>`;
             });
             html += '</tbody></table>';
           }
@@ -3064,24 +3143,81 @@ void handleSchedules() {
       return;
     }
     JsonArray arr = doc["schedules"];
-    if (!arr || arr.size() > MAX_SCHEDULES) {
-      server.send(400, "application/json", "{\"success\":false,\"error\":\"Too many schedules\"}");
+    if (!arr || arr.size() < 1) {
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"No schedules provided\"}");
       return;
     }
-    scheduleCount = arr.size();
-    for (int i = 0; i < scheduleCount; i++) {
-      schedules[i].active = arr[i]["active"];
-      schedules[i].hour = arr[i]["hour"];
-      schedules[i].minute = arr[i]["minute"];
-      schedules[i].relayNum = arr[i]["relayNum"];
-      schedules[i].state = arr[i]["state"];
-      for (int d = 0; d < 7; d++) schedules[i].days[d] = arr[i]["days"][d];
-      schedules[i].repeat = arr[i]["repeat"];
-      schedules[i].name = arr[i]["name"] | "";
+    bool anyAdded = false;
+    for (JsonObject s : arr) {
+  if (scheduleCount >= MAX_SCHEDULES) break;
+  schedules[scheduleCount].active = s["active"];
+  // Parse start time
+  String startTime = s["startTime"] | "07:00";
+  int startHour = 0, startMinute = 0;
+  sscanf(startTime.c_str(), "%d:%d", &startHour, &startMinute);
+  schedules[scheduleCount].startHour = startHour;
+  schedules[scheduleCount].startMinute = startMinute;
+  // Parse end time
+  String endTime = s["endTime"] | "";
+  int endHour = -1, endMinute = -1;
+  if (endTime.length() > 0) {
+    sscanf(endTime.c_str(), "%d:%d", &endHour, &endMinute);
+  }
+  schedules[scheduleCount].endHour = endHour;
+  schedules[scheduleCount].endMinute = endMinute;
+  schedules[scheduleCount].relayNum = s["relayNum"];
+  for (int d = 0; d < 7; d++) schedules[scheduleCount].days[d] = s["days"][d];
+  schedules[scheduleCount].repeat = s["repeat"];
+  schedules[scheduleCount].name = s["name"] | "";
+  scheduleCount++;
+  anyAdded = true;
+}
+    if (!anyAdded) {
+      server.send(400, "application/json", "{\"success\":false,\"error\":\"Max schedules reached\"}");
+      return;
     }
+    saveSchedulesToEEPROM();
     server.send(200, "application/json", "{\"success\":true}");
   }
 }
+
+void checkSchedules() {
+  time_t now;
+  time(&now);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+
+  for (int i = 0; i < scheduleCount; i++) {
+    if (schedules[i].active && schedules[i].days[timeinfo.tm_wday]) {
+      // Turn ON at start time
+      if (timeinfo.tm_hour == schedules[i].startHour &&
+          timeinfo.tm_min == schedules[i].startMinute &&
+          timeinfo.tm_sec < 10) {
+        int relayIdx = schedules[i].relayNum - 1;
+        if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+          relayStates[relayIdx] = true;
+          digitalWrite(relayPins[relayIdx], HIGH);
+          addLog("Schedule ON: Relay " + String(schedules[i].relayNum));
+          recordRelayEvent(schedules[i].relayNum, true, "schedule");
+        }
+      }
+      // Turn OFF at end time (if set)
+      if (schedules[i].endHour >= 0 && schedules[i].endMinute >= 0 &&
+          timeinfo.tm_hour == schedules[i].endHour &&
+          timeinfo.tm_min == schedules[i].endMinute &&
+          timeinfo.tm_sec < 10) {
+        int relayIdx = schedules[i].relayNum - 1;
+        if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+          relayStates[relayIdx] = false;
+          digitalWrite(relayPins[relayIdx], LOW);
+          addLog("Schedule OFF: Relay " + String(schedules[i].relayNum));
+          recordRelayEvent(schedules[i].relayNum, false, "schedule");
+        }
+      }
+    }
+  }
+}
+
 void handleSchedulesList() {
   if (requireLogin()) return;
   DynamicJsonDocument doc(2048);
@@ -3089,32 +3225,57 @@ void handleSchedulesList() {
   for (int i = 0; i < scheduleCount; i++) {
     JsonObject s = arr.createNestedObject();
     s["name"] = schedules[i].name;
-    s["hour"] = schedules[i].hour;
-    s["minute"] = schedules[i].minute;
+    s["startHour"] = schedules[i].startHour;
+    s["startMinute"] = schedules[i].startMinute;
+    s["endHour"] = schedules[i].endHour;
+    s["endMinute"] = schedules[i].endMinute;
     s["relayNum"] = schedules[i].relayNum;
     s["state"] = schedules[i].state;
     JsonArray days = s.createNestedArray("days");
     for (int d = 0; d < 7; d++) days.add(schedules[i].days[d]);
     s["active"] = schedules[i].active;
+    s["repeat"] = schedules[i].repeat;
   }
   String json;
   serializeJson(arr, json);
   server.send(200, "application/json", json);
 }
+
+void handleScheduleDelete() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(128);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  int idx = doc["index"];
+  if (idx < 0 || idx >= scheduleCount) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid schedule index\"}");
+    return;
+  }
+  // Shift schedules left to delete
+  for (int i = idx; i < scheduleCount - 1; i++) {
+    schedules[i] = schedules[i + 1];
+  }
+  scheduleCount--;
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
 void saveSchedulesToEEPROM() {
   EEPROM.begin(EEPROM_SIZE);
-  int addr = 200; // Pick a safe offset (not overlapping credentials etc.)
+  int addr = 200;
   EEPROM.write(addr++, scheduleCount);
   for (int i = 0; i < scheduleCount; i++) {
     EEPROM.write(addr++, schedules[i].active);
-    EEPROM.write(addr++, schedules[i].hour);
-    EEPROM.write(addr++, schedules[i].minute);
+    EEPROM.write(addr++, schedules[i].startHour);
+    EEPROM.write(addr++, schedules[i].startMinute);
+    EEPROM.write(addr++, schedules[i].endHour);
+    EEPROM.write(addr++, schedules[i].endMinute);
     EEPROM.write(addr++, schedules[i].relayNum);
     EEPROM.write(addr++, schedules[i].state);
     EEPROM.write(addr++, schedules[i].repeat);
-    // Save days
     for (int d = 0; d < 7; d++) EEPROM.write(addr++, schedules[i].days[d]);
-    // Save name (up to 15 chars)
     for (int c = 0; c < 15; c++) {
       char ch = (c < schedules[i].name.length()) ? schedules[i].name[c] : 0;
       EEPROM.write(addr++, ch);
@@ -3123,62 +3284,29 @@ void saveSchedulesToEEPROM() {
   EEPROM.commit();
   EEPROM.end();
 }
-
-void checkSchedules() {
-  // Check all active schedules
-  time_t now;
-  time(&now);
-  struct tm timeinfo;
-  localtime_r(&now, &timeinfo);
   
-  // Simple polling approach to checking schedules
-  for (int i = 0; i < scheduleCount; i++) {
-    if (schedules[i].active && schedules[i].days[timeinfo.tm_wday]) {
-      if (timeinfo.tm_hour == schedules[i].hour && 
-          timeinfo.tm_min == schedules[i].minute && 
-          timeinfo.tm_sec < 10) { // Execute within first 10 seconds of the minute
-        
-        // Apply the scheduled relay state
-        int relayIdx = schedules[i].relayNum - 1;
-        if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
-          relayStates[relayIdx] = schedules[i].state;
-          digitalWrite(relayPins[relayIdx], relayStates[relayIdx] ? HIGH : LOW);
-          addLog("Schedule triggered: Relay " + String(schedules[i].relayNum) + 
-                 (schedules[i].state ? " ON" : " OFF"));
-          
-          // Record the event
-          recordRelayEvent(schedules[i].relayNum, schedules[i].state, "schedule");
-          
-          // If not repeating, deactivate schedule
-          if (!schedules[i].repeat) {
-            schedules[i].active = false;
-          }
-        }
-      }
-    }
-  }
-}
-  void loadSchedulesFromEEPROM() {
+void loadSchedulesFromEEPROM() {
   EEPROM.begin(EEPROM_SIZE);
   int addr = 200;
   scheduleCount = EEPROM.read(addr++);
   if (scheduleCount > MAX_SCHEDULES) scheduleCount = 0;
   for (int i = 0; i < scheduleCount; i++) {
     schedules[i].active = EEPROM.read(addr++);
-    schedules[i].hour = EEPROM.read(addr++);
-    schedules[i].minute = EEPROM.read(addr++);
+    schedules[i].startHour = EEPROM.read(addr++);
+    schedules[i].startMinute = EEPROM.read(addr++);
+    schedules[i].endHour = EEPROM.read(addr++);
+    schedules[i].endMinute = EEPROM.read(addr++);
     schedules[i].relayNum = EEPROM.read(addr++);
     schedules[i].state = EEPROM.read(addr++);
     schedules[i].repeat = EEPROM.read(addr++);
     for (int d = 0; d < 7; d++) schedules[i].days[d] = EEPROM.read(addr++);
-    // Load name (up to 15 chars)
     char nameBuf[16] = {0};
     for (int c = 0; c < 15; c++) nameBuf[c] = EEPROM.read(addr++);
     schedules[i].name = String(nameBuf);
   }
   EEPROM.end();
 }
-// --- Add your setup and loop functions ---
+
 void setup() {
   Serial.begin(115200);
   
@@ -3264,12 +3392,13 @@ void setup() {
   server.on("/routines", HTTP_GET, handleRoutinesGet);
   server.on("/routines", HTTP_POST, handleRoutinesPost);
   server.on("/schedules/list", HTTP_GET, handleSchedulesList);
+  server.on("/schedules/delete", HTTP_POST, handleScheduleDelete);
   server.onNotFound(handleNotFound);
   
   server.begin();
   
   // Set up mDNS for easy access
-  if (MDNS.begin("homeautomation")) {
+  if (MDNS.begin("home")) {
     DEBUG_INFO(WIFI, "mDNS responder started");
   }
 loadSchedulesFromEEPROM();
@@ -3288,7 +3417,6 @@ loadSchedulesFromEEPROM();
   addRoutine("Wake Up Lights", "07:00", 1, true);
   addLog("System initialized");
 }
-
 
 void loop() {
   server.handleClient();
