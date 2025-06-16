@@ -157,6 +157,7 @@ WiFiClientSecure client;
 
 
 #define MAX_ROUTINES 10
+#define MAX_DEVICES 16
 
 // Global Variables
 String savedUsername, savedPassword, savedBirthday, sessionToken = "";
@@ -186,6 +187,16 @@ void addLog(const String& entry);
 void saveSchedulesToEEPROM();
 
 // ----------- Helper Functions -----------
+struct UserDevice {
+  String name;
+  String type;
+  int pin;
+  bool state;
+};
+UserDevice userDevices[MAX_DEVICES];
+int userDeviceCount = 0;
+const int userDevicePins[] = {25, 26, 27, 32, 33}; 
+
 struct Routine {
   String name;
   String time; // "HH:MM" 24h format
@@ -1066,571 +1077,6 @@ void handleLogout() {
   server.send(302, "text/plain", "Logged out");
 }
 
-void handleRoot() {
-  if (requireLogin()) return;
-  String html = R"rawliteral(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SmartHome</title>
-  <link href="https://fonts.googleapis.com/css?family=Segoe+UI:700,400&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      background: #eef3fc;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      margin: 0; padding: 0;
-      color: #222;
-    }
-    .sidebar {
-      width: 220px; background: #1e3a8a; color: #fff; height: 100vh; position: fixed; left:0; top:0; display:flex; flex-direction:column; align-items:center; padding-top:32px; z-index: 100;
-    }
-    .sidebar .logo { font-size:1.5rem; font-weight:700; margin-bottom:32px; }
-    .sidebar button { background:none; border:none; color:#fff; font-size:1.1rem; margin:12px 0; cursor:pointer; width:100%; text-align:left; padding:10px 24px; border-radius:8px; transition:background 0.2s;}
-    .sidebar button.active, .sidebar button:hover { background:#2563eb; }
-    .main-content { margin-left:220px; padding:32px; }
-    .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 32px 10px 32px; background: #fff; box-shadow: 0 2px 8px #e3e9f7;
-      margin-left: 220px;
-    }
-    .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
-    .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
-    .header .settings-btn, .header .ota-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; margin-left: 8px;}
-    .dashboard-main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-    .dashboard-cards { display: flex; gap: 24px; margin-bottom: 24px; }
-    .dashboard-card {
-      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
-      padding: 24px 32px; flex: 1 1 220px; min-width: 200px; display: flex; flex-direction: column; gap: 8px;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      border: 1px solid transparent;
-      position: relative;
-      overflow: hidden;
-      will-change: transform, box-shadow;
-    }
-    .dashboard-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
-      border-color: rgba(59, 130, 246, 0.2);
-      background: linear-gradient(to bottom right, #ffffff, #f8faff);
-    }
-    .dashboard-card .material-icons { font-size: 2rem; color: #2563eb; }
-    .dashboard-card .card-title { font-size: 1.1rem; font-weight: 600; }
-    .dashboard-card .card-value { font-size: 2rem; font-weight: 700; }
-    .dashboard-card .card-sub { font-size: 0.98rem; color: #888; }
-    .dashboard-tabs { display: flex; gap: 18px; margin: 18px 0 12px 0; }
-    .dashboard-tab {
-      background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #2563eb;
-      padding: 8px 18px; border-radius: 8px 8px 0 0; cursor: pointer; transition: background 0.2s;
-    }
-    .dashboard-tab.active, .dashboard-tab:hover { background: #eaf3ff; color: #222; }
-    .devices-row { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 24px; }
-    .device-card {
-      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
-      padding: 22px 20px; flex: 1 1 260px; min-width: 240px; max-width: 340px;
-      display: flex; flex-direction: column; gap: 10px; align-items: flex-start; position: relative;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      border: 1px solid transparent;
-      overflow: hidden;
-      will-change: transform, box-shadow;
-    }
-    .device-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
-      border-color: rgba(59, 130, 246, 0.2);
-      background: linear-gradient(to bottom right, #ffffff, #f8faff);
-    }
-    .device-card .material-icons { font-size: 2rem; }
-    .device-card .device-title { font-size: 1.1rem; font-weight: 600; }
-    .device-card .device-status { font-size: 0.98rem; color: #888; }
-    .device-card .toggle-switch { position: absolute; top: 22px; right: 22px; }
-    .toggle-switch { position: relative; display: inline-block; width: 48px; height: 28px; }
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-    .slider-toggle {
-      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background: #ccc; transition: .4s; border-radius: 28px;
-    }
-    .slider-toggle:before {
-      position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
-      background: #fff; transition: .4s; border-radius: 50%; box-shadow: 0 2px 6px #e3e9f7;
-    }
-    .toggle-switch input:checked + .slider-toggle { background: #2563eb; }
-    .toggle-switch input:checked + .slider-toggle:before { transform: translateX(20px); }
-    .slider-row { display: flex; align-items: center; gap: 10px; }
-    .slider-row input[type=range] { width: 120px; }
-    .quick-actions { display: flex; gap: 12px; margin: 18px 0 18px 0; }
-    .quick-action-btn { background: #fff; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
-    .quick-action-btn:hover { background: #2563eb; color: #fff; }
-    .energy-section { background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7; padding: 24px 32px; margin-bottom: 32px; }
-    .energy-header { display: flex; align-items: center; justify-content: space-between; }
-    .energy-title { font-size: 1.2rem; font-weight: 700; }
-    .energy-tabs { display: flex; gap: 10px; }
-    .energy-tab { background: #eaf3ff; border: none; border-radius: 6px; padding: 6px 16px; font-size: 1rem; color: #2563eb; cursor: pointer; }
-    .energy-tab.active { background: #2563eb; color: #fff; }
-    #energyChart { width: 100%; height: 180px; margin-top: 10px; }
-    .routines-section { margin-bottom: 32px; }
-    .routines-header { display: flex; align-items: center; justify-content: space-between; }
-    .routines-title { font-size: 1.2rem; font-weight: 700; }
-    .routines-list { display: flex; gap: 24px; margin-top: 18px; }
-    .routine-card {
-      background: #fff; border-radius: 16px; box-shadow: 0 2px 12px #e3e9f7;
-      padding: 22px 20px; min-width: 260px; display: flex; flex-direction: column; gap: 8px; position: relative;
-      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      border: 1px solid transparent;
-      overflow: hidden;
-      will-change: transform, box-shadow;
-    }
-    .routine-card:hover {
-      transform: translateY(-8px);
-      box-shadow: 0 14px 24px rgba(37, 99, 235, 0.15), 0 6px 12px rgba(37, 99, 235, 0.08), 0 0 0 1px rgba(37, 99, 235, 0.05);
-      border-color: rgba(59, 130, 246, 0.2);
-      background: linear-gradient(to bottom right, #ffffff, #f8faff);
-    }
-    .routine-card .material-icons { font-size: 1.5rem; }
-    .routine-title { font-size: 1.1rem; font-weight: 600; }
-    .routine-time { font-size: 0.98rem; color: #888; }
-    .routine-list { margin: 10px 0 0 0; padding: 0 0 0 18px; color: #27ae60; font-size: 0.98rem; }
-    .routine-toggle { position: absolute; top: 22px; right: 22px; }
-    .add-routine-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 1rem; cursor: pointer; }
-    .footer { margin: 32px 0 0 0; text-align: center; color: #aaa; font-size: 1rem; }
-    .system-info { margin: 24px 0; background: #f8fafc; border-radius: 12px; padding: 18px 24px; font-size: 1.05rem; color: #444; transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1); border-radius: 12px;}
-    .system-info:hover { transform: translateY(-5px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);}
-    .log-section { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px #e3e9f7; padding: 18px 24px; margin-bottom: 24px; }
-    .log-section h3 { margin-top: 0; color: #2563eb; }
-    .log-list { max-height: 120px; overflow-y: auto; font-size: 0.98rem; color: #333; background: #f8fafc; border-radius: 8px; padding: 8px 12px; }
-    .dark-toggle { position: fixed; bottom: 20px; right: 20px; background: #2563eb; color: #fff; border: none; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2); transition: all 0.3s ease; }
-    .dark-mode { background: #181c24 !important; color: #e0e0e0 !important; }
-    .dark-mode .dashboard-card, .dark-mode .device-card, .dark-mode .energy-section, .dark-mode .routine-card, .dark-mode .log-section { background: #232a36 !important; color: #e0e0e0 !important; }
-    .dark-mode .dashboard-tab, .dark-mode .energy-tab { color: #90cdf4 !important; }
-    .dark-mode .dashboard-tab.active, .dark-mode .energy-tab.active { background: #2563eb !important; color: #fff !important; }
-    .dark-mode .quick-action-btn { background: #232a36 !important; color: #90cdf4 !important; border-color: #2563eb !important; }
-    .dark-mode .quick-action-btn:hover { background: #2563eb !important; color: #fff !important; }
-    @media (max-width: 900px) {
-      .dashboard-cards, .devices-row, .routines-list { flex-direction: column; }
-      .energy-section, .dashboard-main { padding: 0 5px; }
-      .main-content, .header { margin-left: 0; padding: 12px; }
-      .sidebar { position: static; width: 100vw; height: auto; flex-direction: row; justify-content: flex-start; }
-    }
-  </style>
-</head>
-<body>
-  <div class="sidebar">
-    <div class="logo">SmartHome Hub</div>
-    <button class="active">Dashboard</button>
-    <button onclick="window.location.href='/settings'">Settings</button>
-    <button onclick="window.location.href='/schedules'">Schedules</button>
-    <button onclick="window.location.href='/logs'">Logs</button>
-    <button onclick="window.location.href='/ota'">OTA Update</button>
-  </div>
-  <div class="header">
-    <div class="logo"><span class="material-icons">home</span> Welcome Home</div>
-    <div>
-      <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
-      <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
-      <button class="ota-btn" onclick="window.location.href='/ota'">OTA Update</button>
-      <button class="settings-btn" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
-    </div>
-  </div>
-  <div class="main-content">
-    <div class="dashboard-main">
-      <div class="dashboard-cards">
-        <div class="dashboard-card">
-          <span class="material-icons">thermostat</span>
-          <div class="card-title">Indoor Temperature</div>
-          <div class="card-value" id="tempCard">--°C</div>
-          <div class="card-sub" id="tempSub"></div>
-        </div>
-        <div class="dashboard-card">
-          <span class="material-icons">water_drop</span>
-          <div class="card-title">Humidity</div>
-          <div class="card-value" id="humCard">--%</div>
-          <div class="card-sub" id="humSub"></div>
-        </div>
-        <div class="dashboard-card">
-          <span class="material-icons">bolt</span>
-          <div class="card-title">Energy Usage</div>
-          <div class="card-value" id="energyCard">-- kWh</div>
-          <div class="card-sub" id="energySub"></div>
-        </div>
-        <div class="dashboard-card">
-          <span class="material-icons">devices</span>
-          <div class="card-title">Active Devices</div>
-          <div class="card-value" id="activeDevices">--</div>
-          <div class="card-sub" id="activeDevicesSub"></div>
-        </div>
-      </div>
-
-
-      <div class="quick-actions">
-        <button class="quick-action-btn" onclick="applyScene(0)">
-          <span class="material-icons">nights_stay</span> Good Night
-        </button>
-        <button class="quick-action-btn" onclick="applyScene(1)">
-          <span class="material-icons">wb_sunny</span> Good Morning
-        </button>
-        <button class="quick-action-btn" onclick="applyScene(4)">
-          <span class="material-icons">power</span> All On
-        </button>
-        <button class="quick-action-btn" onclick="applyScene(5)">
-          <span class="material-icons">power_off</span> All Off
-        </button>
-        <button class="quick-action-btn" onclick="window.location.href='/logs'">
-          <span class="material-icons">list</span> Logs
-        </button>
-        <button class="quick-action-btn" onclick="window.location.href='/schedules'">
-          <span class="material-icons">schedule</span> Schedules
-        </button>
-      </div>
-
-      <div class="dashboard-tabs">
-        <button class="dashboard-tab active" onclick="showRoom('all', this)">All Rooms</button>
-        <button class="dashboard-tab" onclick="showRoom('living', this)">Living Room</button>
-        <button class="dashboard-tab" onclick="showRoom('kitchen', this)">Kitchen</button>
-        <button class="dashboard-tab" onclick="showRoom('bedroom', this)">Bedroom</button>
-        <button class="dashboard-tab" onclick="showRoom('bathroom', this)">Bathroom</button>
-        <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
-      </div>
-
-      <div class="devices-row" id="devicesRow"></div>
-
-      <!-- Camera Modal -->
-      <div class="camera-modal" id="cameraModal" style="display:none;">
-        <div class="camera-content">
-          <h2>ESP32 Camera Live Stream</h2>
-          <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
-          <button class="close-modal" onclick="closeCameraModal()">Close</button>
-        </div>
-      </div>
-
-      <div class="energy-section">
-        <div class="energy-header">
-          <div class="energy-title">Energy Consumption</div>
-          <div class="energy-tabs">
-            <button class="energy-tab active" onclick="setEnergyRange('day', this)">Day</button>
-            <button class="energy-tab" onclick="setEnergyRange('week', this)">Week</button>
-            <button class="energy-tab" onclick="setEnergyRange('month', this)">Month</button>
-          </div>
-        </div>
-        <canvas id="energyChart"></canvas>
-      </div>
-
-     <div class="routines-section">
-  <div class="routines-header">
-    <div class="routines-title">Automation Routines</div>
-    <button class="add-routine-btn" onclick="showRoutineModal()">+ New Routine</button>
-  </div>
-  <div class="routines-list" id="routinesList"></div>
-</div>
-<!-- Routine Modal -->
-<div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
-  <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
-    <h3>Add Routine</h3>
-    <div style="margin-bottom:10px;">
-      <input id="routineName" placeholder="Routine Name" style="width:100%;padding:8px;margin-bottom:8px;">
-      <input id="routineTime" type="time" style="width:100%;padding:8px;margin-bottom:8px;">
-      <select id="routineRelay" style="width:100%;padding:8px;margin-bottom:8px;">
-        <option value="1">Relay 1</option>
-        <option value="2">Relay 2</option>
-        <option value="3">Relay 3</option>
-        <option value="4">Relay 4</option>
-        <option value="5">Relay 5</option>
-        <option value="6">Relay 6</option>
-        <option value="7">Relay 7</option>
-        <option value="8">Relay 8</option>
-      </select>
-      <select id="routineState" style="width:100%;padding:8px;">
-        <option value="1">ON</option>
-        <option value="0">OFF</option>
-      </select>
-    </div>
-    <button onclick="addRoutine()" style="background:#2563eb;color:#fff;padding:8px 18px;border:none;border-radius:6px;">Add</button>
-    <button onclick="closeRoutineModal()" style="margin-left:10px;">Cancel</button>
-    <div id="routineError" style="color:#e74c3c;margin-top:8px;display:none;"></div>
-  </div>
-</div>
-
-      <div class="system-info" id="systemInfo">
-        <span>Uptime:</span> <span id="uptime">--</span> &nbsp;|&nbsp;
-        <span>IP:</span> <span id="ipAddr">--</span> &nbsp;|&nbsp;
-        <span>Free Heap:</span> <span id="freeHeap">--</span> bytes
-      </div>
-
-      <div class="log-section">
-        <h3>Recent System Logs</h3>
-        <div class="log-list" id="logList"></div>
-      </div>
-
-      <div class="footer">
-        ESP32 Home Automation Dashboard<br>
-        Connected to: ESP32-WROOM-32
-      </div>
-    </div>
-  </div>
-  <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
-  <script>
-    // --- UI Logic for Dashboard ---
-    function toggleDarkMode() {
-      document.body.classList.toggle('dark-mode');
-      localStorage.setItem('dark-mode', document.body.classList.contains('dark-mode'));
-    }
-function showRoutineModal() {
-  document.getElementById('routineModal').style.display = 'flex';
-}
-function closeRoutineModal() {
-  document.getElementById('routineModal').style.display = 'none';
-  document.getElementById('routineError').style.display = 'none';
-}
-function addRoutine() {
-  const name = document.getElementById('routineName').value;
-  const time = document.getElementById('routineTime').value;
-  const relay = document.getElementById('routineRelay').value;
-  const state = document.getElementById('routineState').value;
-  const error = document.getElementById('routineError');
-  if (!name || !time) {
-    error.textContent = "Name and time required";
-    error.style.display = 'block';
-    return;
-  }
-  fetch('/routines', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name, time, relay:parseInt(relay), state:state=="1"})
-  })
-  .then(r=>r.json())
-  .then(j=>{
-    if(j.success) {
-      closeRoutineModal();
-      loadRoutines();
-    } else {
-      error.textContent = j.error || "Failed to add routine";
-      error.style.display = 'block';
-    }
-  });
-}
-function loadRoutines() {
-  fetch('/routines')
-    .then(r=>r.json())
-    .then(json=>{
-      let html = '';
-      if(json.routines && json.routines.length) {
-        json.routines.forEach(r=>{
-          html += `<div class="routine-card">
-            <span class="material-icons">alarm</span>
-            <div class="routine-title">${r.name}</div>
-            <div class="routine-time">${r.time}</div>
-            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
-          </div>`;
-        });
-      } else {
-        html = '<div style="color:#888;">No routines yet.</div>';
-      }
-      document.getElementById('routinesList').innerHTML = html;
-    });
-}
-function updateESPStatus() {
-  fetch('/wifiStatus')
-    .then(r => r.json())
-    .then(json => {
-      const statusEl = document.getElementById('espStatus');
-      if (json.connected) {
-        statusEl.innerHTML = 'ESP32 Status: <span style="color:#27ae60;">● Connected</span>';
-      } else {
-        statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-      }
-    })
-    .catch(() => {
-      // If fetch fails (ESP32 offline), show disconnected
-      const statusEl = document.getElementById('espStatus');
-      statusEl.innerHTML = 'ESP32 Status: <span style="color:#e74c3c;">● Disconnected</span>';
-    });
-}
-// 
-    // Load dark mode preference
-    (function() {
-      if (localStorage.getItem('dark-mode') === 'true') {
-        document.body.classList.add('dark-mode');
-      }
-    })();
-
-    // Quick Actions
-    function applyScene(idx) {
-      fetch('/scene?idx=' + idx, { credentials: 'include' })
-        .then(r => r.json())
-        .then(() => {
-          updateRelayStatus();
-          loadDevices();
-        });
-    }
-
-    // Tabs
-    function showRoom(room, btn) {
-      document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
-      btn.classList.add('active');
-      // Optionally filter devices here
-    }
-
-    // Relay Status
-    function updateRelayStatus() {
-      fetch('/relayStatus', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let html = '';
-          json.relays.forEach(relay => {
-            html += `<div style="margin-bottom:8px;">
-              <span class="material-icons" style="vertical-align:middle;color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'toggle_on':'toggle_off'}</span>
-              <span style="font-weight:600;">${relay.name}</span>
-              <label class="toggle-switch" style="margin-left:12px;">
-                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
-                <span class="slider-toggle"></span>
-              </label>
-            </div>`;
-          });
-          document.getElementById('relayStatusList').innerHTML = html;
-        });
-    }
-    function toggleRelay(num, state) {
-      fetch(`/relay?num=${num}&state=${state?1:0}`, { credentials: 'include' })
-        .then(() => {
-          updateRelayStatus();
-          loadDevices();
-        });
-    }
-
-    // Device Cards
-    function loadDevices() {
-      fetch('/relayStatus', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let html = '';
-          let activeCount = 0;
-          json.relays.forEach(relay => {
-            if (relay.state) activeCount++;
-            html += `<div class="device-card">
-              <span class="material-icons" style="color:${relay.state?'#27ae60':'#e74c3c'}">${relay.state?'lightbulb':'lightbulb_outline'}</span>
-              <div class="device-title">${relay.name}</div>
-              <div class="device-status">${relay.state?'ON':'OFF'}</div>
-              <label class="toggle-switch">
-                <input type="checkbox" ${relay.state?'checked':''} onchange="toggleRelay(${relay.num},this.checked)">
-                <span class="slider-toggle"></span>
-              </label>
-            </div>`;
-          });
-          document.getElementById('devicesRow').innerHTML = html;
-          document.getElementById('activeDevices').textContent = activeCount;
-          document.getElementById('activeDevicesSub').textContent = activeCount + " of " + json.relays.length + " ON";
-        });
-    }
-
-    // Energy Chart
-    let energyChart;
-    function loadEnergy(range='day') {
-      fetch('/sensor/data', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          let labels = [], data = [];
-          json.data.forEach(point => {
-            labels.push(new Date(point.timestamp*1000).toLocaleTimeString());
-            data.push(point.temperature); // Example: use temperature as energy
-          });
-          if (!energyChart) {
-            energyChart = new Chart(document.getElementById('energyChart').getContext('2d'), {
-              type: 'line',
-              data: { labels: labels, datasets: [{ label: 'Energy', data: data, borderColor: '#2563eb', fill: false }] },
-              options: { responsive: true, plugins: { legend: { display: false } } }
-            });
-          } else {
-            energyChart.data.labels = labels;
-            energyChart.data.datasets[0].data = data;
-            energyChart.update();
-          }
-        });
-    }
-    function setEnergyRange(range, btn) {
-      document.querySelectorAll('.energy-tab').forEach(tab => tab.classList.remove('active'));
-      btn.classList.add('active');
-      loadEnergy(range);
-    }
-
-
-function loadRoutines() {
-  fetch('/routines')
-    .then(r=>r.json())
-    .then(json=>{
-      let html = '';
-      if(json.routines && json.routines.length) {
-        json.routines.forEach(r=>{
-          html += `<div class="routine-card">
-            <span class="material-icons">alarm</span>
-            <div class="routine-title">${r.name}</div>
-            <div class="routine-time">${r.time}</div>
-            <div class="routine-list">Relay ${r.relayNum} ${r.state?'ON':'OFF'}</div>
-          </div>`;
-        });
-      } else {
-        html = '<div style="color:#888;">No routines yet.</div>';
-      }
-      document.getElementById('routinesList').innerHTML = html;
-    });
-}
-
-    // System Info
-    function loadSystemInfo() {
-      fetch('/systeminfo', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          document.getElementById('uptime').textContent = json.uptime;
-          document.getElementById('ipAddr').textContent = json.ip;
-          document.getElementById('freeHeap').textContent = json.heap;
-        });
-    }
-
-    // Logs
-    function loadLogs() {
-      fetch('/logs', { credentials: 'include' })
-        .then(r => r.text())
-        .then(txt => {
-          document.getElementById('logList').textContent = txt.split('\n').slice(-20).join('\n');
-        });
-    }
-
-    // Sensor Cards
-    function loadSensorCards() {
-      fetch('/sensor', { credentials: 'include' })
-        .then(r => r.json())
-        .then(json => {
-          document.getElementById('tempCard').textContent = (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
-          document.getElementById('humCard').textContent = (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
-          document.getElementById('energyCard').textContent = (json.yesterdayTemp !== undefined && !isNaN(json.yesterdayTemp)) ? json.yesterdayTemp + ' kWh' : '-- kWh';
-          document.getElementById('energySub').textContent = (json.yesterdayHum !== undefined && !isNaN(json.yesterdayHum)) ? "Yesterday: " + json.yesterdayHum + "%" : "";
-        });
-    }
-
-    // Camera Modal
-    function closeCameraModal() {
-      document.getElementById('cameraModal').style.display = 'none';
-    }
-
-    // Initial load
-    window.onload = function() {
-      updateRelayStatus();
-      loadDevices();
-      loadEnergy();
-      loadRoutines();
-      loadSystemInfo();
-      loadLogs();
-      loadSensorCards();
-      updateESPStatus();
-      setInterval(updateESPStatus, 2000);
-    }
-  </script>
-</body>
-</html>
-)rawliteral";
-  server.send(200, "text/html", html);
-}
 
 void handleWiFiStatus() {
   StaticJsonDocument<64> doc;
@@ -2716,6 +2162,39 @@ void setupSchedules() {
   }
 }
 
+void handleAddDevice() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(256);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  String name = doc["name"];
+  String type = doc["type"];
+  if (userDeviceCount >= MAX_DEVICES) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Max devices reached\"}");
+    return;
+  }
+  // Find a free pin
+  int pin = -1;
+  for (int i = 0; i < sizeof(userDevicePins)/sizeof(userDevicePins[0]); i++) {
+    bool used = false;
+    for (int j = 0; j < userDeviceCount; j++) {
+      if (userDevices[j].pin == userDevicePins[i]) used = true;
+    }
+    if (!used) { pin = userDevicePins[i]; break; }
+  }
+  if (pin == -1) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"No free pins available\"}");
+    return;
+  }
+  pinMode(pin, OUTPUT);
+  digitalWrite(pin, LOW);
+  userDevices[userDeviceCount++] = {name, type, pin, false};
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
 void handleSchedules() {
   if (requireLogin()) return;
 
@@ -2999,7 +2478,7 @@ document.addEventListener('DOMContentLoaded', function() {
               </thead>
               <tbody>`;
             schedules.forEach((s, idx) => {
-html += `<tr>
+              html += `<tr>
   <td>${s.name || ''}</td>
   <td>${
     (typeof s.startHour === 'number' && typeof s.startMinute === 'number')
@@ -3216,6 +2695,13 @@ void loadSchedulesFromEEPROM() {
   EEPROM.end();
 }
 
+void handleRoot() {
+  if (requireLogin()) return;
+  if (!handleFileRead("/index.html")) {
+    server.send(404, "text/plain", "Dashboard file not found");
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   
@@ -3302,6 +2788,7 @@ void setup() {
   server.on("/routines", HTTP_POST, handleRoutinesPost);
   server.on("/schedules/list", HTTP_GET, handleSchedulesList);
   server.on("/schedules/delete", HTTP_POST, handleScheduleDelete);
+  server.on("/addDevice", HTTP_POST, handleAddDevice);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -3328,6 +2815,7 @@ loadSchedulesFromEEPROM();
 }
 
 void loop() {
+
   server.handleClient();
   handleButtonPress();
 
@@ -3381,3 +2869,5 @@ void loop() {
   esp_task_wdt_reset();
   delay(10); // Small delay to prevent CPU hogging
 }
+
+

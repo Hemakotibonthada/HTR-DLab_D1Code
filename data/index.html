@@ -1,6 +1,3 @@
-void handleRoot() {
-  if (requireLogin()) return;
-  String html = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +41,6 @@ void handleRoot() {
     }
     .header .logo { font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
     .header .status { font-size: 1rem; color: #27ae60; margin-right: 18px; }
-    .header .settings-btn, .header .ota-btn { background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 1rem; cursor: pointer; margin-left: 8px;}
     .dashboard-main { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
     .dashboard-cards { display: flex; gap: 24px; margin-bottom: 24px; }
     .dashboard-card {
@@ -175,26 +171,29 @@ void handleRoot() {
     <div class="logo"><span class="material-icons">home</span> Welcome Home</div>
     <div>
       <span class="status" id="espStatus">ESP32 Status: <span style="color:#27ae60;">● Connected</span></span>
-      <button class="settings-btn" onclick="window.location.href='/settings'">Settings</button>
-      <button class="ota-btn" onclick="window.location.href='/ota'">OTA Update</button>
-      <button class="settings-btn" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
-    </div>
+   </div>
   </div>
   <div class="main-content">
     <div class="dashboard-main">
       <div class="dashboard-cards">
-        <div class="dashboard-card">
-          <span class="material-icons">thermostat</span>
-          <div class="card-title">Indoor Temperature</div>
-          <div class="card-value" id="tempCard">--°C</div>
-          <div class="card-sub" id="tempSub"></div>
-        </div>
-        <div class="dashboard-card">
-          <span class="material-icons">water_drop</span>
-          <div class="card-title">Humidity</div>
-          <div class="card-value" id="humCard">--%</div>
-          <div class="card-sub" id="humSub"></div>
-        </div>
+  <div class="dashboard-card" style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;">
+    <div>
+      <div class="card-title" style="color:#6b7280;font-size:1.1rem;font-weight:600;margin-bottom:4px;">Indoor Temperature</div>
+      <div class="card-value" id="tempCard" style="font-size:3rem;font-weight:800;color:#232a36;line-height:1.1;">--°C</div>
+    </div>
+    <div style="background:#fff7e6;border-radius:16px;padding:12px 16px;margin-left:18px;">
+      <span class="material-icons" style="color:#ff9800;font-size:2.2rem;">bar_chart</span>
+    </div>
+  </div>
+  <div class="dashboard-card" style="display:flex;flex-direction:row;align-items:center;justify-content:space-between;">
+    <div>
+      <div class="card-title" style="color:#6b7280;font-size:1.1rem;font-weight:600;margin-bottom:4px;">Humidity</div>
+      <div class="card-value" id="humCard" style="font-size:3rem;font-weight:800;color:#232a36;line-height:1.1;">--%</div>
+    </div>
+    <div style="background:#e6f0ff;border-radius:16px;padding:12px 16px;margin-left:18px;">
+      <span class="material-icons" style="color:#2979ff;font-size:2.2rem;">science</span>
+    </div>
+  </div>
         <div class="dashboard-card">
           <span class="material-icons">bolt</span>
           <div class="card-title">Energy Usage</div>
@@ -237,6 +236,13 @@ void handleRoot() {
         <button class="dashboard-tab" onclick="showRoom('office', this)">Office</button>
       </div>
       <div class="devices-row" id="devicesRow"></div>
+      <div class="camera-modal" id="cameraModal" style="display:none;">
+        <div class="camera-content">
+          <h2>ESP32 Camera Live Stream</h2>
+          <img id="cameraStream" class="camera-stream" src="" alt="Camera Stream">
+          <button class="close-modal" onclick="closeCameraModal()">Close</button>
+        </div>
+      </div>
       <div class="energy-section">
         <div class="energy-header">
           <div class="energy-title">Energy Consumption</div>
@@ -272,7 +278,14 @@ void handleRoot() {
   </div>
   <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode"><span class="material-icons">dark_mode</span></button>
   <script>
-    // Persistent fetch: always show last known data, update if online
+   function renderSensorCards(json) {
+  // Temperature
+  document.getElementById('tempCard').textContent =
+    (json.temperature !== undefined && !isNaN(json.temperature)) ? json.temperature + '°C' : '--°C';
+  // Humidity
+  document.getElementById('humCard').textContent =
+    (json.humidity !== undefined && !isNaN(json.humidity)) ? json.humidity + '%' : '--%';
+}
     function persistentFetch(key, url, renderFn, fallback = []) {
       let cached = localStorage.getItem(key);
       if (cached) {
@@ -380,7 +393,6 @@ void handleRoot() {
     function showRoom(room, btn) {
       document.querySelectorAll('.dashboard-tab').forEach(tab => tab.classList.remove('active'));
       btn.classList.add('active');
-      // Optionally filter devices here
     }
     function updateRelayStatus() {
       persistentFetch('relayStatus', '/relayStatus', renderRelays, []);
@@ -482,14 +494,17 @@ void handleRoot() {
       loadDevices();
       loadEnergy();
       loadRoutines();
-      loadSystemInfo();
-      loadLogs();
+      fetch('/systeminfo', { credentials: 'include' })
+        .then(r => r.json())
+        .then(renderSystemInfo);
+      fetch('/logs', { credentials: 'include' })
+        .then(r => r.text())
+        .then(renderLogs);
       persistentFetch('sensor', '/sensor', renderSensorCards, {});
       updateESPStatus();
-      setInterval(updateESPStatus, 2000);
+      setInterval(updateESPStatus, 600);
     }
   </script>
-  <!-- Routine Modal -->
   <div id="routineModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.25);z-index:999;align-items:center;justify-content:center;">
     <div style="background:#fff;padding:24px 28px;border-radius:12px;min-width:320px;box-shadow:0 4px 24px #2563eb22;">
       <h3>Add Routine</h3>
@@ -518,6 +533,3 @@ void handleRoot() {
   </div>
 </body>
 </html>
-)rawliteral";
-  server.send(200, "text/html", html);
-}
