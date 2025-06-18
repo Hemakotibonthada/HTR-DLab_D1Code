@@ -1,0 +1,1303 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHome Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f4f8;
+            overflow-x: hidden;
+        }
+        
+        .device-card {
+            transition: all 0.3s ease;
+        }
+        
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #3b82f6;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        
+        .room-btn.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .scene-card {
+            transition: all 0.3s ease;
+        }
+        
+        .scene-card:hover {
+            transform: scale(1.03);
+        }
+        
+        .temperature-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: linear-gradient(to right, #3b82f6 0%, #3b82f6 50%, #ddd 50%, #ddd 100%);
+            outline: none;
+        }
+        
+        .temperature-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+        }
+        
+        .notification {
+            animation: slideIn 0.5s ease-out forwards;
+            transform: translateX(100%);
+        }
+        
+        @keyframes slideIn {
+            to { transform: translateX(0); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 200px;
+        }
+        
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            width: 8%;
+            background: linear-gradient(to top, #3b82f6, #93c5fd);
+            border-radius: 5px 5px 0 0;
+            transition: height 1s ease;
+        }
+        
+        .security-camera {
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+        }
+        
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px;
+        }
+        
+        .camera-status {
+            display: flex;
+            align-items: center;
+            color: white;
+            font-size: 0.8rem;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 20px;
+            width: fit-content;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+        
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+        
+        /* Weather animation */
+        .cloud {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            animation: float 30s linear infinite;
+        }
+        
+        @keyframes float {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .rain {
+            position: absolute;
+            width: 2px;
+            background-color: #93c5fd;
+            animation: rain 1s linear infinite;
+        }
+        
+        @keyframes rain {
+            0% { transform: translateY(-10px); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(20px); opacity: 0; }
+        }
+        
+        /* Voice assistant animation */
+        .voice-waves {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 30px;
+        }
+        
+        .wave {
+            width: 3px;
+            margin: 0 1px;
+            background-color: #3b82f6;
+            animation: wave 1s infinite;
+        }
+        
+        .wave:nth-child(2) { animation-delay: 0.1s; }
+        .wave:nth-child(3) { animation-delay: 0.2s; }
+        .wave:nth-child(4) { animation-delay: 0.3s; }
+        .wave:nth-child(5) { animation-delay: 0.4s; }
+        
+        @keyframes wave {
+            0%, 100% { height: 5px; }
+            50% { height: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="flex h-screen bg-gray-100">
+        <div class="hidden md:flex flex-col w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white">
+            <div class="flex items-center justify-center h-20 shadow-md">
+                <h1 class="text-2xl font-bold">SmartHome Hub</h1>
+            </div>
+            <div class="flex flex-col flex-1 overflow-y-auto">
+                <nav class="mt-5 px-2">
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1 active" data-tab="dashboard">
+                        <i class="fas fa-home mr-3"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1" data-tab="devices">
+                        <i class="fas fa-lightbulb mr-3"></i>
+                        <span>Devices</span>
+                    </a>
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1" data-tab="scenes">
+                        <i class="fas fa-magic mr-3"></i>
+                        <span>Scenes</span>
+                    </a>
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1" data-tab="security">
+                        <i class="fas fa-shield-alt mr-3"></i>
+                        <span>Security</span>
+                    </a>
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1" data-tab="energy">
+                        <i class="fas fa-bolt mr-3"></i>
+                        <span>Energy</span>
+                    </a>
+                    <a href="#" class="nav-link flex items-center px-4 py-3 text-white hover:bg-blue-700 rounded-lg transition-all duration-200 mb-1" data-tab="settings">
+                        <i class="fas fa-cog mr-3"></i>
+                        <span>Settings</span>
+                    </a>
+                </nav>
+            </div>
+            <div class="p-4">
+                <div class="bg-blue-700 rounded-lg p-3 flex items-center cursor-pointer" id="voice-assistant-btn">
+                    <div class="bg-blue-500 rounded-full p-2 mr-3">
+                        <i class="fas fa-microphone text-white"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium">Voice Assistant</p>
+                        <p class="text-xs opacity-75">Ask me anything</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile navbar -->
+        <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around p-2 md:hidden z-10">
+            <a href="#" class="nav-link flex flex-col items-center p-2 text-blue-800" data-tab="dashboard">
+                <i class="fas fa-home text-xl"></i>
+                <span class="text-xs mt-1">Home</span>
+            </a>
+            <a href="#" class="nav-link flex flex-col items-center p-2 text-gray-500" data-tab="devices">
+                <i class="fas fa-lightbulb text-xl"></i>
+                <span class="text-xs mt-1">Devices</span>
+            </a>
+            <a href="#" class="nav-link flex flex-col items-center p-2 text-gray-500" data-tab="scenes">
+                <i class="fas fa-magic text-xl"></i>
+                <span class="text-xs mt-1">Scenes</span>
+            </a>
+            <a href="#" class="nav-link flex flex-col items-center p-2 text-gray-500" data-tab="security">
+                <i class="fas fa-shield-alt text-xl"></i>
+                <span class="text-xs mt-1">Security</span>
+            </a>
+            <a href="#" class="nav-link flex flex-col items-center p-2 text-gray-500" data-tab="settings">
+                <i class="fas fa-cog text-xl"></i>
+                <span class="text-xs mt-1">More</span>
+            </a>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Navbar -->
+            <header class="bg-white shadow-sm">
+                <div class="flex items-center justify-between p-4">
+                    <div class="flex items-center">
+                        <button class="text-gray-500 focus:outline-none md:hidden mr-3" id="menu-toggle">
+                            <i class="fas fa-bars text-xl"></i>
+                        </button>
+                        <div class="relative">
+                            <input type="text" placeholder="Search devices, scenes..." class="bg-gray-100 rounded-full py-2 px-4 pl-10 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <button class="relative p-2 mr-2 text-gray-500 hover:text-blue-500 focus:outline-none">
+                            <i class="fas fa-bell text-xl"></i>
+                            <span class="absolute top-0 right-0 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">3</span>
+                        </button>
+                        <div class="flex items-center ml-4">
+                            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBjbGFzcz0ibHVjaWRlIGx1Y2lkZS11c2VyLWNpcmNsZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjEwIiByPSIzIi8+PHBhdGggZD0iTTcgMjAuNjZWMTlhMiAyIDAgMCAxIDItMmg2YTIgMiAwIDAgMSAyIDJ2MS42NiIvPjwvc3ZnPg==" alt="User" class="w-8 h-8 rounded-full bg-gray-200">
+                            <span class="ml-2 text-sm font-medium hidden md:block">Alex Johnson</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 overflow-y-auto bg-gray-50 p-4 pb-20 md:pb-4">
+                <!-- Dashboard Tab -->
+                <div class="tab-content active" id="dashboard-tab">
+                    <div class="flex flex-col md:flex-row items-center justify-between mb-6">
+                        <div>
+                            <h1 class="text-2xl font-bold text-gray-800">Welcome Home, Alex</h1>
+                            <p class="text-gray-600">Your home is running smoothly</p>
+                        </div>
+                        <div class="mt-4 md:mt-0 flex items-center bg-white rounded-lg p-3 shadow-sm">
+                            <div class="mr-3 relative w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-cloud text-blue-500"></i>
+                                <!-- Weather animation elements -->
+                                <div class="cloud" style="width: 8px; height: 8px; top: 3px; left: 5px; opacity: 0.7;"></div>
+                                <div class="cloud" style="width: 6px; height: 6px; top: 6px; left: 8px; opacity: 0.5;"></div>
+                                <div class="rain" style="height: 5px; left: 5px; top: 8px;"></div>
+                                <div class="rain" style="height: 7px; left: 8px; top: 6px; animation-delay: 0.3s;"></div>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-800">72°F | Partly Cloudy</p>
+                                <p class="text-xs text-gray-500">New York, NY</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Quick Actions</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <button class="quick-action flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-4 transition-all duration-200">
+                                <i class="fas fa-power-off text-2xl mb-2"></i>
+                                <span class="text-sm">All Off</span>
+                            </button>
+                            <button class="quick-action flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-4 transition-all duration-200">
+                                <i class="fas fa-door-closed text-2xl mb-2"></i>
+                                <span class="text-sm">Lock Doors</span>
+                            </button>
+                            <button class="quick-action flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-4 transition-all duration-200">
+                                <i class="fas fa-shield-alt text-2xl mb-2"></i>
+                                <span class="text-sm">Arm Security</span>
+                            </button>
+                            <button class="quick-action flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg p-4 transition-all duration-200">
+                                <i class="fas fa-moon text-2xl mb-2"></i>
+                                <span class="text-sm">Night Mode</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Room Selection -->
+                    <div class="mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Rooms</h2>
+                        <div class="flex overflow-x-auto pb-2 space-x-2">
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm active">All Rooms</button>
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Living Room</button>
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Kitchen</button>
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Bedroom</button>
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Bathroom</button>
+                            <button class="room-btn whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Office</button>
+                        </div>
+                    </div>
+
+                    <!-- Devices Overview -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <!-- Smart Light -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lightbulb text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Living Room Light</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500 mb-1">Brightness</p>
+                                <input type="range" min="0" max="100" value="80" class="w-full" id="brightness-slider">
+                            </div>
+                            <div class="mt-4 grid grid-cols-5 gap-2">
+                                <button class="w-full h-8 rounded-full bg-red-500"></button>
+                                <button class="w-full h-8 rounded-full bg-blue-500"></button>
+                                <button class="w-full h-8 rounded-full bg-green-500"></button>
+                                <button class="w-full h-8 rounded-full bg-yellow-400"></button>
+                                <button class="w-full h-8 rounded-full bg-purple-500"></button>
+                            </div>
+                        </div>
+
+                        <!-- Smart Thermostat -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-temperature-low text-blue-500"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart Thermostat</h3>
+                                        <p class="text-xs text-gray-500">Whole House</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="flex justify-center my-2">
+                                <div class="text-center">
+                                    <span class="text-4xl font-bold text-blue-600" id="temp-display">72</span>
+                                    <span class="text-2xl font-bold text-blue-600">°F</span>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <input type="range" min="60" max="85" value="72" class="w-full temperature-slider" id="temp-slider">
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-xs text-gray-500">60°F</span>
+                                    <span class="text-xs text-gray-500">85°F</span>
+                                </div>
+                            </div>
+                            <div class="mt-3 flex justify-between">
+                                <button class="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-sm">
+                                    <i class="fas fa-snowflake mr-1"></i> Cool
+                                </button>
+                                <button class="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                                    <i class="fas fa-fan mr-1"></i> Fan
+                                </button>
+                                <button class="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                                    <i class="fas fa-fire mr-1"></i> Heat
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Smart TV -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-tv text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart TV</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mt-2 grid grid-cols-3 gap-2">
+                                <button class="tv-btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex flex-col items-center">
+                                    <i class="fas fa-play"></i>
+                                    <span class="text-xs mt-1">Play</span>
+                                </button>
+                                <button class="tv-btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex flex-col items-center">
+                                    <i class="fas fa-pause"></i>
+                                    <span class="text-xs mt-1">Pause</span>
+                                </button>
+                                <button class="tv-btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex flex-col items-center">
+                                    <i class="fas fa-stop"></i>
+                                    <span class="text-xs mt-1">Stop</span>
+                                </button>
+                            </div>
+                            <div class="mt-3">
+                                <p class="text-sm text-gray-500 mb-1">Volume</p>
+                                <input type="range" min="0" max="100" value="45" class="w-full" id="volume-slider">
+                            </div>
+                        </div>
+
+                        <!-- Smart Lock -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lock text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Front Door Lock</h3>
+                                        <p class="text-xs text-gray-500">Entrance</p>
+                                    </div>
+                                </div>
+                                <div class="text-green-600 font-medium text-sm">
+                                    <i class="fas fa-lock mr-1"></i> Locked
+                                </div>
+                            </div>
+                            <div class="mt-2 grid grid-cols-2 gap-3">
+                                <button class="lock-btn bg-green-100 hover:bg-green-200 text-green-700 py-3 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-lock mr-2"></i> Lock
+                                </button>
+                                <button class="unlock-btn bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-lock-open mr-2"></i> Unlock
+                                </button>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-sm font-medium">Recent Activity</p>
+                                <div class="mt-2 text-xs text-gray-600">
+                                    <div class="flex justify-between py-1 border-b border-gray-100">
+                                        <span>Locked by Alex</span>
+                                        <span>10:30 AM</span>
+                                    </div>
+                                    <div class="flex justify-between py-1 border-b border-gray-100">
+                                        <span>Unlocked by Sarah</span>
+                                        <span>9:15 AM</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security Camera -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-video text-red-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Front Door Camera</h3>
+                                        <p class="text-xs text-gray-500">Entrance</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mt-2 security-camera bg-gray-800 h-32 rounded-lg">
+                                <svg class="w-full h-full text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                                    <rect width="100" height="100" fill="#1f2937"/>
+                                    <path d="M65,50 C65,58.28 58.28,65 50,65 C41.72,65 35,58.28 35,50 C35,41.72 41.72,35 50,35 C58.28,35 65,41.72 65,50 Z" fill="none" stroke="#4b5563" stroke-width="2"/>
+                                    <path d="M85,50 C85,69.33 69.33,85 50,85 C30.67,85 15,69.33 15,50 C15,30.67 30.67,15 50,15 C69.33,15 85,30.67 85,50 Z" fill="none" stroke="#4b5563" stroke-width="1"/>
+                                </svg>
+                                <div class="camera-overlay">
+                                    <div class="camera-status">
+                                        <span class="status-dot"></span>
+                                        <span>LIVE</span>
+                                    </div>
+                                    <div class="flex justify-end">
+                                        <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <i class="fas fa-expand-alt text-white text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 grid grid-cols-3 gap-2">
+                                <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center text-sm">
+                                    <i class="fas fa-microphone mr-1"></i> Talk
+                                </button>
+                                <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center text-sm">
+                                    <i class="fas fa-volume-up mr-1"></i> Listen
+                                </button>
+                                <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg flex items-center justify-center text-sm">
+                                    <i class="fas fa-camera mr-1"></i> Snap
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Smart Speaker -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center mb-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-volume-up text-indigo-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart Speaker</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="mt-2 bg-indigo-50 rounded-lg p-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-xs text-gray-500">Now Playing</p>
+                                        <p class="font-medium">Chill Lofi Beats</p>
+                                    </div>
+                                    <div class="voice-waves">
+                                        <div class="wave" style="height: 15px;"></div>
+                                        <div class="wave" style="height: 20px;"></div>
+                                        <div class="wave" style="height: 12px;"></div>
+                                        <div class="wave" style="height: 18px;"></div>
+                                        <div class="wave" style="height: 10px;"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3 flex justify-between">
+                                <button class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                    <i class="fas fa-step-backward"></i>
+                                </button>
+                                <button class="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center">
+                                    <i class="fas fa-pause"></i>
+                                </button>
+                                <button class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                    <i class="fas fa-step-forward"></i>
+                                </button>
+                            </div>
+                            <div class="mt-3">
+                                <input type="range" min="0" max="100" value="65" class="w-full" id="speaker-volume">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Energy Usage -->
+                    <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold">Energy Usage</h2>
+                            <select class="text-sm bg-gray-100 border-0 rounded-lg px-3 py-1">
+                                <option>Today</option>
+                                <option>This Week</option>
+                                <option>This Month</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-bar" style="left: 3%; height: 60%;"></div>
+                            <div class="chart-bar" style="left: 14%; height: 40%;"></div>
+                            <div class="chart-bar" style="left: 25%; height: 75%;"></div>
+                            <div class="chart-bar" style="left: 36%; height: 90%;"></div>
+                            <div class="chart-bar" style="left: 47%; height: 65%;"></div>
+                            <div class="chart-bar" style="left: 58%; height: 45%;"></div>
+                            <div class="chart-bar" style="left: 69%; height: 55%;"></div>
+                            <div class="chart-bar" style="left: 80%; height: 30%;"></div>
+                            <div class="chart-bar" style="left: 91%; height: 20%;"></div>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500 mt-2">
+                            <span>12 AM</span>
+                            <span>3 AM</span>
+                            <span>6 AM</span>
+                            <span>9 AM</span>
+                            <span>12 PM</span>
+                            <span>3 PM</span>
+                            <span>6 PM</span>
+                            <span>9 PM</span>
+                            <span>12 AM</span>
+                        </div>
+                        <div class="mt-4 grid grid-cols-3 gap-4">
+                            <div class="bg-blue-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500">Today's Usage</p>
+                                <p class="text-xl font-bold text-blue-600">4.5 kWh</p>
+                                <p class="text-xs text-green-600"><i class="fas fa-arrow-down"></i> 12% vs yesterday</p>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500">Estimated Cost</p>
+                                <p class="text-xl font-bold text-blue-600">$1.20</p>
+                                <p class="text-xs text-green-600"><i class="fas fa-arrow-down"></i> 8% vs yesterday</p>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500">Carbon Footprint</p>
+                                <p class="text-xl font-bold text-blue-600">2.3 kg</p>
+                                <p class="text-xs text-green-600"><i class="fas fa-arrow-down"></i> 15% vs yesterday</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Devices Tab -->
+                <div class="tab-content" id="devices-tab">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">All Devices</h1>
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> Add Device
+                        </button>
+                    </div>
+
+                    <!-- Device Categories -->
+                    <div class="mb-6">
+                        <div class="flex overflow-x-auto pb-2 space-x-2">
+                            <button class="whitespace-nowrap flex-shrink-0 bg-blue-600 text-white px-4 py-2 rounded-full shadow-sm">All Devices</button>
+                            <button class="whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Lights</button>
+                            <button class="whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Climate</button>
+                            <button class="whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Security</button>
+                            <button class="whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Entertainment</button>
+                            <button class="whitespace-nowrap flex-shrink-0 bg-white text-gray-800 px-4 py-2 rounded-full shadow-sm">Appliances</button>
+                        </div>
+                    </div>
+
+                    <!-- Device List -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Device 1 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lightbulb text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Living Room Light</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 2 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lightbulb text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Kitchen Light</h3>
+                                        <p class="text-xs text-gray-500">Kitchen</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 3 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lightbulb text-yellow-400"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Bedroom Light</h3>
+                                        <p class="text-xs text-gray-500">Bedroom</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 4 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-temperature-low text-blue-500"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart Thermostat</h3>
+                                        <p class="text-xs text-gray-500">Whole House</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 5 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-tv text-purple-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart TV</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 6 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-lock text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Front Door Lock</h3>
+                                        <p class="text-xs text-gray-500">Entrance</p>
+                                    </div>
+                                </div>
+                                <div class="text-green-600 font-medium text-sm">
+                                    <i class="fas fa-lock mr-1"></i> Locked
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Device 7 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-video text-red-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Front Door Camera</h3>
+                                        <p class="text-xs text-gray-500">Entrance</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 8 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-volume-up text-indigo-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart Speaker</h3>
+                                        <p class="text-xs text-gray-500">Living Room</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" checked class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Device 9 -->
+                        <div class="device-card bg-white rounded-lg shadow-sm p-4">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mr-3">
+                                        <i class="fas fa-plug text-gray-600"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium">Smart Plug</h3>
+                                        <p class="text-xs text-gray-500">Office</p>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" class="device-toggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Add Device Card -->
+                        <div class="device-card bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                                <i class="fas fa-plus text-blue-600"></i>
+                            </div>
+                            <p class="font-medium text-blue-600">Add New Device</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scenes Tab -->
+                <div class="tab-content" id="scenes-tab">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Scenes</h1>
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> Create Scene
+                        </button>
+                    </div>
+
+                    <!-- Scenes Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Scene 1 -->
+                        <div class="scene-card bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg shadow-sm p-5">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-lg font-semibold">Good Morning</h3>
+                                <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-play text-white"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <div class="flex items-center mr-4">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span>3 lights</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-temperature-low mr-1"></i>
+                                    <span>72°F</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scene 2 -->
+                        <div class="scene-card bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded-lg shadow-sm p-5">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-lg font-semibold">Movie Night</h3>
+                                <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-play text-white"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <div class="flex items-center mr-4">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span>2 lights</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-tv mr-1"></i>
+                                    <span>TV on</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scene 3 -->
+                        <div class="scene-card bg-gradient-to-r from-green-500 to-green-700 text-white rounded-lg shadow-sm p-5">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-lg font-semibold">Away Mode</h3>
+                                <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-play text-white"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <div class="flex items-center mr-4">
+                                    <i class="fas fa-shield-alt mr-1"></i>
+                                    <span>Security on</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span>Random lights</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scene 4 -->
+                        <div class="scene-card bg-gradient-to-r from-red-500 to-red-700 text-white rounded-lg shadow-sm p-5">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-lg font-semibold">Romantic Dinner</h3>
+                                <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-play text-white"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <div class="flex items-center mr-4">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span>Dim lights</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-music mr-1"></i>
+                                    <span>Soft music</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scene 5 -->
+                        <div class="scene-card bg-gradient-to-r from-yellow-500 to-yellow-700 text-white rounded-lg shadow-sm p-5">
+                            <div class="flex justify-between items-center mb-8">
+                                <h3 class="text-lg font-semibold">Good Night</h3>
+                                <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                    <i class="fas fa-play text-white"></i>
+                                </button>
+                            </div>
+                            <div class="flex items-center text-sm">
+                                <div class="flex items-center mr-4">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    <span>All lights off</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <i class="fas fa-lock mr-1"></i>
+                                    <span>Doors locked</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Create Scene Card -->
+                        <div class="scene-card bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-5 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-2">
+                                <i class="fas fa-plus text-blue-600"></i>
+                            </div>
+                            <p class="font-medium text-blue-600">Create New Scene</p>
+                        </div>
+                    </div>
+
+                    <!-- Scene Scheduling -->
+                    <div class="mt-8">
+                        <h2 class="text-lg font-semibold mb-4">Scheduled Scenes</h2>
+                        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3">Scene</th>
+                                        <th class="px-6 py-3">Schedule</th>
+                                        <th class="px-6 py-3">Status</th>
+                                        <th class="px-6 py-3">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                                    <i class="fas fa-sun text-blue-600"></i>
+                                                </div>
+                                                <span class="font-medium">Good Morning</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span>Weekdays, 7:00 AM</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                                            <button class="text-red-600 hover:text-red-800">Delete</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                                                    <i class="fas fa-moon text-yellow-600"></i>
+                                                </div>
+                                                <span class="font-medium">Good Night</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span>Daily, 11:00 PM</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                                            <button class="text-red-600 hover:text-red-800">Delete</button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                                    <i class="fas fa-film text-purple-600"></i>
+                                                </div>
+                                                <span class="font-medium">Movie Night</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span>Friday, 8:00 PM</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            <button class="text-blue-600 hover:text-blue-800 mr-3">Edit</button>
+                                            <button class="text-red-600 hover:text-red-800">Delete</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div class="tab-content" id="security-tab">
+                    <div class="flex justify-between items-center mb-6">
+                        <h1 class="text-2xl font-bold text-gray-800">Security</h1>
+                        <div class="flex items-center">
+                            <span class="mr-2 text-sm font-medium">System Status:</span>
+                            <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium">Disarmed</span>
+                        </div>
+                    </div>
+
+                    <!-- Security Controls -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <button class="security-mode flex flex-col items-center justify-center bg-white hover:bg-gray-50 rounded-lg shadow-sm p-6 transition-all duration-200">
+                            <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
+                                <i class="fas fa-home text-green-600 text-xl"></i>
+                            </div>
+                            <h3 class="font-medium">Home</h3>
+                            <p class="text-xs text-gray-500 mt-1">Perimeter sensors only</p>
+                        </button>
+                        <button class="security-mode flex flex-col items-center justify-center bg-white hover:bg-gray-50 rounded-lg shadow-sm p-6 transition-all duration-200">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+                                <i class="fas fa-moon text-blue-600 text-xl"></i>
+                            </div>
+                            <h3 class="font-medium">Night</h3>
+                            <p class="text-xs text-gray-500 mt-1">Perimeter + selected motion</p>
+                        </button>
+                        <button class="security-mode flex flex-col items-center justify-center bg-white hover:bg-gray-50 rounded-lg shadow-sm p-6 transition-all duration-200">
+                            <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-3">
+                                <i class="fas fa-shield-alt text-red-600 text-xl"></i>
+                            </div>
+                            <h3 class="font-medium">Away</h3>
+                            <p class="text-xs text-gray-500 mt-1">Full system protection</p>
+                        </button>
+                    </div>
+
+                    <!-- Camera Feeds -->
+                    <div class="mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Camera Feeds</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Camera 1 -->
+                            <div class="security-camera bg-gray-800 h-48 rounded-lg">
+                                <svg class="w-full h-full text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                                    <rect width="100" height="100" fill="#1f2937"/>
+                                    <path d="M65,50 C65,58.28 58.28,65 50,65 C41.72,65 35,58.28 35,50 C35,41.72 41.72,35 50,35 C58.28,35 65,41.72 65,50 Z" fill="none" stroke="#4b5563" stroke-width="2"/>
+                                    <path d="M85,50 C85,69.33 69.33,85 50,85 C30.67,85 15,69.33 15,50 C15,30.67 30.67,15 50,15 C69.33,15 85,30.67 85,50 Z" fill="none" stroke="#4b5563" stroke-width="1"/>
+                                </svg>
+                                <div class="camera-overlay">
+                                    <div class="camera-status">
+                                        <span class="status-dot"></span>
+                                        <span>LIVE</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">Front Door</span>
+                                        <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <i class="fas fa-expand-alt text-white text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Camera 2 -->
+                            <div class="security-camera bg-gray-800 h-48 rounded-lg">
+                                <svg class="w-full h-full text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                                    <rect width="100" height="100" fill="#1f2937"/>
+                                    <path d="M65,50 C65,58.28 58.28,65 50,65 C41.72,65 35,58.28 35,50 C35,41.72 41.72,35 50,35 C58.28,35 65,41.72 65,50 Z" fill="none" stroke="#4b5563" stroke-width="2"/>
+                                    <path d="M85,50 C85,69.33 69.33,85 50,85 C30.67,85 15,69.33 15,50 C15,30.67 30.67,15 50,15 C69.33,15 85,30.67 85,50 Z" fill="none" stroke="#4b5563" stroke-width="1"/>
+                                </svg>
+                                <div class="camera-overlay">
+                                    <div class="camera-status">
+                                        <span class="status-dot"></span>
+                                        <span>LIVE</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">Backyard</span>
+                                        <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <i class="fas fa-expand-alt text-white text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Camera 3 -->
+                            <div class="security-camera bg-gray-800 h-48 rounded-lg">
+                                <svg class="w-full h-full text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                                    <rect width="100" height="100" fill="#1f2937"/>
+                                    <path d="M65,50 C65,58.28 58.28,65 50,65 C41.72,65 35,58.28 35,50 C35,41.72 41.72,35 50,35 C58.28,35 65,41.72 65,50 Z" fill="none" stroke="#4b5563" stroke-width="2"/>
+                                    <path d="M85,50 C85,69.33 69.33,85 50,85 C30.67,85 15,69.33 15,50 C15,30.67 30.67,15 50,15 C69.33,15 85,30.67 85,50 Z" fill="none" stroke="#4b5563" stroke-width="1"/>
+                                </svg>
+                                <div class="camera-overlay">
+                                    <div class="camera-status">
+                                        <span class="status-dot"></span>
+                                        <span>LIVE</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-white text-xs bg-black bg-opacity-50 px-2 py-1 rounded">Garage</span>
+                                        <button class="bg-white bg-opacity-20 hover:bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center">
+                                            <i class="fas fa-expand-alt text-white text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Door & Window Sensors -->
+                    <div class="mb-6">
+                        <h2 class="text-lg font-semibold mb-4">Door & Window Sensors</h2>
+                        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                            <table class="min-w-full">
+                                <thead>
+                                    <tr class="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        <th class="px-6 py-3">Sensor</th>
+                                        <th class="px-6 py-3">Location</th>
+                                        <th class="px-6 py-3">Status</th>
+                                        <th class="px-6 py-3">Last Activity</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                                    <i class="fas fa-door-closed text-green-600"></i>
+                                                </div>
+                                                <span class="font-medium">Front Door</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">Entrance</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Closed</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            Today, 10:30 AM
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                                    <i class="fas fa-door-closed text-green-600"></i>
+                                                </div>
+                                                <span class="font-medium">Back Door</span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">Kitchen</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Closed</span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            Yesterday, 8:15 PM
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center"><script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9516f34322233afe',t:'MTc1MDIwOTQ4MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>

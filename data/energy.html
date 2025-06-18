@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHome Hub - Energy Consumption</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+        .dashboard-card, .energy-stat-card, .device-card { transition: all 0.3s ease; }
+        .dashboard-card:hover, .energy-stat-card:hover, .device-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);}
+        .sidebar-link { transition: all 0.2s ease; }
+        .sidebar-link:hover { background-color: rgba(255,255,255,0.1);}
+        .sidebar-link.active { background-color: rgba(255,255,255,0.2); border-left: 4px solid #68D391;}
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+        .progress-ring-circle { transition: stroke-dashoffset 0.35s; stroke-linecap: round; }
+        .tab-button { transition: all 0.3s ease; }
+        .tab-button.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+        .device-usage-bar { transition: width 1s ease-in-out; }
+        .tooltip { position: relative; display: inline-block; }
+        .tooltip .tooltip-text { visibility: hidden; width: 120px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;}
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1;}
+    </style>
+</head>
+<body class="flex h-screen bg-gray-50">
+    <!-- Sidebar -->
+    <div class="hidden md:flex flex-col w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white">
+        <div class="p-5 flex items-center space-x-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span class="text-xl font-semibold">SmartHome Hub</span>
+        </div>
+        <div class="flex flex-col flex-1 overflow-y-auto">
+            <nav class="flex-1 px-2 py-4">
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    Devices
+                </a>
+                <a href="#" class="sidebar-link active flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Energy
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Automations
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Notifications
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Settings
+                </a>
+            </nav>
+            <div class="p-4">
+                <div class="flex items-center space-x-3 p-3 bg-blue-700 rounded-lg">
+                    <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Profile" class="w-10 h-10 rounded-full bg-white p-1">
+                    <div>
+                        <p class="text-sm font-medium">Alex Johnson</p>
+                        <p class="text-xs opacity-75">Smart Home Admin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Top Navigation -->
+        <header class="bg-white shadow-sm">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-center md:hidden">
+                    <button id="mobile-menu-button" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex items-center md:ml-0 ml-4">
+                    <div class="relative">
+                        <input type="text" placeholder="Search energy data, devices..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64">
+                        <div class="absolute left-3 top-2.5 text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </button>
+                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                    <div class="md:hidden">
+                        <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Profile" class="w-8 h-8 rounded-full">
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+      <main class="flex-1 overflow-y-auto bg-gray-50 p-4">
+    <!-- Breadcrumb Navigation -->
+    <nav class="flex mb-5" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+            <li class="inline-flex items-center">
+                <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path>
+                    </svg>
+                    Home
+                </a>
+            </li>
+            <li aria-current="page">
+                <div class="flex items-center">
+                    <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span class="ml-1 text-sm font-medium text-blue-600 md:ml-2">Energy Consumption</span>
+                </div>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Energy Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <!-- Total Energy Usage -->
+        <div class="bg-white rounded-xl shadow-sm p-6 energy-stat-card">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Total Energy Usage</p>
+                    <div class="flex items-end mt-1">
+                        <h3 class="text-2xl font-bold text-gray-800" id="total-energy">--</h3>
+                        <span class="text-sm text-gray-500 ml-1 mb-0.5">kWh</span>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <span class="text-green-500 flex items-center text-sm font-medium" id="energy-diff">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            --
+                        </span>
+                        <span class="text-xs text-gray-500 ml-1" id="energy-diff-label">than last month</span>
+                    </div>
+                </div>
+                <div class="p-2 rounded-full bg-blue-100 text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" id="energy-progress" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">0 kWh</span>
+                    <span class="text-xs text-gray-500" id="energy-target">Target: -- kWh</span>
+                </div>
+            </div>
+        </div>
+        <!-- Current Power -->
+        <div class="bg-white rounded-xl shadow-sm p-6 energy-stat-card">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Current Power</p>
+                    <div class="flex items-end mt-1">
+                        <h3 class="text-2xl font-bold text-gray-800" id="current-power">--</h3>
+                        <span class="text-sm text-gray-500 ml-1 mb-0.5">kW</span>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <span class="text-yellow-500 flex items-center text-sm font-medium" id="power-status">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                            </svg>
+                            --
+                        </span>
+                        <span class="text-xs text-gray-500 ml-1" id="power-status-label">for this time</span>
+                    </div>
+                </div>
+                <div class="p-2 rounded-full bg-yellow-100 text-yellow-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-yellow-500 h-2 rounded-full" id="power-progress" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">0 kW</span>
+                    <span class="text-xs text-gray-500" id="power-peak">Peak: -- kW</span>
+                </div>
+            </div>
+        </div>
+        <!-- Estimated Cost -->
+        <div class="bg-white rounded-xl shadow-sm p-6 energy-stat-card">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Estimated Cost</p>
+                    <div class="flex items-end mt-1">
+                        <h3 class="text-2xl font-bold text-gray-800" id="estimated-cost">--</h3>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <span class="text-green-500 flex items-center text-sm font-medium" id="cost-saved">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            --
+                        </span>
+                        <span class="text-xs text-gray-500 ml-1" id="cost-saved-label">this month</span>
+                    </div>
+                </div>
+                <div class="p-2 rounded-full bg-green-100 text-green-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-green-500 h-2 rounded-full" id="cost-progress" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">$0</span>
+                    <span class="text-xs text-gray-500" id="cost-budget">Budget: --</span>
+                </div>
+            </div>
+        </div>
+        <!-- Carbon Footprint -->
+        <div class="bg-white rounded-xl shadow-sm p-6 energy-stat-card">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Carbon Footprint</p>
+                    <div class="flex items-end mt-1">
+                        <h3 class="text-2xl font-bold text-gray-800" id="carbon-footprint">--</h3>
+                        <span class="text-sm text-gray-500 ml-1 mb-0.5">kg CO₂</span>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <span class="text-green-500 flex items-center text-sm font-medium" id="carbon-diff">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            --
+                        </span>
+                        <span class="text-xs text-gray-500 ml-1" id="carbon-diff-label">than average</span>
+                    </div>
+                </div>
+                <div class="p-2 rounded-full bg-teal-100 text-teal-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-4">
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-teal-500 h-2 rounded-full" id="carbon-progress" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-gray-500">0 kg</span>
+                    <span class="text-xs text-gray-500" id="carbon-target">Target: -- kg</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time Period Selector -->
+    <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
+        <div class="flex flex-wrap items-center justify-between">
+            <div class="flex space-x-4 mb-4 md:mb-0">
+                <button class="tab-button px-4 py-2 text-sm font-medium active">Week</button>
+                <button class="tab-button px-4 py-2 text-sm font-medium">Day</button>
+                <button class="tab-button px-4 py-2 text-sm font-medium">Month</button>
+                <button class="tab-button px-4 py-2 text-sm font-medium">Year</button>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button class="p-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50" id="period-prev">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                <span class="text-sm font-medium" id="period-label">--</span>
+                <button class="p-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50" id="period-next">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <button class="ml-2 px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Energy Graph -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-lg font-medium text-gray-800">Energy Consumption Trends</h2>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center">
+                    <span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                    <span class="text-sm text-gray-600">Electricity</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                    <span class="text-sm text-gray-600">Solar Production</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span>
+                    <span class="text-sm text-gray-600">Net Usage</span>
+                </div>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="energyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Energy Distribution & Device Usage -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Energy Distribution -->
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <h2 class="text-lg font-medium text-gray-800 mb-4">Energy Distribution</h2>
+            <div class="flex items-center justify-center">
+                <div class="w-64 h-64">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mt-6" id="distribution-legend">
+                <!-- JS will fill this -->
+            </div>
+        </div>
+
+        <!-- Device Energy Usage -->
+        <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-medium text-gray-800">Device Energy Usage</h2>
+                <button class="text-blue-600 hover:text-blue-800 focus:outline-none text-sm font-medium">View All</button>
+            </div>
+            <div class="space-y-4" id="device-usage-list">
+                <!-- JS will fill this -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Energy Saving Tips & Recommendations -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Energy Saving Tips -->
+        <div class="bg-white rounded-xl shadow-sm p-6 col-span-1">
+            <h2 class="text-lg font-medium text-gray-800 mb-4">Energy Saving Tips</h2>
+            <div class="space-y-4" id="tips-list">
+                <!-- JS will fill this -->
+            </div>
+            <button class="w-full mt-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Apply Smart Recommendations
+            </button>
+        </div>
+
+        <!-- Energy Comparison -->
+        <div class="bg-white rounded-xl shadow-sm p-6 col-span-2">
+            <h2 class="text-lg font-medium text-gray-800 mb-4">Energy Comparison</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="comparison-cards">
+                <!-- JS will fill this -->
+            </div>
+            <div class="mt-6">
+                <h3 class="text-md font-medium text-gray-700 mb-3">Monthly Comparison</h3>
+                <div class="chart-container h-48">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Peak Hours & Rate Information -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-medium text-gray-800">Peak Hours & Rate Information</h2>
+            <div class="tooltip">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="tooltip-text">Rates may vary based on your utility provider</span>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="col-span-2">
+                <div class="chart-container h-48">
+                    <canvas id="peakHoursChart"></canvas>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <div class="bg-red-50 p-4 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 rounded-full bg-red-100 text-red-600 mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">Peak Hours</p>
+                            <p class="text-xs text-gray-500" id="peak-hours-label">--</p>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-600">Rate: <span id="peak-rate">--</span>/kWh</p>
+                    </div>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 rounded-full bg-yellow-100 text-yellow-600 mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">Mid-Peak Hours</p>
+                            <p class="text-xs text-gray-500" id="mid-hours-label">--</p>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-600">Rate: <span id="mid-rate">--</span>/kWh</p>
+                    </div>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg">
+                    <div class="flex items-center">
+                        <div class="p-2 rounded-full bg-green-100 text-green-600 mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-800">Off-Peak Hours</p>
+                            <p class="text-xs text-gray-500" id="off-hours-label">--</p>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-600">Rate: <span id="off-rate">--</span>/kWh</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+    </div>
+
+   <script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Chart.js chart instances ---
+    let energyChart, distributionChart, comparisonChart, peakHoursChart;
+
+    // --- Utility: fetch and update helper ---
+    async function fetchAndUpdate(url, updateFn) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network error');
+            const data = await res.json();
+            updateFn(data);
+        } catch (e) {
+            console.error('Fetch error:', e);
+        }
+    }
+
+    // --- Energy Consumption Chart ---
+    const energyCtx = document.getElementById('energyChart')?.getContext('2d');
+    if (energyCtx) {
+        energyChart = new Chart(energyCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Electricity Usage', data: [], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.4, fill: true },
+                    { label: 'Solar Production', data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.4, fill: true },
+                    { label: 'Net Usage', data: [], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.4, borderDash: [5,5], fill: false }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+                scales: { y: { beginAtZero: true }, x: { grid: { display: false } } }
+            }
+        });
+        // Initial fetch (week)
+        fetchAndUpdate('/energy/data?range=week', data => {
+            energyChart.data.labels = data.labels;
+            energyChart.data.datasets[0].data = data.electricity;
+            energyChart.data.datasets[1].data = data.solar;
+            energyChart.data.datasets[2].data = data.net;
+            energyChart.update();
+        });
+    }
+
+    // --- Energy Distribution Chart ---
+    const distributionCtx = document.getElementById('distributionChart')?.getContext('2d');
+    if (distributionCtx) {
+        distributionChart = new Chart(distributionCtx, {
+            type: 'doughnut',
+            data: { labels: [], datasets: [{ data: [], backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'], borderWidth: 0, hoverOffset: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } }
+        });
+        fetchAndUpdate('/energy/distribution', data => {
+            distributionChart.data.labels = data.labels;
+            distributionChart.data.datasets[0].data = data.values;
+            distributionChart.update();
+        });
+    }
+
+    // --- Comparison Chart ---
+    const comparisonCtx = document.getElementById('comparisonChart')?.getContext('2d');
+    if (comparisonCtx) {
+        comparisonChart = new Chart(comparisonCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [
+                { label: 'Your Home', data: [], backgroundColor: '#3b82f6', borderRadius: 4 },
+                { label: 'Neighborhood Avg', data: [], backgroundColor: '#6b7280', borderRadius: 4 },
+                { label: 'Efficient Home', data: [], backgroundColor: '#10b981', borderRadius: 4 }
+            ]},
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', align: 'end' } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } }
+        });
+        fetchAndUpdate('/energy/comparison', data => {
+            comparisonChart.data.labels = data.labels;
+            comparisonChart.data.datasets[0].data = data.your_home;
+            comparisonChart.data.datasets[1].data = data.neighborhood;
+            comparisonChart.data.datasets[2].data = data.efficient;
+            comparisonChart.update();
+        });
+    }
+
+    // --- Peak Hours Chart ---
+    const peakHoursCtx = document.getElementById('peakHoursChart')?.getContext('2d');
+    if (peakHoursCtx) {
+        peakHoursChart = new Chart(peakHoursCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Energy Usage', data: [], backgroundColor: [], borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true }, x: { grid: { display: false } } } }
+        });
+        fetchAndUpdate('/energy/peak_hours', data => {
+            peakHoursChart.data.labels = data.labels;
+            peakHoursChart.data.datasets[0].data = data.usage;
+            // Color bars by rate type
+            peakHoursChart.data.datasets[0].backgroundColor = data.rates.map(rate => {
+                if (rate === 'peak') return '#ef4444';
+                if (rate === 'mid') return '#f59e0b';
+                return '#10b981';
+            });
+            peakHoursChart.update();
+        });
+    }
+
+    // --- Device Usage Bars ---
+    fetchAndUpdate('/energy/devices', data => {
+        data.devices.forEach(device => {
+            const bar = document.querySelector(`[data-device="${device.name}"]`);
+            if (bar) bar.style.width = device.percent + '%';
+            const label = document.querySelector(`[data-device-label="${device.name}"]`);
+            if (label) label.textContent = device.usage + ' kWh';
+        });
+    });
+
+    // --- Rate Info (for peak/mid/off-peak) ---
+    fetchAndUpdate('/energy/rates', data => {
+        document.getElementById('peak-rate') && (document.getElementById('peak-rate').textContent = data.peak);
+        document.getElementById('mid-rate') && (document.getElementById('mid-rate').textContent = data.mid);
+        document.getElementById('off-rate') && (document.getElementById('off-rate').textContent = data.off);
+    });
+
+    // --- Tab buttons for period selection ---
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const period = btn.textContent.toLowerCase();
+            fetchAndUpdate(`/energy/data?range=${period}`, data => {
+                energyChart.data.labels = data.labels;
+                energyChart.data.datasets[0].data = data.electricity;
+                energyChart.data.datasets[1].data = data.solar;
+                energyChart.data.datasets[2].data = data.net;
+                energyChart.update();
+            });
+        });
+    });
+
+    // --- Export Data Button ---
+    document.querySelectorAll('button').forEach(btn => {
+        if (btn.textContent.includes('Export Data')) {
+            btn.addEventListener('click', () => {
+                window.open('/energy/export', '_blank');
+            });
+        }
+    });
+
+    // --- Generate Report Button ---
+    document.getElementById('generate-report-btn')?.addEventListener('click', () => {
+        fetch('/energy/report', { method: 'POST' })
+            .then(r => r.ok ? alert('Energy report is being generated. You will receive it shortly.') : alert('Failed to generate report.'));
+    });
+
+    // --- Mobile menu toggle ---
+    document.getElementById('mobile-menu-button')?.addEventListener('click', () => {
+        const sidebar = document.querySelector('.md\\:flex.flex-col.w-64');
+        sidebar.classList.toggle('hidden');
+        sidebar.classList.toggle('fixed');
+        sidebar.classList.toggle('z-50');
+        sidebar.classList.toggle('inset-0');
+    });
+
+    // --- Animate device usage bars on load ---
+    setTimeout(() => {
+        document.querySelectorAll('.device-usage-bar').forEach(bar => {
+            const width = bar.getAttribute('data-width');
+            if (width) {
+                bar.style.width = width;
+            }
+        });
+    }, 300);
+});
+</script>
+</body>
+</html>

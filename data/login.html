@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>IoT Dashboard Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/login.css">
+  <style>
+    .error-message {
+      color: #e74c3c;
+      background: #fff0f0;
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 15px;
+      text-align: center;
+      font-weight: 600;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-title">IoT Dashboard</div>
+    <form id="loginForm" method="POST" action="/login" autocomplete="on">
+      <div class="input-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="input-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button class="login-btn" type="submit">Login</button>
+    </form>
+    <div class="error-message" id="errorMessage">%ERROR_MSG%</div>
+    <div style="margin-top:1.2rem; text-align:center;">
+      <a href="/resetpass" class="forgot-link">Forgot password?</a>
+    </div>
+    <div class="footer">©️ 2024 IoT Dashboard</div>
+    <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode">🌙</button>
+  </div>
+  <script>
+    // Dark mode toggle
+    const toggleDarkMode = () => {
+      document.body.classList.toggle('dark-mode');
+      const isDark = document.body.classList.contains('dark-mode');
+      localStorage.setItem('dark-mode', isDark);
+    };
+    // Load dark mode preference
+    const loadDarkMode = () => {
+      const isDark = JSON.parse(localStorage.getItem('dark-mode'));
+      if (isDark) {
+        document.body.classList.add('dark-mode');
+      }
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      loadDarkMode();
+      // Show error if backend replaced %ERROR_MSG%
+      const errorEl = document.getElementById('errorMessage');
+      if (errorEl && errorEl.textContent.trim() && errorEl.textContent.trim() !== '%ERROR_MSG%') {
+        errorEl.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

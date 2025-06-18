@@ -1786,13 +1786,13 @@ void handleScene() {
 
 void handleSensor() {
   if (requireLogin()) return;
-
   StaticJsonDocument<256> doc;
   doc["temperature"] = currentTemp;
   doc["humidity"] = currentHum;
   doc["yesterdayTemp"] = dailyTempAverage[1];
   doc["yesterdayHum"] = dailyHumAverage[1];
-
+  doc["tempDiff"] = isnan(currentTemp) || isnan(dailyTempAverage[1]) ? 0 : currentTemp - dailyTempAverage[1];
+  doc["humDiff"] = isnan(currentHum) || isnan(dailyHumAverage[1]) ? 0 : currentHum - dailyHumAverage[1];
   String json;
   serializeJson(doc, json);
   server.send(200, "application/json", json);
@@ -2701,6 +2701,226 @@ void handleRoot() {
     server.send(404, "text/plain", "Dashboard file not found");
   }
 }
+void handleWiFiScan() {
+  int n = WiFi.scanNetworks();
+  DynamicJsonDocument doc(1024);
+  JsonArray arr = doc.createNestedArray("ssids");
+  for (int i = 0; i < n; ++i) arr.add(WiFi.SSID(i));
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+void handleWiFiChange() {
+  String ssid = server.arg("ssid");
+  String pass = server.arg("password");
+
+  // Validate input
+  if (ssid.length() == 0) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"SSID required\"}");
+    return;
+  }
+
+  // Save new credentials to config.ini (SPIFFS)
+  File config = SPIFFS.open("/config.ini", "r");
+  String content = "";
+  if (config) {
+    while (config.available()) {
+      String line = config.readStringUntil('\n');
+      if (!line.startsWith("wifi_ssid=") && !line.startsWith("wifi_password=")) {
+        content += line + "\n";
+      }
+    }
+    config.close();
+  }
+  content += "wifi_ssid=" + ssid + "\n";
+  content += "wifi_password=" + pass + "\n";
+  config = SPIFFS.open("/config.ini", "w");
+  if (!config) {
+    server.send(500, "application/json", "{\"success\":false,\"error\":\"Failed to write config\"}");
+    return;
+  }
+  config.print(content);
+  config.close();
+
+  // Respond to client
+  server.send(200, "application/json", "{\"success\":true}");
+
+  // Optional: reconnect WiFi after short delay
+  delay(500);
+  ESP.restart(); // Restart to apply new WiFi credentials
+}
+
+void handleEnergyData() {
+  if (requireLogin()) return;
+  // Simulate hourly energy data for the last 24 hours
+  StaticJsonDocument<1024> doc;
+  JsonArray arr = doc.createNestedArray("energy");
+  time_t now;
+  time(&now);
+  for (int i = 0; i < 24; i++) {
+    JsonObject point = arr.createNestedObject();
+    point["hour"] = i;
+    // Simulate some data (replace with real readings if available)
+    point["value"] = 10 + (rand() % 10) + (i > 0 ? arr[i-1]["value"].as<float>() * 0.95 + (rand() % 3 - 1) : 0);
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+// --- Energy Dashboard API Endpoints for energy.html ---
+
+// Returns main energy chart data (labels, electricity, solar, net usage)
+void handleEnergyChartData() {
+  if (requireLogin()) return;
+  String range = "week";
+  if (server.hasArg("range")) range = server.arg("range");
+
+  // Example: Simulate data for week/day/month/year
+  StaticJsonDocument<1024> doc;
+  JsonArray labels = doc.createNestedArray("labels");
+  JsonArray electricity = doc.createNestedArray("electricity");
+  JsonArray solar = doc.createNestedArray("solar");
+  JsonArray net = doc.createNestedArray("net");
+
+  int points = 7;
+  if (range == "day") points = 24;
+  else if (range == "month") points = 30;
+  else if (range == "year") points = 12;
+
+  for (int i = 0; i < points; i++) {
+    if (range == "day") labels.add(String(i) + ":00");
+    else if (range == "year") labels.add("M" + String(i+1));
+    else labels.add("Day " + String(i+1));
+    float e = 10 + rand() % 10;
+    float s = 3 + rand() % 5;
+    electricity.add(e);
+    solar.add(s);
+    net.add(e - s);
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns energy distribution (pie/doughnut chart)
+void handleEnergyDistribution() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  JsonArray labels = doc.createNestedArray("labels");
+  JsonArray values = doc.createNestedArray("values");
+  labels.add("Lighting"); values.add(30);
+  labels.add("HVAC"); values.add(25);
+  labels.add("Appliances"); values.add(20);
+  labels.add("EV"); values.add(15);
+  labels.add("Other"); values.add(10);
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns device usage bars
+void handleEnergyDevices() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  JsonArray devices = doc.createNestedArray("devices");
+  JsonObject dev1 = devices.createNestedObject();
+  dev1["name"] = "AC"; dev1["percent"] = 40; dev1["usage"] = 12.5;
+  JsonObject dev2 = devices.createNestedObject();
+  dev2["name"] = "Fridge"; dev2["percent"] = 25; dev2["usage"] = 7.8;
+  JsonObject dev3 = devices.createNestedObject();
+  dev3["name"] = "Lights"; dev3["percent"] = 20; dev3["usage"] = 6.2;
+  JsonObject dev4 = devices.createNestedObject();
+  dev4["name"] = "Other"; dev4["percent"] = 15; dev4["usage"] = 4.1;
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns rate info for peak/mid/off-peak
+void handleEnergyRates() {
+  if (requireLogin()) return;
+  StaticJsonDocument<256> doc;
+  doc["peak"] = "0.25";
+  doc["mid"] = "0.15";
+  doc["off"] = "0.08";
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns comparison chart data
+void handleEnergyComparison() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  JsonArray labels = doc.createNestedArray("labels");
+  labels.add("Jan"); labels.add("Feb"); labels.add("Mar");
+  JsonArray your_home = doc.createNestedArray("your_home");
+  your_home.add(120); your_home.add(110); your_home.add(130);
+  JsonArray neighborhood = doc.createNestedArray("neighborhood");
+  neighborhood.add(140); neighborhood.add(135); neighborhood.add(138);
+  JsonArray efficient = doc.createNestedArray("efficient");
+  efficient.add(90); efficient.add(85); efficient.add(88);
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns peak hours chart data
+void handleEnergyPeakHours() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  JsonArray labels = doc.createNestedArray("labels");
+  JsonArray usage = doc.createNestedArray("usage");
+  JsonArray rates = doc.createNestedArray("rates");
+  for (int i = 0; i < 24; i++) {
+    labels.add(String(i) + ":00");
+    usage.add(1 + rand() % 5);
+    if (i >= 17 && i <= 21) rates.add("peak");
+    else if (i >= 7 && i <= 16) rates.add("mid");
+    else rates.add("off");
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns energy summary stats for dashboard cards
+void handleEnergySummary() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  doc["total_energy"] = 324.5;
+  doc["energy_diff"] = -5.2;
+  doc["energy_target"] = 350;
+  doc["current_power"] = 2.8;
+  doc["power_status"] = "Normal";
+  doc["power_peak"] = 4.5;
+  doc["estimated_cost"] = 42.7;
+  doc["cost_saved"] = 3.1;
+  doc["cost_budget"] = 50;
+  doc["carbon_footprint"] = 18.2;
+  doc["carbon_diff"] = -1.4;
+  doc["carbon_target"] = 20;
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// Returns energy saving tips
+void handleEnergyTips() {
+  if (requireLogin()) return;
+  StaticJsonDocument<512> doc;
+  JsonArray tips = doc.createNestedArray("tips");
+  tips.add("Turn off lights when not in use.");
+  tips.add("Use energy-efficient appliances.");
+  tips.add("Schedule heavy loads during off-peak hours.");
+  tips.add("Maintain your HVAC system regularly.");
+  tips.add("Unplug chargers when not needed.");
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -2789,8 +3009,24 @@ void setup() {
   server.on("/schedules/list", HTTP_GET, handleSchedulesList);
   server.on("/schedules/delete", HTTP_POST, handleScheduleDelete);
   server.on("/addDevice", HTTP_POST, handleAddDevice);
-  server.onNotFound(handleNotFound);
+  server.on("/wifi/scan", HTTP_GET, handleWiFiScan);
+  server.on("/wifi/change", HTTP_POST, handleWiFiChange);
+  server.on("/energy/data", HTTP_GET, handleEnergyData);
+   server.on("/energy/data", HTTP_GET, handleEnergyChartData);
+  server.on("/energy/distribution", HTTP_GET, handleEnergyDistribution);
+  server.on("/energy/devices", HTTP_GET, handleEnergyDevices);
+  server.on("/energy/rates", HTTP_GET, handleEnergyRates);
+  server.on("/energy/comparison", HTTP_GET, handleEnergyComparison);
+  server.on("/energy/peak_hours", HTTP_GET, handleEnergyPeakHours);
+  server.on("/energy/summary", HTTP_GET, handleEnergySummary);
+  server.on("/energy/tips", HTTP_GET, handleEnergyTips);
   
+  server.onNotFound(handleNotFound);
+  server.on("/energy.html", HTTP_GET, []() {
+    if (!handleFileRead("/energy.html")) {
+      server.send(404, "text/plain", "energy.html not found");
+    }
+  });
   server.begin();
   
   // Set up mDNS for easy access
