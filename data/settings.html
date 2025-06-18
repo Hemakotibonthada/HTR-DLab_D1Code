@@ -1,0 +1,918 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartHome Hub - Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .sidebar-link {
+            transition: all 0.2s ease;
+        }
+        .sidebar-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .sidebar-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid #68D391;
+        }
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #68D391;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #68D391;
+        }
+        .settings-card {
+            transition: all 0.3s ease;
+        }
+        .settings-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .tab-button {
+            transition: all 0.3s ease;
+        }
+        .tab-button.active {
+            color: #3b82f6;
+            border-bottom: 2px solid #3b82f6;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        .custom-radio input:checked + label span {
+            background-color: #3b82f6;
+            box-shadow: 0 0 0 2px white inset;
+        }
+        .custom-radio input:checked + label {
+            color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="flex h-screen bg-gray-50">
+    <!-- Sidebar -->
+    <div class="hidden md:flex flex-col w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white">
+        <div class="p-5 flex items-center space-x-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span class="text-xl font-semibold">SmartHome Hub</span>
+        </div>
+        <div class="flex flex-col flex-1 overflow-y-auto">
+            <nav class="flex-1 px-2 py-4">
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    Devices
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Energy
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Automations
+                </a>
+                <a href="#" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Notifications
+                </a>
+                <a href="#" class="sidebar-link active flex items-center px-4 py-3 text-white rounded-lg mt-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Settings
+                </a>
+            </nav>
+            <div class="p-4">
+                <div class="flex items-center space-x-3 p-3 bg-blue-700 rounded-lg">
+                    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+PHBhdGggZD0iTTAgMGgyNHYyNEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0xMiAxMmMtMS42NTYgMC0zIDEuMzQ0LTMgM3MxLjM0NCAzIDMgMyAzLTEuMzQ0IDMtMy0xLjM0NC0zLTMtM3ptMC05QzcuNTg5IDMgNCAxMS4xMDQgNCAxNWMwIDMuODY2IDMuMTM0IDcgOCA3czgtMy4xMzQgOC03YzAtMy44OTYtMy41ODktMTItOC0xMnoiLz48L3N2Zz4=" alt="Profile" class="w-10 h-10 rounded-full bg-white p-1">
+                    <div>
+                        <p class="text-sm font-medium">Alex Johnson</p>
+                        <p class="text-xs opacity-75">Smart Home Admin</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Top Navigation -->
+        <header class="bg-white shadow-sm">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-center md:hidden">
+                    <button id="mobile-menu-button" class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex items-center md:ml-0 ml-4">
+                    <div class="relative">
+                        <input type="text" placeholder="Search settings..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64">
+                        <div class="absolute left-3 top-2.5 text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </button>
+                    <button class="text-gray-500 hover:text-gray-700 focus:outline-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                    <div class="md:hidden">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzFGMkEzNyIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4Ij48cGF0aCBkPSJNMCAwaDI0djI0SDB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTEyIDEyYy0xLjY1NiAwLTMgMS4zNDQtMyAzczEuMzQ0IDMgMyAzIDMtMS4zNDQgMy0zLTEuMzQ0LTMtMy0zem0wLTlDNy41ODkgMyA0IDExLjEwNCA0IDE1YzAgMy44NjYgMy4xMzQgNyA4IDdzOC0zLjEzNCA4LTdjMC0zLjg5Ni0zLjU4OS0xMi04LTEyeiIvPjwvc3ZnPg==" alt="Profile" class="w-8 h-8 rounded-full">
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto bg-gray-50 p-4">
+            <!-- Breadcrumb Navigation -->
+            <nav class="flex mb-5" aria-label="Breadcrumb">
+                <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                    <li class="inline-flex items-center">
+                        <a href="#" class="inline-flex items-center text-sm font-medium text-gray-700 hover:text-blue-600">
+                            <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"></path>
+                            </svg>
+                            Home
+                        </a>
+                    </li>
+                    <li aria-current="page">
+                        <div class="flex items-center">
+                            <svg class="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                            </svg>
+                            <span class="ml-1 text-sm font-medium text-blue-600 md:ml-2">Settings</span>
+                        </div>
+                    </li>
+                </ol>
+            </nav>
+
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-semibold text-gray-800">Settings</h1>
+                <div class="flex space-x-3">
+                    <button id="reset-settings-btn" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reset to Default
+                    </button>
+                    <button id="save-settings-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Tabs -->
+            <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
+                <div class="flex flex-wrap border-b border-gray-200">
+                    <button class="tab-button px-6 py-3 text-sm font-medium active" data-tab="general">General</button>
+                    <button class="tab-button px-6 py-3 text-sm font-medium" data-tab="account">Account</button>
+                    <button class="tab-button px-6 py-3 text-sm font-medium" data-tab="notifications">Notifications</button>
+                    <button class="tab-button px-6 py-3 text-sm font-medium" data-tab="energy">Energy Monitoring</button>
+                    <button class="tab-button px-6 py-3 text-sm font-medium" data-tab="devices">Devices</button>
+                    <button class="tab-button px-6 py-3 text-sm font-medium" data-tab="security">Security</button>
+                </div>
+            </div>
+
+            <!-- Settings Content -->
+            <div id="settings-content">
+                <!-- General Settings Tab -->
+                <div id="general-tab" class="settings-tab">
+                    <!-- Theme Settings -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Theme Settings</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Theme Mode</label>
+                                <div class="flex space-x-4">
+                                    <div class="custom-radio">
+                                        <input type="radio" id="light-mode" name="theme-mode" class="hidden" checked>
+                                        <label for="light-mode" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Light
+                                        </label>
+                                    </div>
+                                    <div class="custom-radio">
+                                        <input type="radio" id="dark-mode" name="theme-mode" class="hidden">
+                                        <label for="dark-mode" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Dark
+                                        </label>
+                                    </div>
+                                    <div class="custom-radio">
+                                        <input type="radio" id="system-mode" name="theme-mode" class="hidden">
+                                        <label for="system-mode" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            System Default
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Color Scheme</label>
+                                <div class="grid grid-cols-5 gap-3">
+                                    <div class="color-option">
+                                        <input type="radio" id="color-blue" name="color-scheme" class="hidden" checked>
+                                        <label for="color-blue" class="block w-8 h-8 rounded-full bg-blue-600 cursor-pointer border-2 border-white ring-2 ring-blue-600"></label>
+                                    </div>
+                                    <div class="color-option">
+                                        <input type="radio" id="color-green" name="color-scheme" class="hidden">
+                                        <label for="color-green" class="block w-8 h-8 rounded-full bg-green-600 cursor-pointer border-2 border-white"></label>
+                                    </div>
+                                    <div class="color-option">
+                                        <input type="radio" id="color-purple" name="color-scheme" class="hidden">
+                                        <label for="color-purple" class="block w-8 h-8 rounded-full bg-purple-600 cursor-pointer border-2 border-white"></label>
+                                    </div>
+                                    <div class="color-option">
+                                        <input type="radio" id="color-red" name="color-scheme" class="hidden">
+                                        <label for="color-red" class="block w-8 h-8 rounded-full bg-red-600 cursor-pointer border-2 border-white"></label>
+                                    </div>
+                                    <div class="color-option">
+                                        <input type="radio" id="color-amber" name="color-scheme" class="hidden">
+                                        <label for="color-amber" class="block w-8 h-8 rounded-full bg-amber-500 cursor-pointer border-2 border-white"></label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Dashboard Layout</label>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div class="layout-option border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-blue-500">
+                                    <input type="radio" id="layout-default" name="dashboard-layout" class="hidden" checked>
+                                    <label for="layout-default" class="cursor-pointer">
+                                        <div class="bg-gray-100 rounded p-2 h-24 flex flex-col">
+                                            <div class="bg-gray-300 h-3 w-full rounded mb-2"></div>
+                                            <div class="flex-1 grid grid-cols-2 gap-2">
+                                                <div class="bg-gray-300 rounded"></div>
+                                                <div class="bg-gray-300 rounded"></div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-center mt-2 font-medium">Default</p>
+                                    </label>
+                                </div>
+                                <div class="layout-option border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-blue-500">
+                                    <input type="radio" id="layout-compact" name="dashboard-layout" class="hidden">
+                                    <label for="layout-compact" class="cursor-pointer">
+                                        <div class="bg-gray-100 rounded p-2 h-24 flex flex-col">
+                                            <div class="bg-gray-300 h-3 w-full rounded mb-2"></div>
+                                            <div class="flex-1 grid grid-cols-3 gap-1">
+                                                <div class="bg-gray-300 rounded"></div>
+                                                <div class="bg-gray-300 rounded"></div>
+                                                <div class="bg-gray-300 rounded"></div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-center mt-2 font-medium">Compact</p>
+                                    </label>
+                                </div>
+                                <div class="layout-option border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-blue-500">
+                                    <input type="radio" id="layout-detailed" name="dashboard-layout" class="hidden">
+                                    <label for="layout-detailed" class="cursor-pointer">
+                                        <div class="bg-gray-100 rounded p-2 h-24 flex flex-col">
+                                            <div class="bg-gray-300 h-3 w-full rounded mb-2"></div>
+                                            <div class="flex-1 flex flex-col gap-1">
+                                                <div class="bg-gray-300 h-5 rounded"></div>
+                                                <div class="bg-gray-300 h-5 rounded"></div>
+                                                <div class="bg-gray-300 h-5 rounded"></div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-center mt-2 font-medium">Detailed</p>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Language & Region -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Language & Region</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label for="language" class="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                                <select id="language" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="en-US" selected>English (US)</option>
+                                    <option value="en-GB">English (UK)</option>
+                                    <option value="es">Español</option>
+                                    <option value="fr">Français</option>
+                                    <option value="de">Deutsch</option>
+                                    <option value="zh">中文</option>
+                                    <option value="ja">日本語</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="timezone" class="block text-sm font-medium text-gray-700 mb-2">Time Zone</label>
+                                <select id="timezone" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="UTC-8" selected>(UTC-08:00) Pacific Time (US & Canada)</option>
+                                    <option value="UTC-7">(UTC-07:00) Mountain Time (US & Canada)</option>
+                                    <option value="UTC-6">(UTC-06:00) Central Time (US & Canada)</option>
+                                    <option value="UTC-5">(UTC-05:00) Eastern Time (US & Canada)</option>
+                                    <option value="UTC+0">(UTC+00:00) London, Edinburgh</option>
+                                    <option value="UTC+1">(UTC+01:00) Paris, Berlin, Rome</option>
+                                    <option value="UTC+8">(UTC+08:00) Beijing, Hong Kong, Singapore</option>
+                                    <option value="UTC+9">(UTC+09:00) Tokyo, Seoul</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                            <div>
+                                <label for="date-format" class="block text-sm font-medium text-gray-700 mb-2">Date Format</label>
+                                <select id="date-format" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="MM/DD/YYYY" selected>MM/DD/YYYY</option>
+                                    <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                                    <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="time-format" class="block text-sm font-medium text-gray-700 mb-2">Time Format</label>
+                                <select id="time-format" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="12h" selected>12-hour (AM/PM)</option>
+                                    <option value="24h">24-hour</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <label for="measurement" class="block text-sm font-medium text-gray-700 mb-2">Measurement System</label>
+                            <div class="flex space-x-4">
+                                <div class="custom-radio">
+                                    <input type="radio" id="imperial" name="measurement" class="hidden" checked>
+                                    <label for="imperial" class="flex items-center cursor-pointer text-sm">
+                                        <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                        Imperial (°F, miles)
+                                    </label>
+                                </div>
+                                <div class="custom-radio">
+                                    <input type="radio" id="metric" name="measurement" class="hidden">
+                                    <label for="metric" class="flex items-center cursor-pointer text-sm">
+                                        <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                        Metric (°C, km)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accessibility -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Accessibility</h2>
+                        <div class="space-y-6">
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <label for="font-size" class="block text-sm font-medium text-gray-700">Font Size</label>
+                                    <span id="font-size-value" class="text-sm text-gray-500">Medium</span>
+                                </div>
+                                <input type="range" id="font-size" min="1" max="5" value="3" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-xs text-gray-500">Small</span>
+                                    <span class="text-xs text-gray-500">Large</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <label for="contrast" class="block text-sm font-medium text-gray-700">Contrast</label>
+                                    <span id="contrast-value" class="text-sm text-gray-500">Normal</span>
+                                </div>
+                                <input type="range" id="contrast" min="1" max="5" value="3" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-xs text-gray-500">Low</span>
+                                    <span class="text-xs text-gray-500">High</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="reduce-motion" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Reduce Motion</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Minimize animations throughout the interface</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="screen-reader" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Screen Reader Optimization</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Enhance compatibility with screen readers</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Settings Tab -->
+                <div id="account-tab" class="settings-tab hidden">
+                    <!-- Profile Information -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Profile Information</h2>
+                        <div class="flex flex-col md:flex-row items-start md:items-center mb-6">
+                            <div class="flex-shrink-0 mb-4 md:mb-0 md:mr-6">
+                                <div class="relative">
+                                    <div class="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl font-bold">
+                                        AJ
+                                    </div>
+                                    <button class="absolute bottom-0 right-0 bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex-1 w-full">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="first-name" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                        <input type="text" id="first-name" value="Alex" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label for="last-name" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                        <input type="text" id="last-name" value="Johnson" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                        <input type="email" id="email" value="alex.johnson@example.com" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                                        <input type="tel" id="phone" value="(555) 123-4567" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="bio" class="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+                            <textarea id="bio" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">Smart home enthusiast and energy conservation advocate. Managing my home's energy usage since 2020.</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Password & Security -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Password & Security</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="current-password" class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                                <input type="password" id="current-password" placeholder="••••••••" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="new-password" class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                                <input type="password" id="new-password" placeholder="••••••••" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="confirm-password" class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                <input type="password" id="confirm-password" placeholder="••••••••" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div class="pt-2">
+                                <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Update Password</button>
+                            </div>
+                        </div>
+                        <div class="mt-6 pt-6 border-t border-gray-200">
+                            <h3 class="text-md font-medium text-gray-800 mb-3">Two-Factor Authentication</h3>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">Enhance your account security by enabling two-factor authentication.</p>
+                                    <p class="text-xs text-gray-500 mt-1">Status: <span class="text-red-500 font-medium">Not Enabled</span></p>
+                                </div>
+                                <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium">Enable 2FA</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connected Accounts -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Connected Accounts</h2>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-800">Google</p>
+                                        <p class="text-xs text-gray-500">Connected as alex.johnson@gmail.com</p>
+                                    </div>
+                                </div>
+                                <button class="text-red-600 hover:text-red-800 text-sm font-medium">Disconnect</button>
+                            </div>
+                            <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-800">Apple</p>
+                                        <p class="text-xs text-gray-500">Not connected</p>
+                                    </div>
+                                </div>
+                                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">Connect</button>
+                            </div>
+                            <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-800">Facebook</p>
+                                        <p class="text-xs text-gray-500">Not connected</p>
+                                    </div>
+                                </div>
+                                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">Connect</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data & Privacy -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Data & Privacy</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="data-collection" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Allow Data Collection for Service Improvement</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">We collect anonymous usage data to improve our services</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="personalized-recommendations" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Personalized Energy Recommendations</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Receive customized energy-saving tips based on your usage patterns</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="third-party-sharing" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Share Data with Third-Party Services</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Allow sharing of your energy data with trusted partners</p>
+                            </div>
+                            <div class="pt-2">
+                                <button class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                    </svg>
+                                    Download My Data
+                                </button>
+                            </div>
+                            <div>
+                                <button class="text-red-600 hover:text-red-800 text-sm font-medium flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete My Account
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications Tab -->
+                <div id="notifications-tab" class="settings-tab hidden">
+                    <!-- Email Notifications -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Email Notifications</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="email-energy-reports" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Weekly Energy Reports</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Receive a summary of your energy usage every week</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="email-bill-alerts" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Bill Alerts</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Get notified when your estimated bill exceeds your budget</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="email-tips" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Energy Saving Tips</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Receive personalized tips to reduce your energy consumption</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="email-system-updates" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">System Updates</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Get notified about new features and system updates</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="email-marketing" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Marketing & Promotions</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Receive special offers and promotions from us and our partners</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Push Notifications -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Push Notifications</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="push-usage-alerts" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Unusual Energy Usage Alerts</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Get notified when your energy usage is higher than normal</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="push-peak-hours" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Peak Hour Reminders</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Receive notifications before peak energy pricing hours begin</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="push-device-alerts" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Device Status Alerts</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Get notified when devices are left on or need maintenance</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="push-automation" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Automation Execution</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Get notified when automated energy-saving routines are executed</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notification Schedule -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Notification Schedule</h2>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Quiet Hours</label>
+                                <p class="text-xs text-gray-500 mb-3">During quiet hours, you'll only receive critical alerts</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="quiet-start" class="block text-sm text-gray-600 mb-1">Start Time</label>
+                                        <input type="time" id="quiet-start" value="22:00" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label for="quiet-end" class="block text-sm text-gray-600 mb-1">End Time</label>
+                                        <input type="time" id="quiet-end" value="07:00" class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Days of Week</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button class="px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-sm font-medium">Sun</button>
+                                    <button class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">Mon</button>
+                                    <button class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">Tue</button>
+                                    <button class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">Wed</button>
+                                    <button class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">Thu</button>
+                                    <button class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-sm font-medium">Fri</button>
+                                    <button class="px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-sm font-medium">Sat</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="do-not-disturb" class="toggle-checkbox sr-only">
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Do Not Disturb Mode</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Temporarily pause all non-critical notifications</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Energy Monitoring Tab -->
+                <div id="energy-tab" class="settings-tab hidden">
+                    <!-- Energy Monitoring Settings -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Energy Monitoring Settings</h2>
+                        <div class="space-y-6">
+                            <div>
+                                <label for="energy-unit" class="block text-sm font-medium text-gray-700 mb-2">Energy Unit</label>
+                                <select id="energy-unit" class="w-full md:w-1/3 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="kwh" selected>Kilowatt-hour (kWh)</option>
+                                    <option value="mwh">Megawatt-hour (MWh)</option>
+                                    <option value="joules">Joules (J)</option>
+                                    <option value="btu">British Thermal Units (BTU)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="currency" class="block text-sm font-medium text-gray-700 mb-2">Currency</label>
+                                <select id="currency" class="w-full md:w-1/3 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="usd" selected>US Dollar ($)</option>
+                                    <option value="eur">Euro (€)</option>
+                                    <option value="gbp">British Pound (£)</option>
+                                    <option value="cad">Canadian Dollar (C$)</option>
+                                    <option value="aud">Australian Dollar (A$)</option>
+                                    <option value="jpy">Japanese Yen (¥)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Default View Period</label>
+                                <div class="flex space-x-4">
+                                    <div class="custom-radio">
+                                        <input type="radio" id="view-day" name="view-period" class="hidden">
+                                        <label for="view-day" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Day
+                                        </label>
+                                    </div>
+                                    <div class="custom-radio">
+                                        <input type="radio" id="view-week" name="view-period" class="hidden" checked>
+                                        <label for="view-week" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Week
+                                        </label>
+                                    </div>
+                                    <div class="custom-radio">
+                                        <input type="radio" id="view-month" name="view-period" class="hidden">
+                                        <label for="view-month" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Month
+                                        </label>
+                                    </div>
+                                    <div class="custom-radio">
+                                        <input type="radio" id="view-year" name="view-period" class="hidden">
+                                        <label for="view-year" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Year
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="show-cost" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Show Cost Estimates</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Display estimated costs alongside energy usage data</p>
+                            </div>
+                            <div>
+                                <label class="flex items-center cursor-pointer">
+                                    <div class="relative">
+                                        <input type="checkbox" id="show-carbon" class="toggle-checkbox sr-only" checked>
+                                        <div class="toggle-label block w-12 h-6 rounded-full bg-gray-300 transition"></div>
+                                        <div class="toggle-checkbox absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
+                                    </div>
+                                    <span class="ml-3 text-sm font-medium text-gray-700">Show Carbon Footprint</span>
+                                </label>
+                                <p class="text-xs text-gray-500 mt-1 ml-16">Display estimated carbon emissions for your energy usage</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Energy Rate Configuration -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6 settings-card">
+                        <h2 class="text-lg font-medium text-gray-800 mb-4">Energy Rate Configuration</h2>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Rate Type</label>
+                                <div class="flex space-x-4">
+                                    <div class="custom-radio">
+                                        <input type="radio" id="rate-fixed" name="rate-type" class="hidden">
+                                        <label for="rate-fixed" class="flex items-center cursor-pointer text-sm">
+                                            <span class="w-5 h-5 inline-block mr-2 rounded-full border border-gray-300 flex-shrink-0"></span>
+                                            Fixed Rate
+                                <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'95170c54466688ec',t:'MTc1MDIxMDUwNy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>

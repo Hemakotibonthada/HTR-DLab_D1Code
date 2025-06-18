@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartHome Hub - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+    .dashboard-card, .device-card { transition: all 0.3s ease; }
+    .dashboard-card:hover, .device-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);}
+    .sidebar-link { transition: all 0.2s ease; }
+    .sidebar-link:hover { background-color: rgba(255,255,255,0.1);}
+    .sidebar-link.active { background-color: rgba(255,255,255,0.2); border-left: 4px solid #68D391;}
+    .tab-button { transition: all 0.3s ease; }
+    .tab-button.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+    .tooltip { position: relative; display: inline-block; }
+    .tooltip .tooltip-text { visibility: hidden; width: 120px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;}
+    .tooltip:hover .tooltip-text { visibility: visible; opacity: 1;}
+    .chart-container { position: relative; height: 260px; width: 100%; }
+    body { font-family: 'Inter', sans-serif; background-color: #f0f4f8; }
+    .dashboard-card, .energy-stat-card, .device-card { transition: all 0.3s ease; }
+    .dashboard-card:hover, .energy-stat-card:hover, .device-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);}
+    .sidebar-link { transition: all 0.2s ease; }
+    .sidebar-link:hover { background-color: rgba(255,255,255,0.1);}
+    .sidebar-link.active { background-color: rgba(255,255,255,0.2); border-left: 4px solid #68D391;}
+    .chart-container { position: relative; height: 300px; width: 100%; }
+    .progress-ring { transform: rotate(-90deg); transform-origin: 50% 50%; }
+    .progress-ring-circle { transition: stroke-dashoffset 0.35s; stroke-linecap: round; }
+    .tab-button { transition: all 0.3s ease; }
+    .tab-button.active { color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+    .device-usage-bar { transition: width 1s ease-in-out; }
+    .tooltip { position: relative; display: inline-block; }
+    .tooltip .tooltip-text { visibility: hidden; width: 120px; background-color: #333; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -60px; opacity: 0; transition: opacity 0.3s;}
+    .tooltip:hover .tooltip-text { visibility: visible; opacity: 1;}
+  </style>
+</head>
+<body class="flex h-screen bg-gray-50">
+  <!-- Sidebar -->
+  <div class="hidden md:flex flex-col w-64 bg-gradient-to-b from-blue-800 to-blue-900 text-white">
+    <div class="p-5 flex items-center space-x-3">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+      <span class="text-xl font-semibold">SmartHome Hub</span>
+    </div>
+    <div class="flex flex-col flex-1 overflow-y-auto">
+      <nav class="flex-1 px-2 py-4">
+        <a href="index.html" class="sidebar-link active flex items-center px-4 py-3 text-white rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          Dashboard
+        </a>
+        <a href="devices.html" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+          </svg>
+          Devices
+        </a>
+        <a href="energy.html" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Energy
+        </a>
+        <a href="schedules" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Automations
+        </a>
+        <a href="notifications.html" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          Notifications
+        </a>
+        <a href="settings" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Settings
+        </a>
+<a href="logs" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+  <!-- Logs icon -->
+  Logs
+</a>
+
+<a href="ota" class="sidebar-link flex items-center px-4 py-3 text-white rounded-lg mt-1">
+  <!-- OTA icon -->
+  OTA Update
+</a>
+  
+</body>
+</html>

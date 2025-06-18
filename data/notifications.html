@@ -1,0 +1,490 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications & Devices</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #4F46E5;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #4F46E5;
+        }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .tab-active {
+            color: #4F46E5;
+            border-bottom: 2px solid #4F46E5;
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100">
+        <div class="container mx-auto px-4 py-8">
+            <header class="mb-8">
+                <h1 class="text-3xl font-bold text-gray-800">Settings</h1>
+                <p class="text-gray-600">Manage your notifications and devices</p>
+            </header>
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200 mb-6">
+                <button id="tab-notifications" class="px-4 py-2 font-medium text-lg tab-active">Notifications</button>
+                <button id="tab-devices" class="px-4 py-2 font-medium text-lg text-gray-600">Devices</button>
+            </div>
+
+            <!-- Notifications Section -->
+            <div id="notifications-content" class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-800">Notification Preferences</h2>
+                
+                <div class="space-y-6">
+                    <!-- Push Notifications -->
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                        <div>
+                            <h3 class="font-medium text-gray-800">Push Notifications</h3>
+                            <p class="text-sm text-gray-600">Receive notifications on your device</p>
+                        </div>
+                        <div class="relative inline-block w-12 align-middle select-none">
+                            <input type="checkbox" name="push" id="push" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="push" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+
+                    <!-- Email Notifications -->
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                        <div>
+                            <h3 class="font-medium text-gray-800">Email Notifications</h3>
+                            <p class="text-sm text-gray-600">Receive updates via email</p>
+                        </div>
+                        <div class="relative inline-block w-12 align-middle select-none">
+                            <input type="checkbox" name="email" id="email" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="email" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+
+                    <!-- SMS Notifications -->
+                    <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                        <div>
+                            <h3 class="font-medium text-gray-800">SMS Notifications</h3>
+                            <p class="text-sm text-gray-600">Receive text messages for important updates</p>
+                        </div>
+                        <div class="relative inline-block w-12 align-middle select-none">
+                            <input type="checkbox" name="sms" id="sms" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <label for="sms" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                        </div>
+                    </div>
+
+                    <!-- Notification Types -->
+                    <div class="pt-2">
+                        <h3 class="font-medium text-gray-800 mb-3">Notification Types</h3>
+                        
+                        <div class="space-y-3">
+                            <div class="flex items-center">
+                                <input id="security" type="checkbox" checked class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                                <label for="security" class="ml-2 block text-sm text-gray-700">Security Alerts</label>
+                            </div>
+                            
+                            <div class="flex items-center">
+                                <input id="updates" type="checkbox" checked class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                                <label for="updates" class="ml-2 block text-sm text-gray-700">Product Updates</label>
+                            </div>
+                            
+                            <div class="flex items-center">
+                                <input id="news" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                                <label for="news" class="ml-2 block text-sm text-gray-700">News and Promotions</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out">
+                        Save Preferences
+                    </button>
+                </div>
+            </div>
+
+            <!-- Devices Section (Hidden by default) -->
+            <div id="devices-content" class="hidden">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">Connected Devices</h2>
+                        <button id="add-device-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add Device
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Current Device -->
+                        <div class="device-card bg-indigo-50 border border-indigo-200 rounded-lg p-4 transition duration-200 ease-in-out">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-start space-x-3">
+                                    <div class="bg-indigo-100 p-2 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium text-gray-800">iPhone 13 Pro <span class="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full ml-2">Current</span></h3>
+                                        <p class="text-sm text-gray-600">Last active: Just now</p>
+                                        <p class="text-xs text-gray-500 mt-1">Los Angeles, CA • iOS 15.4</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Other Devices -->
+                        <div class="device-card bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition duration-200 ease-in-out">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-start space-x-3">
+                                    <div class="bg-gray-100 p-2 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium text-gray-800">MacBook Pro</h3>
+                                        <p class="text-sm text-gray-600">Last active: 2 hours ago</p>
+                                        <p class="text-xs text-gray-500 mt-1">San Francisco, CA • macOS 12.3</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="device-card bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition duration-200 ease-in-out">
+                            <div class="flex justify-between items-start">
+                                <div class="flex items-start space-x-3">
+                                    <div class="bg-gray-100 p-2 rounded-md">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-medium text-gray-800">iPad Air</h3>
+                                        <p class="text-sm text-gray-600">Last active: Yesterday</p>
+                                        <p class="text-xs text-gray-500 mt-1">New York, NY • iPadOS 15.4</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Device Settings</h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                            <div>
+                                <h3 class="font-medium text-gray-800">Auto-lock inactive devices</h3>
+                                <p class="text-sm text-gray-600">Automatically lock devices after 30 days of inactivity</p>
+                            </div>
+                            <div class="relative inline-block w-12 align-middle select-none">
+                                <input type="checkbox" name="autolock" id="autolock" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="autolock" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+                            <div>
+                                <h3 class="font-medium text-gray-800">Require verification for new devices</h3>
+                                <p class="text-sm text-gray-600">Send a verification code when logging in from a new device</p>
+                            </div>
+                            <div class="relative inline-block w-12 align-middle select-none">
+                                <input type="checkbox" name="verification" id="verification" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="verification" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-medium text-gray-800">Location tracking</h3>
+                                <p class="text-sm text-gray-600">Track the location of your devices</p>
+                            </div>
+                            <div class="relative inline-block w-12 align-middle select-none">
+                                <input type="checkbox" name="location" id="location" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="location" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out">
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div id="add-device-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-800">Add New Device</h3>
+                <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="add-device-form">
+                <div class="mb-4">
+                    <label for="device-name" class="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
+                    <input type="text" id="device-name" name="device-name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. My iPhone" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="device-type" class="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
+                    <select id="device-type" name="device-type" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        <option value="">Select a device type</option>
+                        <option value="phone">Smartphone</option>
+                        <option value="tablet">Tablet</option>
+                        <option value="laptop">Laptop</option>
+                        <option value="desktop">Desktop</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="operating-system" class="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+                    <select id="operating-system" name="operating-system" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        <option value="">Select an operating system</option>
+                        <option value="ios">iOS</option>
+                        <option value="android">Android</option>
+                        <option value="windows">Windows</option>
+                        <option value="macos">macOS</option>
+                        <option value="linux">Linux</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" id="cancel-add-device" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        Add Device
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching functionality
+        const tabNotifications = document.getElementById('tab-notifications');
+        const tabDevices = document.getElementById('tab-devices');
+        const notificationsContent = document.getElementById('notifications-content');
+        const devicesContent = document.getElementById('devices-content');
+
+        tabNotifications.addEventListener('click', () => {
+            tabNotifications.classList.add('tab-active');
+            tabNotifications.classList.remove('text-gray-600');
+            tabDevices.classList.remove('tab-active');
+            tabDevices.classList.add('text-gray-600');
+            notificationsContent.classList.remove('hidden');
+            devicesContent.classList.add('hidden');
+        });
+
+        tabDevices.addEventListener('click', () => {
+            tabDevices.classList.add('tab-active');
+            tabDevices.classList.remove('text-gray-600');
+            tabNotifications.classList.remove('tab-active');
+            tabNotifications.classList.add('text-gray-600');
+            devicesContent.classList.remove('hidden');
+            notificationsContent.classList.add('hidden');
+        });
+
+        // Modal functionality
+        const addDeviceBtn = document.getElementById('add-device-btn');
+        const addDeviceModal = document.getElementById('add-device-modal');
+        const closeModal = document.getElementById('close-modal');
+        const cancelAddDevice = document.getElementById('cancel-add-device');
+        const addDeviceForm = document.getElementById('add-device-form');
+
+        addDeviceBtn.addEventListener('click', () => {
+            addDeviceModal.classList.remove('hidden');
+        });
+
+        closeModal.addEventListener('click', () => {
+            addDeviceModal.classList.add('hidden');
+        });
+
+        cancelAddDevice.addEventListener('click', () => {
+            addDeviceModal.classList.add('hidden');
+        });
+
+        // Close modal when clicking outside
+        addDeviceModal.addEventListener('click', (e) => {
+            if (e.target === addDeviceModal) {
+                addDeviceModal.classList.add('hidden');
+            }
+        });
+
+        // Form submission
+        addDeviceForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const deviceName = document.getElementById('device-name').value;
+            const deviceType = document.getElementById('device-type').value;
+            const os = document.getElementById('operating-system').value;
+            
+            // Create a new device card
+            const deviceCard = document.createElement('div');
+            deviceCard.className = 'device-card bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition duration-200 ease-in-out';
+            
+            // Determine icon based on device type
+            let iconPath = '';
+            if (deviceType === 'phone') {
+                iconPath = 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z';
+            } else if (deviceType === 'tablet') {
+                iconPath = 'M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z';
+            } else if (deviceType === 'laptop' || deviceType === 'desktop') {
+                iconPath = 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z';
+            } else {
+                iconPath = 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z';
+            }
+            
+            // Format OS name for display
+            let osDisplay = os.charAt(0).toUpperCase() + os.slice(1);
+            
+            deviceCard.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div class="flex items-start space-x-3">
+                        <div class="bg-gray-100 p-2 rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-medium text-gray-800">${deviceName}</h3>
+                            <p class="text-sm text-gray-600">Last active: Just now</p>
+                            <p class="text-xs text-gray-500 mt-1">Added today • ${osDisplay}</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button class="text-gray-400 hover:text-gray-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Add the new device card to the list
+            const devicesList = document.querySelector('#devices-content .space-y-4');
+            devicesList.appendChild(deviceCard);
+            
+            // Reset form and close modal
+            addDeviceForm.reset();
+            addDeviceModal.classList.add('hidden');
+            
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'fixed bottom-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md transition-opacity duration-500';
+            successMessage.innerHTML = `
+                <div class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p>Device added successfully!</p>
+                </div>
+            `;
+            document.body.appendChild(successMessage);
+            
+            // Remove success message after 3 seconds
+            setTimeout(() => {
+                successMessage.style.opacity = '0';
+                setTimeout(() => {
+                    document.body.removeChild(successMessage);
+                }, 500);
+            }, 3000);
+        });
+
+        // Toggle switches animation
+        const toggles = document.querySelectorAll('.toggle-checkbox');
+        toggles.forEach(toggle => {
+            toggle.addEventListener('change', function() {
+                const label = this.nextElementSibling;
+                if (this.checked) {
+                    label.classList.add('bg-indigo-600');
+                    label.classList.remove('bg-gray-300');
+                } else {
+                    label.classList.remove('bg-indigo-600');
+                    label.classList.add('bg-gray-300');
+                }
+            });
+        });
+
+        // Initialize toggle states
+        toggles.forEach(toggle => {
+            const label = toggle.nextElementSibling;
+            if (toggle.checked) {
+                label.classList.add('bg-indigo-600');
+                label.classList.remove('bg-gray-300');
+            }
+        });
+
+        // Save preferences button functionality
+        const savePreferencesBtn = document.querySelector('.bg-indigo-600');
+        savePreferencesBtn.addEventListener('click', () => {
+            const successMessage = document.createElement('div');
+            successMessage.className = 'fixed bottom-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md transition-opacity duration-500';
+            successMessage.innerHTML = `
+                <div class="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p>Preferences saved successfully!</p>
+                </div>
+            `;
+            document.body.appendChild(successMessage);
+            
+            setTimeout(() => {
+                successMessage.style.opacity = '0';
+                setTimeout(() => {
+                    document.body.removeChild(successMessage);
+                }, 500);
+            }, 3000);
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'95171149745f4226',t:'MTc1MDIxMDcxMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
