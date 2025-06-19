@@ -1,0 +1,976 @@
+<!-- filepath: /Users/hema/Documents/PlatformIO/Projects/HomeAutomation/data/t2.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Perspective</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        
+        .star {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            animation: twinkle 4s infinite ease-in-out;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+        
+        .cosmic-scale {
+            position: relative;
+            height: 5px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+            border-radius: 2px;
+            margin: 40px 0;
+        }
+        
+        .scale-marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            top: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .scale-marker:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+        }
+        
+        .cosmic-card {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .cosmic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+        
+        .perspective-container {
+            perspective: 1000px;
+            transform-style: preserve-3d;
+        }
+        
+        .cosmic-object {
+            position: absolute;
+            border-radius: 50%;
+            transform-style: preserve-3d;
+            transition: all 1s ease;
+        }
+        
+        .thought-bubble {
+            position: absolute;
+            padding: 15px;
+            background: rgba(30, 41, 59, 0.9);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 250px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+            z-index: 10;
+        }
+        
+        .thought-trigger:hover + .thought-bubble {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .timeline-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .timeline-dot:hover {
+            transform: scale(1.3);
+            box-shadow: 0 0 15px rgba(139, 92, 246, 0.8);
+        }
+        
+        .timeline-line {
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+            flex-grow: 1;
+        }
+        
+        .cosmic-button {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .cosmic-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.5);
+        }
+        
+        .cosmic-button::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: rotate(45deg);
+            transition: all 0.8s ease;
+        }
+        
+        .cosmic-button:hover::after {
+            left: 100%;
+        }
+        
+        #universe-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .galaxy {
+            position: absolute;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 40%, rgba(255,255,255,0) 70%);
+            transform: rotate(45deg);
+            opacity: 0.6;
+            filter: blur(3px);
+        }
+        
+        .concept-tag {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+        
+        .concept-tag:hover {
+            background: rgba(59, 130, 246, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .reflection-input {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .reflection-input:focus {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(139, 92, 246, 0.5);
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+            outline: none;
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .rotate-slow {
+            animation: rotate 120s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 1s forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <canvas id="universe-canvas"></canvas>
+    
+    <div class="container mx-auto px-4 py-8 relative z-10">
+        <header class="text-center mb-12 fade-in">
+            <h1 class="text-5xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 mb-4">Cosmic Perspective</h1>
+            <p class="text-xl text-blue-200 max-w-3xl mx-auto">Explore your place in the vast universe, connect with cosmic concepts, and reflect on the meaning of existence across time and space.</p>
+        </header>
+        
+        <div class="cosmic-scale mb-16 fade-in" style="animation-delay: 0.2s">
+            <div class="scale-marker" style="left: 5%" data-scale="quantum" onclick="changeScale('quantum')"></div>
+            <div class="scale-marker" style="left: 15%" data-scale="atomic" onclick="changeScale('atomic')"></div>
+            <div class="scale-marker" style="left: 25%" data-scale="human" onclick="changeScale('human')"></div>
+            <div class="scale-marker" style="left: 40%" data-scale="earth" onclick="changeScale('earth')"></div>
+            <div class="scale-marker" style="left: 60%" data-scale="solar" onclick="changeScale('solar')"></div>
+            <div class="scale-marker" style="left: 80%" data-scale="galaxy" onclick="changeScale('galaxy')"></div>
+            <div class="scale-marker" style="left: 95%" data-scale="universe" onclick="changeScale('universe')"></div>
+            
+            <div class="flex justify-between text-sm text-blue-300 mt-4">
+                <span>Quantum</span>
+                <span>Atomic</span>
+                <span>Human</span>
+                <span>Earth</span>
+                <span>Solar System</span>
+                <span>Galaxy</span>
+                <span>Universe</span>
+            </div>
+        </div>
+        
+        <div id="perspective-view" class="perspective-container h-96 mb-16 relative fade-in" style="animation-delay: 0.4s">
+            <div id="scale-display" class="absolute top-4 left-4 bg-slate-800 bg-opacity-70 px-4 py-2 rounded-lg text-blue-300">
+                <span id="scale-name">Human Scale</span>
+            </div>
+            
+            <div id="scale-description" class="absolute bottom-4 right-4 max-w-md bg-slate-800 bg-opacity-70 p-4 rounded-lg">
+                <h3 class="text-xl font-bold text-blue-300 mb-2">Human Perspective</h3>
+                <p class="text-gray-300">This is our default perspective - how we experience the world around us. From here, we can zoom out to the cosmic or in to the quantum.</p>
+            </div>
+        </div>
+        
+        <div class="mb-16 fade-in" style="animation-delay: 0.6s">
+            <h2 class="text-3xl font-bold mb-6 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Cosmic Timeline</h2>
+            
+            <div class="flex items-center space-x-2 overflow-x-auto pb-6">
+                <div class="timeline-dot" onclick="showTimelineEvent('bigbang')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Big Bang</h4>
+                        <p class="text-sm">13.8 billion years ago - The beginning of everything we know</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('galaxies')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">First Galaxies</h4>
+                        <p class="text-sm">13 billion years ago - The first structures in our universe</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('solar')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Solar System</h4>
+                        <p class="text-sm">4.6 billion years ago - Our sun and planets form</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('life')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">First Life</h4>
+                        <p class="text-sm">3.5 billion years ago - Simple organisms appear on Earth</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('humans')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Humans</h4>
+                        <p class="text-sm">300,000 years ago - Modern humans emerge</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('civilization')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Civilization</h4>
+                        <p class="text-sm">12,000 years ago - First human settlements</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('now')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Now</h4>
+                        <p class="text-sm">Present day - Our moment in cosmic history</p>
+                    </div>
+                </div>
+                <div class="timeline-line"></div>
+                
+                <div class="timeline-dot" onclick="showTimelineEvent('future')">
+                    <div class="thought-bubble" style="bottom: 30px; left: -100px;">
+                        <h4 class="font-bold">Future</h4>
+                        <p class="text-sm">What lies ahead for humanity and the cosmos?</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="timeline-content" class="cosmic-card p-6 mt-6">
+                <h3 class="text-2xl font-bold text-blue-300 mb-3">Our Cosmic Journey</h3>
+                <p>Click on any point in the timeline above to explore that moment in cosmic history.</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16 fade-in" style="animation-delay: 0.8s">
+            <div class="cosmic-card p-6">
+                <h3 class="text-xl font-bold text-blue-300 mb-3">Cosmic Concepts</h3>
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <span class="concept-tag" onclick="showConcept('time')">Time</span>
+                    <span class="concept-tag" onclick="showConcept('space')">Space</span>
+                    <span class="concept-tag" onclick="showConcept('consciousness')">Consciousness</span>
+                    <span class="concept-tag" onclick="showConcept('infinity')">Infinity</span>
+                    <span class="concept-tag" onclick="showConcept('existence')">Existence</span>
+                    <span class="concept-tag" onclick="showConcept('multiverse')">Multiverse</span>
+                </div>
+                <div id="concept-content">
+                    <p>Select a concept to explore its meaning across different scales of existence.</p>
+                </div>
+            </div>
+            
+            <div class="cosmic-card p-6">
+                <h3 class="text-xl font-bold text-blue-300 mb-3">Cosmic Questions</h3>
+                <ul class="space-y-3">
+                    <li class="thought-trigger cursor-pointer hover:text-blue-300 transition-colors">
+                        Are we alone in the universe?
+                        <div class="thought-bubble" style="top: 0; right: -270px;">
+                            <p class="text-sm">With billions of galaxies each containing billions of stars, the mathematical probability suggests we may not be alone.</p>
+                        </div>
+                    </li>
+                    <li class="thought-trigger cursor-pointer hover:text-blue-300 transition-colors">
+                        What existed before the Big Bang?
+                        <div class="thought-bubble" style="top: 0; right: -270px;">
+                            <p class="text-sm">This question may be meaningless, as time itself began with the Big Bang. Some theories suggest other universes, quantum fluctuations, or eternal inflation.</p>
+                        </div>
+                    </li>
+                    <li class="thought-trigger cursor-pointer hover:text-blue-300 transition-colors">
+                        Is consciousness fundamental to reality?
+                        <div class="thought-bubble" style="top: 0; right: -270px;">
+                            <p class="text-sm">Some theories suggest consciousness may be as fundamental as space and time, while others view it as an emergent property of complex systems.</p>
+                        </div>
+                    </li>
+                    <li class="thought-trigger cursor-pointer hover:text-blue-300 transition-colors">
+                        What is the ultimate fate of the universe?
+                        <div class="thought-bubble" style="top: 0; right: -270px;">
+                            <p class="text-sm">Current evidence points to an ever-expanding universe that will eventually reach "heat death" - a state of maximum entropy.</p>
+                        </div>
+                    </li>
+                    <li class="thought-trigger cursor-pointer hover:text-blue-300 transition-colors">
+                        Do we live in a simulation?
+                        <div class="thought-bubble" style="top: 0; right: -270px;">
+                            <p class="text-sm">Some philosophers and scientists argue that advanced civilizations could create simulated realities indistinguishable from our own.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="cosmic-card p-6">
+                <h3 class="text-xl font-bold text-blue-300 mb-3">Personal Reflection</h3>
+                <p class="mb-4">How does contemplating the vastness of the cosmos make you feel?</p>
+                <textarea id="reflection" class="reflection-input w-full p-3 mb-4" rows="4" placeholder="Share your thoughts..."></textarea>
+                <div class="flex justify-between">
+                    <button class="cosmic-button px-4 py-2 rounded-lg text-white" onclick="saveReflection()">Save Reflection</button>
+                    <button class="bg-transparent border border-blue-500 text-blue-400 px-4 py-2 rounded-lg hover:bg-blue-900 hover:bg-opacity-30 transition-colors" onclick="generateInsight()">Generate Insight</button>
+                </div>
+                <div id="insight" class="mt-4 hidden">
+                    <p class="text-blue-300 italic">Your reflection reveals a deep connection to the cosmos...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="cosmic-card p-8 mb-16 text-center fade-in" style="animation-delay: 1s">
+            <h2 class="text-3xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">Your Cosmic Journey</h2>
+            <p class="mb-6 max-w-2xl mx-auto">Every atom in your body was forged in the heart of a star. You are, quite literally, made of stardust. Your existence connects you to the entire history of the cosmos.</p>
+            <button class="cosmic-button px-6 py-3 rounded-lg text-white font-bold" onclick="startJourney()">Begin Your Journey</button>
+        </div>
+    </div>
+    
+    <footer class="bg-slate-900 py-6 text-center text-blue-200 text-sm fade-in" style="animation-delay: 1.2s">
+        <p>Cosmic Perspective - Explore your place in the universe</p>
+    </footer>
+
+    <script>
+        // Helper for color adjustment
+        function adjustColor(hex, amt) {
+            let usePound = false;
+            if (hex[0] === "#") {
+                hex = hex.slice(1);
+                usePound = true;
+            }
+            let num = parseInt(hex,16);
+            let r = (num >> 16) + amt;
+            let b = ((num >> 8) & 0x00FF) + amt;
+            let g = (num & 0x0000FF) + amt;
+            let newColor = (g | (b << 8) | (r << 16)).toString(16);
+            return (usePound?"#":"") + newColor;
+        }
+
+        // Create stars in the background
+        function createStars() {
+            const container = document.body;
+            const starCount = 200;
+            for (let i = 0; i < starCount; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const size = Math.random() * 2;
+                const delay = Math.random() * 4;
+                star.style.left = `${x}%`;
+                star.style.top = `${y}%`;
+                star.style.width = `${size}px`;
+                star.style.height = `${size}px`;
+                star.style.animationDelay = `${delay}s`;
+                container.appendChild(star);
+            }
+        }
+        // Create galaxies in the background
+        function createGalaxies() {
+            const container = document.body;
+            const galaxyCount = 5;
+            for (let i = 0; i < galaxyCount; i++) {
+                const galaxy = document.createElement('div');
+                galaxy.className = 'galaxy';
+                const x = Math.random() * 100;
+                const y = Math.random() * 100;
+                const size = Math.random() * 200 + 100;
+                galaxy.style.left = `${x}%`;
+                galaxy.style.top = `${y}%`;
+                galaxy.style.width = `${size}px`;
+                galaxy.style.height = `${size}px`;
+                container.appendChild(galaxy);
+            }
+        }
+        // Initialize the universe canvas
+        function initCanvas() {
+            const canvas = document.getElementById('universe-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            window.addEventListener('resize', () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                drawUniverse();
+            });
+            function drawUniverse() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#0f172a');
+                gradient.addColorStop(1, '#1e293b');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < 5; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const radius = Math.random() * 200 + 50;
+                    const nebulaGradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                    const hue = Math.random() * 60 + 200;
+                    nebulaGradient.addColorStop(0, `hsla(${hue}, 70%, 60%, 0.1)`);
+                    nebulaGradient.addColorStop(0.5, `hsla(${hue}, 70%, 40%, 0.05)`);
+                    nebulaGradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = nebulaGradient;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            drawUniverse();
+        }
+        // Change the scale of perspective
+        function changeScale(scale) {
+            const scaleDisplay = document.getElementById('scale-name');
+            const scaleDescription = document.getElementById('scale-description');
+            const perspectiveView = document.getElementById('perspective-view');
+            while (perspectiveView.children.length > 2) {
+                perspectiveView.removeChild(perspectiveView.lastChild);
+            }
+            scaleDisplay.textContent = scale.charAt(0).toUpperCase() + scale.slice(1) + ' Scale';
+            switch(scale) {
+                case 'quantum':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Quantum Perspective</h3>
+                        <p class="text-gray-300">At the quantum level, particles behave in ways that defy our everyday understanding. Particles can exist in multiple states simultaneously until observed.</p>
+                    `;
+                    createQuantumView(perspectiveView);
+                    break;
+                case 'atomic':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Atomic Perspective</h3>
+                        <p class="text-gray-300">Atoms form the building blocks of all matter. Each atom consists of a nucleus surrounded by electrons in constant motion.</p>
+                    `;
+                    createAtomicView(perspectiveView);
+                    break;
+                case 'human':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Human Perspective</h3>
+                        <p class="text-gray-300">This is our default perspective - how we experience the world around us. From here, we can zoom out to the cosmic or in to the quantum.</p>
+                    `;
+                    createHumanView(perspectiveView);
+                    break;
+                case 'earth':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Earth Perspective</h3>
+                        <p class="text-gray-300">Our home planet, a blue marble floating in space. From this perspective, we can see the thin atmosphere that sustains all life.</p>
+                    `;
+                    createEarthView(perspectiveView);
+                    break;
+                case 'solar':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Solar System Perspective</h3>
+                        <p class="text-gray-300">Our sun and its family of planets, moons, asteroids, and comets. Earth is just one small world among many.</p>
+                    `;
+                    createSolarView(perspectiveView);
+                    break;
+                case 'galaxy':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Galactic Perspective</h3>
+                        <p class="text-gray-300">Our Milky Way galaxy contains hundreds of billions of stars. Our sun is just one average star in one of its spiral arms.</p>
+                    `;
+                    createGalacticView(perspectiveView);
+                    break;
+                case 'universe':
+                    scaleDescription.innerHTML = `
+                        <h3 class="text-xl font-bold text-blue-300 mb-2">Universal Perspective</h3>
+                        <p class="text-gray-300">The observable universe contains billions of galaxies, each with billions of stars. The true extent may be infinite.</p>
+                    `;
+                    createUniverseView(perspectiveView);
+                    break;
+            }
+        }
+        // Create different perspective views
+        function createQuantumView(container) {
+            const particles = 20;
+            for (let i = 0; i < particles; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'cosmic-object';
+                const size = Math.random() * 5 + 2;
+                const x = Math.random() * 80 + 10;
+                const y = Math.random() * 80 + 10;
+                const z = Math.random() * 100 - 50;
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.left = `${x}%`;
+                particle.style.top = `${y}%`;
+                particle.style.transform = `translateZ(${z}px)`;
+                particle.style.background = `rgba(${Math.random() * 100 + 155}, ${Math.random() * 100 + 155}, 255, 0.8)`;
+                particle.style.boxShadow = `0 0 ${size * 2}px rgba(100, 100, 255, 0.8)`;
+                particle.style.animation = `pulse ${Math.random() * 3 + 2}s infinite alternate`;
+                container.appendChild(particle);
+            }
+        }
+        function createAtomicView(container) {
+            const nucleus = document.createElement('div');
+            nucleus.className = 'cosmic-object';
+            nucleus.style.width = '30px';
+            nucleus.style.height = '30px';
+            nucleus.style.left = '50%';
+            nucleus.style.top = '50%';
+            nucleus.style.transform = 'translate(-50%, -50%)';
+            nucleus.style.background = 'radial-gradient(circle, #f87171, #ef4444)';
+            nucleus.style.boxShadow = '0 0 20px rgba(239, 68, 68, 0.8)';
+            container.appendChild(nucleus);
+            for (let i = 0; i < 3; i++) {
+                const orbit = document.createElement('div');
+                orbit.className = 'cosmic-object rotate-slow';
+                orbit.style.width = `${150 + i * 60}px`;
+                orbit.style.height = `${150 + i * 60}px`;
+                orbit.style.left = '50%';
+                orbit.style.top = '50%';
+                orbit.style.transform = `translate(-50%, -50%) rotate(${i * 45}deg)`;
+                orbit.style.border = '1px solid rgba(255, 255, 255, 0.3)';
+                orbit.style.borderRadius = '50%';
+                orbit.style.boxShadow = 'none';
+                container.appendChild(orbit);
+                const electron = document.createElement('div');
+                electron.className = 'cosmic-object';
+                electron.style.width = '10px';
+                electron.style.height = '10px';
+                electron.style.left = `${50 + (75 + i * 30)}px`;
+                electron.style.top = '50%';
+                electron.style.transform = 'translateY(-50%)';
+                electron.style.background = 'radial-gradient(circle, #93c5fd, #3b82f6)';
+                electron.style.boxShadow = '0 0 10px rgba(59, 130, 246, 0.8)';
+                orbit.appendChild(electron);
+            }
+        }
+        function createHumanView(container) {
+            const human = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            human.setAttribute("width", "100");
+            human.setAttribute("height", "200");
+            human.setAttribute("viewBox", "0 0 100 200");
+            human.style.position = "absolute";
+            human.style.left = "50%";
+            human.style.top = "50%";
+            human.style.transform = "translate(-50%, -50%)";
+            const humanSilhouette = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            humanSilhouette.setAttribute("d", "M50,10 C65,10 65,30 65,40 C65,50 60,55 60,55 L70,100 L60,100 L65,140 L55,140 L55,190 L45,190 L45,140 L35,140 L40,100 L30,100 L40,55 C40,55 35,50 35,40 C35,30 35,10 50,10 Z");
+            humanSilhouette.setAttribute("fill", "#93c5fd");
+            humanSilhouette.setAttribute("stroke", "#3b82f6");
+            humanSilhouette.setAttribute("stroke-width", "2");
+            human.appendChild(humanSilhouette);
+            container.appendChild(human);
+            const ground = document.createElement('div');
+            ground.className = 'cosmic-object';
+            ground.style.width = '100%';
+            ground.style.height = '20px';
+            ground.style.left = '0';
+            ground.style.bottom = '0';
+            ground.style.borderRadius = '0';
+            ground.style.background = 'linear-gradient(to bottom, #4ade80, #22c55e)';
+            container.appendChild(ground);
+            const sun = document.createElement('div');
+            sun.className = 'cosmic-object';
+            sun.style.width = '50px';
+            sun.style.height = '50px';
+            sun.style.right = '50px';
+            sun.style.top = '50px';
+            sun.style.background = 'radial-gradient(circle, #fcd34d, #f59e0b)';
+            sun.style.boxShadow = '0 0 30px rgba(245, 158, 11, 0.8)';
+            container.appendChild(sun);
+        }
+        function createEarthView(container) {
+            const earth = document.createElement('div');
+            earth.className = 'cosmic-object rotate-slow';
+            earth.style.width = '200px';
+            earth.style.height = '200px';
+            earth.style.left = '50%';
+            earth.style.top = '50%';
+            earth.style.transform = 'translate(-50%, -50%)';
+            earth.style.background = 'radial-gradient(circle, #3b82f6, #1e40af)';
+            earth.style.boxShadow = '0 0 50px rgba(59, 130, 246, 0.3)';
+            const continents = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            continents.setAttribute("width", "200");
+            continents.setAttribute("height", "200");
+            continents.setAttribute("viewBox", "0 0 200 200");
+            continents.style.position = "absolute";
+            continents.style.left = "0";
+            continents.style.top = "0";
+            const continentPaths = [
+                "M80,50 C100,40 120,45 130,60 C140,75 130,90 110,95 C90,100 70,90 80,50 Z",
+                "M110,100 C120,90 140,95 145,110 C150,125 140,140 125,135 C110,130 100,110 110,100 Z",
+                "M90,70 C110,65 120,75 115,90 C110,105 90,110 80,95 C70,80 80,75 90,70 Z",
+                "M130,70 C150,65 160,80 155,95 C150,110 130,115 120,100 C110,85 120,75 130,70 Z"
+            ];
+            continentPaths.forEach(path => {
+                const continent = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                continent.setAttribute("d", path);
+                continent.setAttribute("fill", "#4ade80");
+                continent.setAttribute("opacity", "0.8");
+                continents.appendChild(continent);
+            });
+            earth.appendChild(continents);
+            container.appendChild(earth);
+            const atmosphere = document.createElement('div');
+            atmosphere.className = 'cosmic-object';
+            atmosphere.style.width = '220px';
+            atmosphere.style.height = '220px';
+            atmosphere.style.left = '50%';
+            atmosphere.style.top = '50%';
+            atmosphere.style.transform = 'translate(-50%, -50%)';
+            atmosphere.style.background = 'transparent';
+            atmosphere.style.border = '10px solid rgba(147, 197, 253, 0.3)';
+            atmosphere.style.borderRadius = '50%';
+            container.appendChild(atmosphere);
+            const moon = document.createElement('div');
+            moon.className = 'cosmic-object';
+            moon.style.width = '40px';
+            moon.style.height = '40px';
+            moon.style.right = '50px';
+            moon.style.top = '50px';
+            moon.style.background = 'radial-gradient(circle, #f3f4f6, #d1d5db)';
+            moon.style.boxShadow = '0 0 20px rgba(209, 213, 219, 0.5)';
+            container.appendChild(moon);
+        }
+        function createSolarView(container) {
+            const sun = document.createElement('div');
+            sun.className = 'cosmic-object pulse';
+            sun.style.width = '100px';
+            sun.style.height = '100px';
+            sun.style.left = '50%';
+            sun.style.top = '50%';
+            sun.style.transform = 'translate(-50%, -50%)';
+            sun.style.background = 'radial-gradient(circle, #fcd34d, #f59e0b)';
+            sun.style.boxShadow = '0 0 50px rgba(245, 158, 11, 0.8)';
+            container.appendChild(sun);
+            const planets = [
+                { name: 'Mercury', distance: 60, size: 5, color: '#d1d5db', speed: 20 },
+                { name: 'Venus', distance: 80, size: 8, color: '#fbbf24', speed: 30 },
+                { name: 'Earth', distance: 110, size: 10, color: '#3b82f6', speed: 40 },
+                { name: 'Mars', distance: 140, size: 7, color: '#ef4444', speed: 50 },
+                { name: 'Jupiter', distance: 180, size: 20, color: '#f59e0b', speed: 70 }
+            ];
+            planets.forEach((planet, index) => {
+                const orbit = document.createElement('div');
+                orbit.className = 'cosmic-object';
+                orbit.style.width = `${planet.distance * 2}px`;
+                orbit.style.height = `${planet.distance * 2}px`;
+                orbit.style.left = '50%';
+                orbit.style.top = '50%';
+                orbit.style.transform = 'translate(-50%, -50%)';
+                orbit.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+                orbit.style.borderRadius = '50%';
+                orbit.style.boxShadow = 'none';
+                container.appendChild(orbit);
+                const planetEl = document.createElement('div');
+                planetEl.className = 'cosmic-object';
+                planetEl.style.width = `${planet.size}px`;
+                planetEl.style.height = `${planet.size}px`;
+                planetEl.style.left = `${50 + planet.distance}px`;
+                planetEl.style.top = '50%';
+                planetEl.style.transform = 'translateY(-50%)';
+                planetEl.style.background = `radial-gradient(circle, ${planet.color}, ${adjustColor(planet.color, -30)})`;
+                planetEl.style.boxShadow = `0 0 ${planet.size}px rgba(255, 255, 255, 0.3)`;
+                orbit.style.animation = `rotate ${planet.speed}s linear infinite`;
+                orbit.appendChild(planetEl);
+            });
+        }
+        function createGalacticView(container) {
+            const galaxy = document.createElement('div');
+            galaxy.className = 'cosmic-object rotate-slow';
+            galaxy.style.width = '300px';
+            galaxy.style.height = '300px';
+            galaxy.style.left = '50%';
+            galaxy.style.top = '50%';
+            galaxy.style.transform = 'translate(-50%, -50%)';
+            galaxy.style.background = 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(147,197,253,0.3) 30%, rgba(30,58,138,0.1) 70%)';
+            galaxy.style.boxShadow = '0 0 100px rgba(147, 197, 253, 0.3)';
+            container.appendChild(galaxy);
+            const spiralArms = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            spiralArms.setAttribute("width", "300");
+            spiralArms.setAttribute("height", "300");
+            spiralArms.setAttribute("viewBox", "0 0 300 300");
+            spiralArms.style.position = "absolute";
+            spiralArms.style.left = "0";
+            spiralArms.style.top = "0";
+            for (let i = 0; i < 2; i++) {
+                const spiralPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                const rotation = i * 180;
+                spiralPath.setAttribute("d", "M150,150 C180,120 200,100 220,80 C240,60 250,40 250,20");
+                spiralPath.setAttribute("fill", "none");
+                spiralPath.setAttribute("stroke", "rgba(255, 255, 255, 0.6)");
+                spiralPath.setAttribute("stroke-width", "30");
+                spiralPath.setAttribute("stroke-linecap", "round");
+                spiralPath.setAttribute("transform", `rotate(${rotation} 150 150)`);
+                spiralPath.setAttribute("opacity", "0.3");
+                spiralArms.appendChild(spiralPath);
+            }
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                const angle = Math.random() * 360;
+                const distance = Math.random() * 120 + 30;
+                const x = 150 + distance * Math.cos(angle * Math.PI / 180);
+                const y = 150 + distance * Math.sin(angle * Math.PI / 180);
+                const size = Math.random() * 2 + 1;
+                star.setAttribute("cx", x);
+                star.setAttribute("cy", y);
+                star.setAttribute("r", size);
+                star.setAttribute("fill", "white");
+                star.setAttribute("opacity", Math.random() * 0.5 + 0.5);
+                spiralArms.appendChild(star);
+            }
+            galaxy.appendChild(spiralArms);
+            const bulge = document.createElement('div');
+            bulge.className = 'cosmic-object';
+            bulge.style.width = '60px';
+            bulge.style.height = '60px';
+            bulge.style.left = '50%';
+            bulge.style.top = '50%';
+            bulge.style.transform = 'translate(-50%, -50%)';
+            bulge.style.background = 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.5) 50%, transparent 100%)';
+            bulge.style.boxShadow = '0 0 30px rgba(255, 255, 255, 0.8)';
+            galaxy.appendChild(bulge);
+        }
+        function createUniverseView(container) {
+            const galaxyCount = 8;
+            for (let i = 0; i < galaxyCount; i++) {
+                const galaxy = document.createElement('div');
+                galaxy.className = 'cosmic-object';
+                const size = Math.random() * 60 + 40;
+                const x = Math.random() * 80 + 10;
+                const y = Math.random() * 80 + 10;
+                const rotation = Math.random() * 360;
+                galaxy.style.width = `${size}px`;
+                galaxy.style.height = `${size}px`;
+                galaxy.style.left = `${x}%`;
+                galaxy.style.top = `${y}%`;
+                galaxy.style.transform = `rotate(${rotation}deg)`;
+                const galaxyType = Math.floor(Math.random() * 3);
+                if (galaxyType === 0) {
+                    galaxy.style.background = 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(147,197,253,0.3) 30%, rgba(30,58,138,0.1) 70%)';
+                    galaxy.style.boxShadow = '0 0 20px rgba(147, 197, 253, 0.3)';
+                } else if (galaxyType === 1) {
+                    galaxy.style.background = 'radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(253,230,138,0.3) 30%, rgba(146,64,14,0.1) 70%)';
+                    galaxy.style.boxShadow = '0 0 20px rgba(253, 230, 138, 0.3)';
+                    galaxy.style.borderRadius = '60% 40% 50% 50% / 40% 50% 50% 60%';
+                } else {
+                    galaxy.style.background = 'radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(216,180,254,0.3) 30%, rgba(88,28,135,0.1) 70%)';
+                    galaxy.style.boxShadow = '0 0 20px rgba(216, 180, 254, 0.3)';
+                    galaxy.style.borderRadius = '70% 30% 50% 50% / 30% 50% 70% 60%';
+                }
+                container.appendChild(galaxy);
+            }
+            const cosmicWeb = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            cosmicWeb.setAttribute("width", "100%");
+            cosmicWeb.setAttribute("height", "100%");
+            cosmicWeb.style.position = "absolute";
+            cosmicWeb.style.left = "0";
+            cosmicWeb.style.top = "0";
+            cosmicWeb.style.pointerEvents = "none";
+            for (let i = 0; i < 20; i++) {
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                const x1 = Math.random() * 100;
+                const y1 = Math.random() * 100;
+                const x2 = Math.random() * 100;
+                const y2 = Math.random() * 100;
+                line.setAttribute("x1", `${x1}%`);
+                line.setAttribute("y1", `${y1}%`);
+                line.setAttribute("x2", `${x2}%`);
+                line.setAttribute("y2", `${y2}%`);
+                line.setAttribute("stroke", "rgba(255, 255, 255, 0.1)");
+                line.setAttribute("stroke-width", "1");
+                cosmicWeb.appendChild(line);
+            }
+            container.appendChild(cosmicWeb);
+        }
+        // Show timeline event
+        function showTimelineEvent(event) {
+            const timelineContent = document.getElementById('timeline-content');
+            switch(event) {
+                case 'bigbang':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">The Big Bang</h3>
+                        <p class="mb-4">13.8 billion years ago, all matter, energy, space, and time began from a singularity. The universe expanded rapidly, cooling as it grew, allowing the first subatomic particles to form.</p>
+                        <p>This moment marks the beginning of everything we know. The laws of physics as we understand them began here.</p>
+                    `;
+                    break;
+                case 'galaxies':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">First Galaxies Form</h3>
+                        <p class="mb-4">About 13 billion years ago, gravity pulled hydrogen and helium gas into the first stars. These stars clustered together to form the first galaxies.</p>
+                        <p>These early galaxies were smaller and more irregular than today's galaxies, but they set the stage for the cosmic structures we see now.</p>
+                    `;
+                    break;
+                case 'solar':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">Our Solar System Forms</h3>
+                        <p class="mb-4">4.6 billion years ago, a cloud of gas and dust collapsed under its own gravity, forming our sun at the center and a disk of material that would become the planets.</p>
+                        <p>The elements in your body that are heavier than hydrogen and helium were forged in previous generations of stars that exploded and scattered these elements across space.</p>
+                    `;
+                    break;
+                case 'life':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">First Life on Earth</h3>
+                        <p class="mb-4">About 3.5 billion years ago, the first simple single-celled organisms appeared in Earth's oceans. These microbes would eventually evolve into all life on Earth.</p>
+                        <p>For nearly 3 billion years, life remained simple, but eventually complex multicellular organisms emerged, leading to the diversity we see today.</p>
+                    `;
+                    break;
+                case 'humans':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">Modern Humans Emerge</h3>
+                        <p class="mb-4">Around 300,000 years ago, Homo sapiens appeared in Africa. Over time, humans developed language, tools, and culture, spreading across the globe.</p>
+                        <p>Our species is a recent addition to the cosmic story, yet we are capable of contemplating our origins and destiny.</p>
+                    `;
+                    break;
+                case 'civilization':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">First Civilizations</h3>
+                        <p class="mb-4">About 12,000 years ago, humans began to settle in permanent communities, developing agriculture, writing, and complex societies.</p>
+                        <p>From these beginnings, civilizations rose and fell, shaping the world we live in today.</p>
+                    `;
+                    break;
+                case 'now':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">The Present Moment</h3>
+                        <p class="mb-4">We live in a time of unprecedented knowledge and connectivity. Our understanding of the cosmos continues to grow, as does our impact on our planet.</p>
+                        <p>This is our moment in cosmic history. What will we do with it?</p>
+                    `;
+                    break;
+                case 'future':
+                    timelineContent.innerHTML = `
+                        <h3 class="text-2xl font-bold text-blue-300 mb-3">The Future</h3>
+                        <p class="mb-4">The future of humanity and the universe is unwritten. Will we explore the stars, discover new forms of life, or face new challenges?</p>
+                        <p>The cosmos will continue to evolve, with or without us. Our choices today shape the future of our species and our world.</p>
+                    `;
+                    break;
+            }
+        }
+        // Show concept
+        function showConcept(concept) {
+            const conceptContent = document.getElementById('concept-content');
+            switch(concept) {
+                case 'time':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Time</h4>
+                        <p>Time is the dimension in which events occur in sequence. At the quantum scale, time may be granular; at the cosmic scale, it stretches billions of years. Our perception of time is deeply human, but the universe's timeline is vast beyond comprehension.</p>`;
+                    break;
+                case 'space':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Space</h4>
+                        <p>Space is the boundless expanse in which all matter exists. From the subatomic to the cosmic web, space is structured and dynamic, shaped by gravity and energy.</p>`;
+                    break;
+                case 'consciousness':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Consciousness</h4>
+                        <p>Consciousness is the awareness of existence. Its origins are mysterious, possibly emerging from complex arrangements of matter, or perhaps fundamental to the universe itself.</p>`;
+                    break;
+                case 'infinity':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Infinity</h4>
+                        <p>Infinity describes something without any limit. The universe may be infinite in extent, and mathematical infinities appear in physics and cosmology.</p>`;
+                    break;
+                case 'existence':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Existence</h4>
+                        <p>Existence is the state of being. Why there is something rather than nothing is one of the deepest questions in philosophy and science.</p>`;
+                    break;
+                case 'multiverse':
+                    conceptContent.innerHTML = `<h4 class="font-bold text-blue-300 mb-2">Multiverse</h4>
+                        <p>The multiverse is the hypothetical set of all possible universes. Some theories suggest our universe is just one of many, each with different laws of physics.</p>`;
+                    break;
+            }
+        }
+        // Save reflection
+        function saveReflection() {
+            const reflection = document.getElementById('reflection').value;
+            if (reflection.trim().length > 0) {
+                localStorage.setItem('cosmicReflection', reflection);
+                alert('Reflection saved!');
+            }
+        }
+        // Generate insight
+        function generateInsight() {
+            const insight = document.getElementById('insight');
+            insight.classList.remove('hidden');
+            insight.innerHTML = `<p class="text-blue-300 italic">Your reflection reveals a deep connection to the cosmos. Remember, you are a way for the universe to know itself.</p>`;
+        }
+        // Start journey
+        function startJourney() {
+            alert('Your cosmic journey begins! Explore the scales, timeline, and concepts to deepen your perspective.');
+        }
+        // On load
+        window.onload = function() {
+            createStars();
+            createGalaxies();
+            initCanvas();
+        };
+    </script>
+</body>
+</html>

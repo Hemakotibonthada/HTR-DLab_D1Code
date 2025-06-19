@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Device Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #4F46E5;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #4F46E5;
+        }
+        .device-card {
+            transition: all 0.3s ease;
+        }
+        .device-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .battery-indicator {
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .battery-level {
+            height: 100%;
+            transition: width 1s ease-in-out;
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+            }
+        }
+        .slide-in {
+            animation: slideIn 0.5s forwards;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+        .device-icon {
+            transition: all 0.3s ease;
+        }
+        .device-card:hover .device-icon {
+            transform: scale(1.1);
+        }
+        .modal-overlay {
+            backdrop-filter: blur(5px);
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+        .chart-bar {
+            position: absolute;
+            bottom: 0;
+            width: 8%;
+            background-color: #4F46E5;
+            border-radius: 4px 4px 0 0;
+            transition: height 1s ease;
+        }
+        .chart-label {
+            position: absolute;
+            bottom: -25px;
+            width: 8%;
+            text-align: center;
+            font-size: 10px;
+            color: #6B7280;
+        }
+        .room-selector {
+            transition: all 0.3s ease;
+        }
+        .room-selector:hover {
+            transform: translateY(-2px);
+        }
+        .room-selector.active {
+            border-color: #4F46E5;
+            background-color: #EEF2FF;
+        }
+        .automation-card {
+            transition: all 0.3s ease;
+        }
+        .automation-card:hover {
+            transform: translateY(-2px);
+        }
+        .circular-progress {
+            position: relative;
+            height: 120px;
+            width: 120px;
+            border-radius: 50%;
+            background: conic-gradient(#4F46E5 var(--progress), #E5E7EB 0deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .circular-progress::before {
+            content: "";
+            position: absolute;
+            height: 90px;
+            width: 90px;
+            border-radius: 50%;
+            background-color: white;
+        }
+        .progress-value {
+            position: relative;
+            font-size: 24px;
+            font-weight: 600;
+            color: #4F46E5;
+        }
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        @media (max-width: 640px) {
+            .device-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        /* Advanced 3D visualization */
+        .house-3d-container {
+            perspective: 1000px;
+            height: 300px;
+            position: relative;
+        }
+        .house-3d {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 1s ease;
+        }
+        .house-3d:hover {
+            transform: rotateY(30deg) rotateX(10deg);
+        }
+        .house-floor {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(79, 70, 229, 0.1);
+            border: 2px solid #4F46E5;
+            border-radius: 10px;
+            transform-style: preserve-3d;
+            display: flex;
+            flex-wrap: wrap;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .floor-1 {
+            transform: translateZ(0px);
+        }
+        .floor-2 {
+            transform: translateZ(-100px);
+            opacity: 0.7;
+        }
+        .room-3d {
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px;
+            flex-grow: 1;
+            min-width: 100px;
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .device-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .device-dot:hover {
+            transform: scale(1.5);
+            z-index: 10;
+        }
+        .device-dot.online {
+            background-color: #10B981;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+        .device-dot.offline {
+            background-color: #6B7280;
+            box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
+        }
+        .device-dot.warning {
+            background-color: #F59E0B;
+            box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+        /* AI Prediction Graph */
+        .prediction-graph {
+            height: 150px;
+            position: relative;
+            margin-top: 20px;
+        }
+        .prediction-line {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            fill: none;
+            stroke: #4F46E5;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+        .prediction-area {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            fill: url(#prediction-gradient);
+            opacity: 0.2;
+        }
+        .prediction-point {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #4F46E5;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .prediction-future {
+            stroke-dasharray: 4;
+            stroke: #8B5CF6;
+        }
+        /* Voice Command Animation */
+        .voice-wave {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+        }
+        .voice-bar {
+            width: 3px;
+            height: 100%;
+            background-color: #4F46E5;
+            margin: 0 2px;
+            border-radius: 3px;
+            animation: voice-wave-animation 0.5s infinite alternate;
+        }
+        @keyframes voice-wave-animation {
+            0% {
+                height: 10%;
+            }
+            100% {
+                height: 100%;
+            }
+        }
+        .voice-bar:nth-child(1) { animation-delay: 0.0s; }
+        .voice-bar:nth-child(2) { animation-delay: 0.1s; }
+        .voice-bar:nth-child(3) { animation-delay: 0.2s; }
+        .voice-bar:nth-child(4) { animation-delay: 0.3s; }
+        .voice-bar:nth-child(5) { animation-delay: 0.4s; }
+        
+        /* Device Health Score */
+        .health-score-ring {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .health-score-circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+            transition: stroke-dashoffset 1s ease;
+        }
+        .health-score-background {
+            stroke: #E5E7EB;
+        }
+        .health-score-value {
+            stroke: #4F46E5;
+        }
+        .health-score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        /* Contextual Awareness */
+        .context-indicator {
+            position: relative;
+            padding-left: 20px;
+        }
+        .context-indicator::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .context-home::before {
+            background-color: #10B981;
+        }
+        .context-away::before {
+            background-color: #6B7280;
+        }
+        .context-sleep::before {
+            background-color: #8B5CF6;
+        }
+        .context-vacation::before {
+            background-color: #F59E0B;
+        }
+        
+        /* Anomaly Detection */
+        @keyframes anomaly-pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+        .anomaly-alert {
+            animation: anomaly-pulse 2s infinite;
+        }
+        
+        /* Device Relationship Graph */
+        .relationship-graph {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+        .relationship-node {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+        .relationship-node:hover {
+            transform: scale(1.2);
+            z-index: 10;
+        }
+        .relationship-line {
+            position: absolute;
+            background-color: #E5E7EB;
+            height: 2px;
+            transform-origin: 0 0;
+            z-index: 1;
+        }
+        .relationship-line.active {
+            background-color: #4F46E5;
+            height: 3px;
+        }
+        
+        /* Predictive Maintenance */
+        .maintenance-timeline {
+            position: relative;
+            height: 80px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .timeline-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background-color: #E5E7EB;
+            transform: translateY(-50%);
+        }
+        .timeline-marker {
+            position: absolute;
+            top: 50%;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: white;
+            border: 3px solid;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+        .timeline-marker.past {
+            border-color: #10B981;
+        }
+        .timeline-marker.current {
+            border-color: #4F46E5;
+            width: 20px;
+            height: 20px;
+        }
+        .timeline-marker.future {
+            border-color: #8B5CF6;
+        }
+        .timeline-marker.warning {
+            border-color: #F59E0B;
+        }
+        .timeline-label {
+            position: absolute;
+            top: calc(50% + 15px);
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #6B7280;
+            text-align: center;
+            width: 60px;
+        }
+        
+        /* Behavioral Pattern Recognition */
+        .pattern-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 100px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .pattern-bar {
+            flex: 1;
+            background-color: #E5E7EB;
+            margin: 0 2px;
+            border-radius: 3px 3px 0 0;
+            position: relative;
+            transition: height 0.5s ease;
+        }
+        .pattern-bar.highlighted {
+            background-color: #4F46E5;
+        }
+        .pattern-bar.predicted {
+            background-color: #8B5CF6;
+            opacity: 0.7;
+        }
+        .pattern-time {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: #6B7280;
+        }
+        
+        /* Energy Optimization */
+        .energy-gauge {
+            position: relative;
+            width: 120px;
+            height: 60px;
+            overflow: hidden;
+            margin: 20px auto 0;
+        }
+        .gauge-background {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 10px solid #E5E7EB;
+            border-bottom-color: transparent;
+            border-left-color: transparent;
+            border-right-color: transparent;
+            box-sizing: border-box;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .gauge-fill {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 10px solid;
+            border-top-color: transparent;
+            border-left-color: transparent;
+            border-right-color: transparent;
+            box-sizing: border-box;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: rotate(45deg);
+            transition: transform 1s ease;
+        }
+        .gauge-fill.low {
+            border-bottom-color: #10B981;
+        }
+        .gauge-fill.medium {
+            border-bottom-color: #F59E0B;
+        }
+        .gauge-fill.high {
+            border-bottom-color: #EF4444;
+        }
+        .gauge-center {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #6B7280;
+            border-radius: 50%;
+            top: 55px;
+            left: 55px;
+        }
+        .gauge-needle {
+            position: absolute;
+            width: 50px;
+            height: 4px;
+            background-color: #1F2937;
+            top: 58px;
+            left: 60px;
+            transform-origin: 0 50%;
+            transition: transform 1s ease;
+            border-radius: 2px;
+        }
+        .gauge-value {
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            font-weight: 600;
+            color: #1F2937;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header Section -->
+        <header class="mb-8">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div class="mb-4 md:mb-0">
+                    <h1 class="text-3xl font-bold text-gray-800">IoT Device Management</h1>
+                    <p class="text-gray-600 mt-1">Monitor and control all your connected devices</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button id="add-device-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out flex items-center shadow-md hover:shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Device
+                    </button>
+                    <button id="add-automation-btn" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out flex items-center shadow-sm hover:shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Automation
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AI Assistant & Voice Command -->
+            <div class="mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg p-4 text-white">
+                <div class="flex items-center">
+                    <div class="bg-white/20 p-3 rounded-lg mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                    </div>
+                    <div class="flex-grow">
+                        <h3 class="font-semibold text-lg">AI Assistant</h3>
+                        <p class="text-white/80 text-sm">Ask me anything about your smart home</p>
+                    </div>
+                    <div id="voice-command-btn" class="bg-white/20 hover:bg-white/30 p-3 rounded-full cursor-pointer transition duration-150 ease-in-out">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <div class="mt-4 relative">
+                    <input type="text" id="ai-command" placeholder="Type a command or ask a question..." class="w-full pl-4 pr-12 py-3 bg-white/10 border border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/50 text-white placeholder-white/60">
+                    <button class="absolute right-2 top-2 bg-white/20 hover:bg-white/30 p-2 rounded-lg transition duration-150 ease-in-out">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <div id="voice-command-indicator" class="mt-4 hidden">
+                    <div class="flex items-center">
+                        <div class="voice-wave mr-3">
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                        </div>
+                        <span class="text-white/80 text-sm">Listening...</span>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-sm text-white/80">
+                    <p>Try: "Turn off all lights when I leave home" or "What's my energy usage today?"</p>
+                </div>
+            </div>
+            <!-- Add Device Modal (Enhanced) -->
+<div id="add-device-modal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg relative">
+    <button id="close-add-device-modal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
+    <h2 class="text-lg font-semibold mb-4 text-gray-800 flex items-center">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+      </svg>
+      Add New Device
+    </h2>
+    <div id="device-scan-section" class="mb-6">
+      <div class="flex items-center mb-2">
+        <span class="text-sm text-gray-700 font-medium mr-2">Scanning for devices on your network...</span>
+        <svg id="scan-spinner" class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+      </div>
+      <div id="discovered-devices-list" class="bg-indigo-50 rounded p-3 text-sm text-indigo-800">
+        <span>Looking for devices...</span>
+      </div>
+    </div>
+    <form id="add-device-form" class="space-y-3">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Device Name</label>
+        <input name="name" required class="w-full border border-gray-300 rounded px-3 py-2 mt-1" placeholder="e.g. Living Room Plug" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Type</label>
+        <select name="type" required class="w-full border border-gray-300 rounded px-3 py-2 mt-1">
+          <option value="">Select type</option>
+          <option value="thermostat">Thermostat</option>
+          <option value="light">Light</option>
+          <option value="plug">Plug</option>
+          <option value="camera">Camera</option>
+          <option value="lock">Lock</option>
+          <option value="sensor">Sensor</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Room</label>
+        <select name="room" required class="w-full border border-gray-300 rounded px-3 py-2 mt-1">
+          <option value="">Select room</option>
+          <option value="living-room">Living Room</option>
+          <option value="kitchen">Kitchen</option>
+          <option value="bedroom">Bedroom</option>
+          <option value="office">Office</option>
+          <option value="bathroom">Bathroom</option>
+          <option value="entrance">Entrance</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">IP Address</label>
+        <input name="ip" type="text" required pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$" placeholder="e.g. 192.168.1.10" class="w-full border border-gray-300 rounded px-3 py-2 mt-1" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Status</label>
+        <select name="status" required class="w-full border border-gray-300 rounded px-3 py-2 mt-1">
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Battery (%)</label>
+        <input name="battery" type="number" min="0" max="100" value="100" required class="w-full border border-gray-300 rounded px-3 py-2 mt-1" />
+      </div>
+      <div class="flex justify-end space-x-2 mt-4">
+        <button type="button" id="cancel-add-device" class="px-4 py-2 bg-gray-200 rounded text-gray-700">Cancel</button>
+        <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Add Device</button>
+      </div>
+    </form>
+  </div>
+</div>
+            <!-- Contextual Awareness -->
+            <div class="mt-6 bg-white rounded-xl shadow-md p-4">
+                <h3 class="font-semibold text-lg text-gray-800 mb-3">Home Context</h3>
+                <div class="flex flex-wrap gap-3">
+                    <div class="context-indicator context-home px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm font-medium text-green-800 flex items-center">
+                        <span>Home Mode</span>
+                        <span class="ml-2 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">Active</span>
+                    </div>
+                    <div class="context-indicator context-away px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 flex items-center">
+                        Away Mode
+                    </div>
+                    <div class="context-indicator context-sleep px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 flex items-center">
+                        Sleep Mode
+                    </div>
+                    <div class="context-indicator context-vacation px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 flex items-center">
+                        Vacation Mode
+                    </div>
+                    <button class="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-indigo-600 flex items-center hover:bg-gray-50">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create Custom Mode
+                    </button>
+                </div>
+                
+                <div class="mt-4 flex items-center">
+                    <div class="text-sm text-gray-600 mr-2">Auto-detect presence:</div>
+                    <div class="relative inline-block w-12 align-middle select-none">
+                        <input type="checkbox" name="auto-detect" id="auto-detect" checked class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="auto-detect" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"></label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Dashboard Summary -->
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-white rounded-xl shadow-sm p-4 flex items-center">
+                    <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Total Devices</p>
+                        <p class="text-xl font-semibold text-gray-800">12</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-4 flex items-center">
+                    <div class="bg-green-100 p-3 rounded-lg mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Online</p>
+                        <p class="text-xl font-semibold text-gray-800">9</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-4 flex items-center">
+                    <div class="bg-yellow-100 p-3 rounded-lg mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Energy Usage</p>
+                        <p class="text-xl font-semibold text-gray-800">2.4 kWh</p>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-4 flex items-center">
+                    <div class="bg-purple-100 p-3 rounded-lg mr-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">Automations</p>
+                        <p class="text-xl font-semibold text-gray-800">5</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 3D Home Visualization -->
+            <div class="mt-8 bg-white rounded-xl shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-lg text-gray-800">3D Home Visualization</h3>
+                    <div class="flex space-x-2">
+                        <button class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium">Floor 1</button>
+                        <button class="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium">Floor 2</button>
+                    </div>
+                </div>
+                
+                <div class="house-3d-container">
+                    <div class="house-3d">
+                        <div class="house-floor floor-1">
+                            <div class="room-3d" style="flex-basis: 45%;">
+                                <h4 class="text-sm font-medium text-gray-700">Living Room</h4>
+                                <div class="device-dot online" style="top: 20%; left: 30%;" title="Smart Light"></div>
+                                <div class="device-dot online" style="top: 60%; left: 20%;" title="Smart Speaker"></div>
+                                <div class="device-dot online" style="top: 40%; left: 70%;" title="Smart Thermostat"></div>
+                            </div>
+                            <div class="room-3d" style="flex-basis: 25%;">
+                                <h4 class="text-sm font-medium text-gray-700">Kitchen</h4>
+                                <div class="device-dot online" style="top: 30%; left: 50%;" title="Smart Plug"></div>
+                                <div class="device-dot warning" style="top: 70%; left: 40%;" title="Smoke Detector"></div>
+                            </div>
+                            <div class="room-3d" style="flex-basis: 20%;">
+                                <h4 class="text-sm font-medium text-gray-700">Entrance</h4>
+                                <div class="device-dot online" style="top: 40%; left: 50%;" title="Smart Lock"></div>
+                                <div class="device-dot online" style="top: 70%; left: 30%;" title="Security Camera"></div>
+                            </div>
+                            <div class="room-3d" style="flex-basis: 45%;">
+                                <h4 class="text-sm font-medium text-gray-700">Bedroom</h4>
+                                <div class="device-dot online" style="top: 30%; left: 40%;" title="Smart Light"></div>
+                                <div class="device-dot offline" style="top: 60%; left: 70%;" title="Smart Plug"></div>
+                            </div>
+                            <div class="room-3d" style="flex-basis: 25%;">
+                                <h4 class="text-sm font-medium text-gray-700">Bathroom</h4>
+                                <div class="device-dot online" style="top: 50%; left: 50%;" title="Smart Light"></div>
+                            </div>
+                            <div class="room-3d" style="flex-basis: 20%;">
+                                <h4 class="text-sm font-medium text-gray-700">Office</h4>
+                                <div class="device-dot online" style="top: 40%; left: 60%;" title="Smart Light"></div>
+                                <div class="device-dot online" style="top: 70%; left: 30%;" title="Smart Plug"></div>
+                            </div>
+                        </div>
+                        <div class="house-floor floor-2">
+                            <!-- Second floor rooms would go here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 flex justify-center">
+                    <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition duration-150 ease-in-out shadow-sm">
+                        View Full 3D Model
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AI Insights & Predictions -->
+            <div class="mt-8 bg-white rounded-xl shadow-md p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-semibold text-lg text-gray-800">AI Insights & Predictions</h3>
+                    <button class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Energy Usage Prediction -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Energy Usage Prediction</h4>
+                        <div class="prediction-graph">
+                            <svg width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="prediction-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" stop-color="#4F46E5" />
+                                        <stop offset="100%" stop-color="#4F46E5" stop-opacity="0" />
+                                    </linearGradient>
+                                </defs>
+                                <!-- Historical data -->
+                                <path class="prediction-line" d="M0,120 C20,100 40,110 60,90 C80,70 100,80 120,60 C140,40 160,50 180,30" />
+                                <path class="prediction-area" d="M0,120 C20,100 40,110 60,90 C80,70 100,80 120,60 C140,40 160,50 180,30 L180,150 L0,150 Z" />
+                                
+                                <!-- Future prediction -->
+                                <path class="prediction-line prediction-future" d="M180,30 C200,40 220,20 240,40 C260,60 280,50 300,70" />
+                                <path class="prediction-area" d="M180,30 C200,40 220,20 240,40 C260,60 280,50 300,70 L300,150 L180,150 Z" style="fill: url(#prediction-gradient); opacity: 0.1;" />
+                            </svg>
+                            <div class="prediction-point" style="left: 60%; top: 20%;"></div>
+                            <div class="prediction-point" style="left: 80%; top: 27%; background-color: #8B5CF6;"></div>
+                            <div class="prediction-point" style="left: 100%; top: 47%; background-color: #8B5CF6;"></div>
+                        </div>
+                        <div class="mt-2 flex justify-between text-xs text-gray-500">
+                            <span>Yesterday</span>
+                            <span>Today</span>
+                            <span>Tomorrow</span>
+                        </div>
+                        <div class="mt-4 p-3 bg-indigo-50 rounded-lg">
+                            <p class="text-sm text-indigo-800">
+                                <span class="font-medium">AI Insight:</span> Your energy usage is predicted to increase by 15% tomorrow. Consider optimizing your thermostat schedule.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Behavioral Pattern Recognition -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Device Usage Patterns</h4>
+                        <div class="pattern-chart">
+                            <div class="pattern-bar" style="height: 30%;">
+                                <span class="pattern-time">6am</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 60%;">
+                                <span class="pattern-time">8am</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 40%;">
+                                <span class="pattern-time">10am</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 20%;">
+                                <span class="pattern-time">12pm</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 30%;">
+                                <span class="pattern-time">2pm</span>
+                            </div>
+                            <div class="pattern-bar highlighted" style="height: 80%;">
+                                <span class="pattern-time">4pm</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 90%;">
+                                <span class="pattern-time">6pm</span>
+                            </div>
+                            <div class="pattern-bar" style="height: 70%;">
+                                <span class="pattern-time">8pm</span>
+                            </div>
+                            <div class="pattern-bar predicted" style="height: 50%;">
+                                <span class="pattern-time">10pm</span>
+                            </div>
+                            <div class="pattern-bar predicted" style="height: 20%;">
+                                <span class="pattern-time">12am</span>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-3 bg-indigo-50 rounded-lg">
+                            <p class="text-sm text-indigo-800">
+                                <span class="font-medium">AI Insight:</span> We've detected a pattern of lights being left on in the kitchen after 10pm. Would you like to create an automation?
+                            </p>
+                            <button class="mt-2 px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out">
+                                Create Automation
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Anomaly Detection -->
+                <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg anomaly-alert">
+                    <div class="flex items-start">
+                        <div class="bg-red-100 p-2 rounded-lg mr-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div class="flex-grow">
+                            <h4 class="text-sm font-medium text-red-800">Anomaly Detected</h4>
+                            <p class="text-sm text-red-700 mt-1">Unusual water usage detected from Smart Water Sensor in Bathroom. Possible leak detected.</p>
+                            <div class="mt-2 flex space-x-2">
+                                <button class="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition duration-150 ease-in-out">
+                                    Investigate
+                                </button>
+                                <button class="px-3 py-1 bg-white text-red-700 border border-red-300 rounded-lg text-xs font-medium hover:bg-red-50 transition duration-150 ease-in-out">
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Device Relationships & Dependencies -->
+            <div class="mt-8 bg-white rounded-xl shadow-md p-6">
+                <h3 class="font-semibold text-base text-gray-800 mb-2">Device Relationships &amp; Dependencies</h3>
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div class="w-full md:w-2/3 flex items-center justify-center">
+                        <!-- Simple SVG relationship graph -->
+                        <svg width="260" height="140" viewBox="0 0 260 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <line x1="130" y1="70" x2="210" y2="30" stroke="#4F46E5" stroke-width="2"/>
+                            <line x1="130" y1="70" x2="50" y2="30" stroke="#4F46E5" stroke-width="2"/>
+                            <line x1="130" y1="70" x2="230" y2="110" stroke="#4F46E5" stroke-width="2"/>
+                            <line x1="130" y1="70" x2="30" y2="110" stroke="#4F46E5" stroke-width="2"/>
+                            <circle cx="130" cy="70" r="18" fill="#EEF2FF" stroke="#4F46E5" stroke-width="2"/>
+                            <text x="130" y="75" text-anchor="middle" fill="#4F46E5" font-size="18" font-weight="bold">⏚</text>
+                            <circle cx="210" cy="30" r="12" fill="#fff" stroke="#F59E0B" stroke-width="2"/>
+                            <text x="210" y="35" text-anchor="middle" fill="#F59E0B" font-size="16">⚡</text>
+                            <circle cx="50" cy="30" r="12" fill="#fff" stroke="#EF4444" stroke-width="2"/>
+                            <text x="50" y="35" text-anchor="middle" fill="#EF4444" font-size="16">📷</text>
+                            <circle cx="230" cy="110" r="12" fill="#fff" stroke="#10B981" stroke-width="2"/>
+                            <text x="230" y="115" text-anchor="middle" fill="#10B981" font-size="16">🔒</text>
+                            <circle cx="30" cy="110" r="12" fill="#fff" stroke="#8B5CF6" stroke-width="2"/>
+                            <text x="30" y="115" text-anchor="middle" fill="#8B5CF6" font-size="16">🎤</text>
+                        </svg>
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-600">
+                    This graph shows how your devices are connected and depend on each other. The central hub connects to all devices, while some devices have direct relationships with others.
+                </div>
+                <div class="mt-2 p-2 bg-indigo-50 rounded">
+                    <span class="text-xs text-indigo-800">
+                        <b>Insight:</b> Your smart speaker controls 3 other devices. If it goes offline, these devices may have limited functionality.
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Predictive Maintenance -->
+            <div class="mt-6 bg-white rounded-xl shadow-md p-6">
+                <h3 class="font-semibold text-base text-gray-800 mb-2">Predictive Maintenance</h3>
+                <div class="flex flex-col md:flex-row md:space-x-8">
+                    <!-- Device Health Scores -->
+                    <div class="flex-1">
+                        <div class="flex space-x-8 items-end">
+                            <div class="flex flex-col items-center">
+                                <svg width="56" height="56">
+                                    <circle cx="28" cy="28" r="26" stroke="#E5E7EB" stroke-width="4" fill="none"/>
+                                    <circle cx="28" cy="28" r="26" stroke="#4F46E5" stroke-width="4" fill="none"
+                                        stroke-dasharray="163.36" stroke-dashoffset="20"/>
+                                </svg>
+                                <span class="mt-1 text-xs text-gray-700">Smart Thermostat</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <svg width="56" height="56">
+                                    <circle cx="28" cy="28" r="26" stroke="#E5E7EB" stroke-width="4" fill="none"/>
+                                    <circle cx="28" cy="28" r="26" stroke="#10B981" stroke-width="4" fill="none"
+                                        stroke-dasharray="163.36" stroke-dashoffset="40"/>
+                                </svg>
+                                <span class="mt-1 text-xs text-gray-700">Smart Light</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <svg width="56" height="56">
+                                    <circle cx="28" cy="28" r="26" stroke="#E5E7EB" stroke-width="4" fill="none"/>
+                                    <circle cx="28" cy="28" r="26" stroke="#F59E0B" stroke-width="4" fill="none"
+                                        stroke-dasharray="163.36" stroke-dashoffset="70"/>
+                                </svg>
+                                <span class="mt-1 text-xs text-gray-700">Security Camera</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Maintenance Timeline -->
+                    <div class="flex-1 mt-8 md:mt-0">
+                        <div class="flex items-center justify-between text-xs text-gray-500 mb-2">
+                            <span>Battery Replaced<br>Mar 15</span>
+                            <span>Firmware Update<br>Apr 22</span>
+                            <span>Today</span>
+                            <span>Battery Low<br>Est. Jun 18</span>
+                            <span>Scheduled Check<br>Jul 10</span>
+                        </div>
+                        <div class="relative h-4 bg-gray-200 rounded-full mb-4">
+                            <div class="absolute left-[10%] top-[-6px] w-4 h-4 bg-white border-2 border-green-400 rounded-full"></div>
+                            <div class="absolute left-[30%] top-[-6px] w-4 h-4 bg-white border-2 border-green-400 rounded-full"></div>
+                            <div class="absolute left-[50%] top-[-8px] w-5 h-5 bg-white border-2 border-indigo-500 rounded-full"></div>
+                            <div class="absolute left-[70%] top-[-6px] w-4 h-4 bg-white border-2 border-yellow-400 rounded-full"></div>
+                            <div class="absolute left-[90%] top-[-6px] w-4 h-4 bg-white border-2 border-purple-400 rounded-full"></div>
+                        </div>
+                        <div class="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span class="text-yellow-800 text-xs flex-1">
+                                <b>Maintenance Required Soon</b> — Security Camera battery is predicted to reach critical level in 25 days. Schedule a replacement.
+                            </span>
+                            <button class="ml-3 px-3 py-1 bg-yellow-600 text-white rounded text-xs font-medium hover:bg-yellow-700 transition">Schedule Maintenance</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Energy Optimization -->
+            <div class="mt-6 bg-white rounded-xl shadow-md p-6">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-4">
+                    <h3 class="font-semibold text-base text-gray-800">Energy Optimization</h3>
+                    <div class="text-sm text-green-600 font-medium md:text-right mt-2 md:mt-0">
+                        -15% <span class="text-gray-600 font-normal">vs. last month</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Current Usage Gauge -->
+                    <div class="flex flex-col items-center">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Current Usage</h4>
+                        <div class="relative w-24 h-12 mb-2">
+                            <svg width="96" height="48" viewBox="0 0 96 48">
+                                <path d="M8,40 A40,40 0 0,1 88,40" fill="none" stroke="#E5E7EB" stroke-width="10"/>
+                                <path d="M8,40 A40,40 0 0,1 56,8" fill="none" stroke="#10B981" stroke-width="10"/>
+                            </svg>
+                            <div class="absolute left-0 right-0 bottom-[-10px] text-xs text-gray-500 text-center w-full">Low consumption</div>
+                        </div>
+                        <div class="text-lg font-semibold text-gray-800">2.4 kWh</div>
+                    </div>
+                    <!-- Top Energy Consumers -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Top Energy Consumers</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Smart Thermostat</span>
+                                    <span class="font-medium">1.2 kWh</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-indigo-500 h-2 rounded-full" style="width: 50%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Kitchen Smart Plug</span>
+                                    <span class="font-medium">0.8 kWh</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-indigo-500 h-2 rounded-full" style="width: 33%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm">
+                                    <span>Living Room Lights</span>
+                                    <span class="font-medium">0.4 kWh</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                    <div class="bg-indigo-500 h-2 rounded-full" style="width: 17%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Optimization Suggestions -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Optimization Suggestions</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center p-2 bg-green-50 border border-green-100 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="text-xs text-green-800">Lower thermostat by 2° when away (saves ~10%)</span>
+                            </div>
+                            <div class="flex items-center p-2 bg-green-50 border border-green-100 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="text-xs text-green-800">Turn off kitchen plug when not in use (saves ~8%)</span>
+                            </div>
+                            <div class="flex items-center p-2 bg-green-50 border border-green-100 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="text-xs text-green-800">Reduce brightness of living room lights (saves ~5%)</span>
+                            </div>
+                        </div>
+                        <button class="mt-3 w-full px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">Apply All Suggestions</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Room Filter -->
+            <div class="mt-8 flex flex-wrap gap-3">
+                <button class="room-selector active px-4 py-2 bg-white border-2 border-indigo-500 rounded-lg text-sm font-medium text-indigo-700 shadow-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                    All Rooms
+                </button>
+                <button class="room-selector px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm flex items-center">
+                    Living Room
+                </button>
+                <button class="room-selector px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm flex items-center">
+                    Kitchen
+                </button>
+                <button class="room-selector px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm flex items-center">
+                    Bedroom
+                </button>
+                <button class="room-selector px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm flex items-center">
+                    Office
+                </button>
+                <button class="room-selector px-4 py-2 bg-white border-2 border-gray-200 rounded-lg text-sm font-medium text-gray-700 shadow-sm flex items-center">
+                    Bathroom
+                </button>
+            </div>
+            
+            <!-- Search and Filter -->
+            <div class="mt-6 flex flex-col sm:flex-row gap-4">
+                <div class="relative flex-grow">
+                    <input type="text" id="search-devices" placeholder="Search devices..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <div class="flex space-x-2">
+                    <button class="filter-btn bg-indigo-100 text-indigo-800 px-3 py-2 rounded-lg text-sm font-medium active-filter flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+                        </svg>
+                        All
+                    </button>
+                    <button class="filter-btn bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5"></span>
+                        Online
+                    </button>
+                    <button class="filter-btn bg-gray-100 text-gray-800 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 flex items-center">
+                        <span class="w-2 h-2 bg-gray-400 rounded-full mr-1.5"></span>
+                        Offline
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Devices Grid -->
+        <div class="device-grid mb-8" id="devices-container">
+            <!-- Smart Thermostat -->
+            <div class="device-card bg-white rounded-xl shadow-md overflow-hidden slide-in" data-status="online" data-type="thermostat" data-room="living-room">
+                <div class="p-5">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center">
+                            <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600 device-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-800">Smart Thermostat</h4>
+                                <p class="text-xs text-gray-600">Living Room</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-green-600 font-medium">Online</span>
+                            <button class="px-2 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out">
+                                Control
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-600 mb-4">
+                        <p>Current Temperature: <span class="font-semibold">22°C</span></p>
+                        <p>Target Temperature: <span class="font-semibold">20°C</span></p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="battery-indicator bg-gray-200 w-24">
+                            <div class="battery-level bg-green-400" style="width: 80%"></div>
+                        </div>
+                        <span class="text-xs text-gray-500">Battery: 80%</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Add more device cards here as needed -->
+        </div>
+    <script>
+        // ...existing code...
+const headerActions = document.querySelector('.flex.space-x-3');
+if (headerActions) {
+  const scanBtn = document.createElement('button');
+  scanBtn.id = 'scan-network-btn';
+  scanBtn.className = 'bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out flex items-center shadow-sm hover:shadow-md';
+  scanBtn.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+    </svg>
+    Scan Network
+  `;
+  headerActions.appendChild(scanBtn);
+}
+
+// 2. Show discovered devices in a modal
+function showDiscoveredDevices(devices) {
+  let modal = document.createElement('div');
+  modal.className = 'fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50';
+  modal.innerHTML = `
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+      <h2 class="text-lg font-semibold mb-4 text-gray-800">Discovered Devices on Network</h2>
+      <div class="mb-4">
+        ${devices.length === 0 ? '<p class="text-gray-500">No devices found.</p>' : `
+          <ul class="divide-y divide-gray-200">
+            ${devices.map(dev => `
+              <li class="py-2 flex items-center justify-between">
+                <span class="font-mono text-sm text-gray-700">${dev.ip || dev}</span>
+                <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 transition" data-ip="${dev.ip || dev}">Add</button>
+              </li>
+            `).join('')}
+          </ul>
+        `}
+      </div>
+      <div class="flex justify-end">
+        <button class="px-4 py-2 bg-gray-200 rounded text-gray-700" id="close-discover-modal">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  // Add device handler
+  modal.querySelectorAll('button[data-ip]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Pre-fill Add Device modal with IP
+      document.getElementById('add-device-modal').classList.remove('hidden');
+      document.querySelector('input[name="ip"]').value = btn.getAttribute('data-ip');
+      document.body.removeChild(modal);
+    });
+  });
+  modal.querySelector('#close-discover-modal').onclick = () => document.body.removeChild(modal);
+}
+
+// 3. Scan network when button is clicked
+document.getElementById('scan-network-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('scan-network-btn');
+  btn.disabled = true;
+  btn.textContent = 'Scanning...';
+  try {
+    const res = await fetch('/api/network/scan');
+    const data = await res.json();
+    // data.devices is expected to be an array of {ip: "x.x.x.x"}
+    showDiscoveredDevices(data.devices || []);
+  } catch (e) {
+    alert('Network scan failed.');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Scan Network';
+});
+
+// Add Device Modal logic
+document.getElementById('add-device-btn')?.addEventListener('click', () => {
+  document.getElementById('add-device-modal').classList.remove('hidden');
+});
+document.getElementById('cancel-add-device')?.addEventListener('click', () => {
+  document.getElementById('add-device-modal').classList.add('hidden');
+});
+document.getElementById('add-device-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.add('hidden');
+});
+
+document.getElementById('add-device-form')?.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    name: form.name.value,
+    type: form.type.value,
+    room: form.room.value,
+    battery: parseInt(form.battery.value, 10),
+    status: 'online',
+    value: form.type.value === 'thermostat' ? 22 : undefined // default value for thermostat
+  };
+  await fetch('/api/devices', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  document.getElementById('add-device-modal').classList.add('hidden');
+  loadDevices();
+  form.reset();
+});
+// Device filter and search logic
+async function loadDevices() {
+  const res = await fetch('/api/devices');
+  const data = await res.json();
+  const container = document.getElementById('devices-container');
+  container.innerHTML = '';
+  data.devices.forEach(dev => {
+    const card = document.createElement('div');
+    card.className = `device-card bg-white rounded-xl shadow-md overflow-hidden slide-in`;
+    card.dataset.status = dev.status;
+    card.dataset.type = dev.type;
+    card.dataset.room = dev.room;
+    card.innerHTML = `
+      <div class="p-5">
+        <div class="flex justify-between items-start mb-4">
+          <div class="flex items-center">
+            <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+              <svg class="h-8 w-8 text-indigo-600 device-icon"><!-- icon by type --></svg>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-800">${dev.name}</h4>
+              <p class="text-xs text-gray-600">${dev.room.replace('-', ' ')}</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs ${dev.status === 'online' ? 'text-green-600' : dev.status === 'offline' ? 'text-gray-500' : 'text-yellow-600'} font-medium">${dev.status.charAt(0).toUpperCase() + dev.status.slice(1)}</span>
+            <button class="px-2 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out" onclick="controlDevice(${dev.id})">Control</button>
+          </div>
+        </div>
+        <div class="text-sm text-gray-600 mb-4">
+          ${dev.type === 'thermostat' ? `Current Temperature: <span class="font-semibold">${dev.value}°C</span>` : ''}
+        </div>
+        <div class="flex items-center space-x-2">
+          <div class="battery-indicator bg-gray-200 w-24">
+            <div class="battery-level bg-green-400" style="width: ${dev.battery}%"></div>
+          </div>
+          <span class="text-xs text-gray-500">Battery: ${dev.battery}%</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+window.loadDevices = loadDevices;
+
+function controlDevice(id) {
+  fetch('/api/device/control', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: `id=${id}&action=toggle`
+  }).then(() => loadDevices());
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  // Room filter
+  document.querySelectorAll('.room-selector').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.room-selector').forEach(b => b.classList.remove('active', 'border-indigo-500', 'text-indigo-700'));
+      this.classList.add('active', 'border-indigo-500', 'text-indigo-700');
+      currentRoom = this.textContent.trim().toLowerCase().replace(/\s/g, '-');
+      loadDevices();
+    });
+  });
+
+  // Status filter
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active-filter', 'bg-indigo-100', 'text-indigo-800'));
+      this.classList.add('active-filter', 'bg-indigo-100', 'text-indigo-800');
+      currentStatus = this.textContent.trim().toLowerCase();
+      loadDevices();
+    });
+  });
+
+  // Search devices
+  const searchInput = document.getElementById('search-devices');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      currentSearch = this.value.toLowerCase();
+      loadDevices();
+    });
+  }
+
+  // Other UI event listeners (keep these as needed)
+  // ... (your other event listeners for modals, AI, etc.) ...
+  // (You can keep your modal/3D viewer/AI/maintenance listeners below this block)
+  // ...
+  loadDevices();
+});
+</script>
+<script>
+let currentRoom = 'all-rooms';
+let currentStatus = 'all';
+let currentSearch = '';
+
+async function loadDevices() {
+  // Build query string for backend filtering
+  let query = [];
+  if (currentRoom && currentRoom !== 'all-rooms') query.push('room=' + encodeURIComponent(currentRoom));
+  if (currentStatus && currentStatus !== 'all') query.push('status=' + encodeURIComponent(currentStatus));
+  const res = await fetch('/api/devices' + (query.length ? '?' + query.join('&') : ''));
+  const data = await res.json();
+  const container = document.getElementById('devices-container');
+  container.innerHTML = '';
+  data.devices.forEach(dev => {
+    // Search filter (client-side, for partial match)
+    if (currentSearch && !dev.name.toLowerCase().includes(currentSearch)) return;
+    const card = document.createElement('div');
+    card.className = `device-card bg-white rounded-xl shadow-md overflow-hidden slide-in`;
+    card.dataset.status = dev.status;
+    card.dataset.type = dev.type;
+    card.dataset.room = dev.room;
+    card.innerHTML = `
+      <div class="p-5">
+        <div class="flex justify-between items-start mb-4">
+          <div class="flex items-center">
+            <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+              <svg class="h-8 w-8 text-indigo-600 device-icon"></svg>
+            </div>
+            <div>
+              <h4 class="text-sm font-medium text-gray-800">${dev.name}</h4>
+              <p class="text-xs text-gray-600">${dev.room.replace('-', ' ')}</p>
+            </div>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs ${dev.status === 'online' ? 'text-green-600' : dev.status === 'offline' ? 'text-gray-500' : 'text-yellow-600'} font-medium">${dev.status.charAt(0).toUpperCase() + dev.status.slice(1)}</span>
+            <button class="px-2 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out" onclick="controlDevice(${dev.id})">Control</button>
+          </div>
+        </div>
+        <div class="text-sm text-gray-600 mb-4">
+          ${dev.type === 'thermostat' ? `Current Temperature: <span class="font-semibold">${dev.value}°C</span>` : ''}
+        </div>
+        <div class="flex items-center space-x-2">
+          <div class="battery-indicator bg-gray-200 w-24">
+            <div class="battery-level bg-green-400" style="width: ${dev.battery}%"></div>
+          </div>
+          <span class="text-xs text-gray-500">Battery: ${dev.battery}%</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+window.loadDevices = loadDevices;
+
+function controlDevice(id) {
+  fetch('/api/device/control', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: `id=${id}&action=toggle`
+  }).then(() => loadDevices());
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  // Room filter
+  document.querySelectorAll('.room-selector').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.room-selector').forEach(b => b.classList.remove('active', 'border-indigo-500', 'text-indigo-700'));
+      this.classList.add('active', 'border-indigo-500', 'text-indigo-700');
+      currentRoom = this.textContent.trim().toLowerCase().replace(/\s/g, '-');
+      loadDevices();
+    });
+  });
+
+  // Status filter
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active-filter', 'bg-indigo-100', 'text-indigo-800'));
+      this.classList.add('active-filter', 'bg-indigo-100', 'text-indigo-800');
+      currentStatus = this.textContent.trim().toLowerCase();
+      loadDevices();
+    });
+  });
+
+  // Search devices
+  const searchInput = document.getElementById('search-devices');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      currentSearch = this.value.toLowerCase();
+      loadDevices();
+    });
+  }
+
+  // Other UI event listeners (keep these as needed)
+  // ... (your other event listeners for modals, AI, etc.) ...
+  // (You can keep your modal/3D viewer/AI/maintenance listeners below this block)
+  // ...
+  loadDevices();
+});
+</script>
+<script>
+async function loadDevices() {
+  // Build query string for backend filtering
+  let query = [];
+  if (currentRoom && currentRoom !== 'all-rooms') query.push('room=' + encodeURIComponent(currentRoom));
+  if (currentStatus && currentStatus !== 'all') query.push('status=' + encodeURIComponent(currentStatus));
+  const res = await fetch('/api/devices' + (query.length ? '?' + query.join('&') : ''));
+  const data = await res.json();
+  const container = document.getElementById('devices-container');
+  container.innerHTML = '';
+  data.devices.forEach(dev => {
+    // Search filter (client-side, for partial match)
+    if (currentSearch && !dev.name.toLowerCase().includes(currentSearch)) return;
+    const card = document.createElement('div');
+    card.className = `device-card bg-white rounded-xl shadow-md overflow-hidden slide-in`;
+    card.dataset.status = dev.status;
+    card.dataset.type = dev.type;
+    card.dataset.room = dev.room;
+   // ...inside your loadDevices() function, in the card.innerHTML...
+card.innerHTML = `
+  <div class="p-5">
+    <div class="flex justify-between items-start mb-4">
+      <div class="flex items-center">
+        <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+          <svg class="h-8 w-8 text-indigo-600 device-icon"></svg>
+        </div>
+        <div>
+          <h4 class="text-sm font-medium text-gray-800">${dev.name}</h4>
+          <p class="text-xs text-gray-600">${dev.room.replace('-', ' ')}</p>
+          <p class="text-xs text-gray-400">IP: ${dev.ip || '-'}</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span class="text-xs ${dev.status === 'online' ? 'text-green-600' : dev.status === 'offline' ? 'text-gray-500' : 'text-yellow-600'} font-medium">${dev.status.charAt(0).toUpperCase() + dev.status.slice(1)}</span>
+        <button class="px-2 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out" onclick="controlDevice(${dev.id})">Control</button>
+      </div>
+    </div>
+    <div class="text-sm text-gray-600 mb-4">
+      ${dev.type === 'thermostat' ? `Current Temperature: <span class="font-semibold">${dev.value}°C</span>` : ''}
+    </div>
+  </div>
+`;
+    container.appendChild(card);
+  });
+}
+window.loadDevices = loadDevices;
+
+function controlDevice(id) {
+  fetch('/api/device/control', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: `id=${id}&action=toggle`
+  }).then(() => loadDevices());
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  // Room filter
+  document.querySelectorAll('.room-selector').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.room-selector').forEach(b => b.classList.remove('active', 'border-indigo-500', 'text-indigo-700'));
+      this.classList.add('active', 'border-indigo-500', 'text-indigo-700');
+      currentRoom = this.textContent.trim().toLowerCase().replace(/\s/g, '-');
+      loadDevices();
+    });
+  });
+
+  // Status filter
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active-filter', 'bg-indigo-100', 'text-indigo-800'));
+      this.classList.add('active-filter', 'bg-indigo-100', 'text-indigo-800');
+      currentStatus = this.textContent.trim().toLowerCase();
+      loadDevices();
+    });
+  });
+
+  // Search devices
+  const searchInput = document.getElementById('search-devices');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      currentSearch = this.value.toLowerCase();
+      loadDevices();
+    });
+  }
+
+
+  loadDevices();
+});
+
+        document.querySelectorAll('[data-tooltip]').forEach(el => {
+            el.addEventListener('mouseenter', function () {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'absolute bg-gray-800 text-white text-xs rounded p-1';
+                tooltip.textContent = this.getAttribute('data-tooltip');
+                this.appendChild(tooltip);
+                tooltip.style.top = `${this.offsetHeight + 5}px`;
+                tooltip.style.left = `${(this.offsetWidth - tooltip.offsetWidth) / 2}px`;
+            });
+            el.addEventListener('mouseleave', function () {
+                this.querySelector('div').remove();
+            });
+        });
+        // Initialize popovers
+        document.querySelectorAll('[data-popover]').forEach(el => {
+            el.addEventListener('click', function () {
+                const popover = document.createElement('div');
+                popover.className = 'absolute bg-white border border-gray-300 rounded shadow-lg p-2';
+                popover.textContent = this.getAttribute('data-popover');
+                this.appendChild(popover);
+                popover.style.top = `${this.offsetHeight + 5}px`;
+                popover.style.left = `${(this.offsetWidth - popover.offsetWidth) / 2}px`;
+            });
+        });
+        // Close popovers on outside click
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('[data-popover]')) {
+                document.querySelectorAll('[data-popover] > div').forEach(popover => {    
+                    popover.remove();
+                });
+            }
+        });
+        // Initialize voice command indicator
+        const voiceIndicator = document.getElementById('voice-command-indicator');
+        if (voiceIndicator) {
+            voiceIndicator.addEventListener('click', function () {
+                this.classList.add('hidden');
+            });
+        }
+        // Initialize AI command input
+        const aiInput = document.getElementById('ai-command');
+        if (aiInput) {
+            aiInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    alert('AI Assistant: This is a simulated response to your command: "' + aiInput.value + '"');
+                    aiInput.value = '';
+                }
+            });
+        }
+        // Initialize anomaly alert buttons
+        document.querySelectorAll('.anomaly-alert button').forEach(btn => {
+            btn.addEventListener('click', function () {
+                if (btn.textContent.includes('Investigate')) {
+                    alert('Redirecting to anomaly investigation...');
+                } else if (btn.textContent.includes('Dismiss')) {
+                    btn.closest('.anomaly-alert').style.display = 'none';
+                }
+            });
+        });
+        // Create Automation button in AI Insights
+        document.querySelectorAll('.pattern-chart ~ .bg-indigo-50 button').forEach(btn => {
+            btn.addEventListener('click', function () {
+                alert('Automation creation dialog would open here.');
+            });
+        });
+        // Schedule Maintenance
+        document.querySelectorAll('button.bg-yellow-600').forEach(btn => {
+            btn.addEventListener('click', function () {
+                alert('Maintenance scheduling dialog would open here.');
+            });
+        });
+  
+document.querySelectorAll('button.bg-indigo-600').forEach(btn => {
+    if (btn.textContent.includes('View Full 3D Model')) {
+        btn.addEventListener('click', function () {
+            // Improved: Show a modal overlay with a 3D viewer placeholder
+            let modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = 0;
+            modal.style.left = 0;
+            modal.style.width = '100vw';
+            modal.style.height = '100vh';
+            modal.style.background = 'rgba(31, 41, 55, 0.7)';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.zIndex = 10000;
+
+            let content = document.createElement('div');
+            content.style.background = 'white';
+            content.style.borderRadius = '1rem';
+            content.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+            content.style.padding = '2rem';
+            content.style.maxWidth = '90vw';
+            content.style.maxHeight = '90vh';
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.alignItems = 'center';
+
+            let title = document.createElement('h2');
+            title.textContent = '3D Home Model Viewer';
+            title.style.fontSize = '1.5rem';
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '1rem';
+            title.style.color = '#4F46E5';
+
+            let viewer = document.createElement('div');
+            viewer.style.width = '500px';
+            viewer.style.maxWidth = '80vw';
+            viewer.style.height = '350px';
+            viewer.style.background = 'linear-gradient(135deg, #EEF2FF 60%, #C7D2FE 100%)';
+            viewer.style.borderRadius = '0.75rem';
+            viewer.style.display = 'flex';
+            viewer.style.alignItems = 'center';
+            viewer.style.justifyContent = 'center';
+            viewer.style.marginBottom = '1.5rem';
+            viewer.innerHTML = `
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <rect x="20" y="60" width="80" height="40" rx="8" fill="#6366F1" opacity="0.15"/>
+                    <rect x="35" y="40" width="50" height="30" rx="6" fill="#6366F1" opacity="0.25"/>
+                    <polygon points="60,20 30,40 90,40" fill="#6366F1" opacity="0.3"/>
+                    <text x="60" y="80" text-anchor="middle" fill="#6366F1" font-size="16" font-weight="bold">3D</text>
+                </svg>
+            `;
+
+            let info = document.createElement('p');
+            info.textContent = 'A full interactive 3D model of your home would appear here. (Feature coming soon!)';
+            info.style.color = '#4B5563';
+            info.style.fontSize = '1rem';
+            info.style.textAlign = 'center';
+
+            let closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Close';
+            closeBtn.style.marginTop = '2rem';
+            closeBtn.style.background = '#6366F1';
+            closeBtn.style.color = 'white';
+            closeBtn.style.padding = '0.5rem 1.5rem';
+            closeBtn.style.border = 'none';
+            closeBtn.style.borderRadius = '0.5rem';
+            closeBtn.style.fontWeight = '600';
+            closeBtn.style.fontSize = '1rem';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.addEventListener('click', () => document.body.removeChild(modal));
+
+            content.appendChild(title);
+            content.appendChild(viewer);
+            content.appendChild(info);
+            content.appendChild(closeBtn);
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+        });
+    }
+});
+
+        // Add Device and Automation
+        document.getElementById('add-device-btn')?.addEventListener('click', () => {
+            //alert('Add Device dialog would open here.');
+        });
+        document.getElementById('add-automation-btn')?.addEventListener('click', () => {
+            alert('Add Automation dialog would open here.');
+        }); 
+        // Create Custom Mode
+        document.querySelectorAll('button').forEach(btn => {
+            if (btn.textContent.includes('Create Custom Mode')) {
+                btn.addEventListener('click', function () {
+                    alert('Custom mode creation dialog would open here.');
+                });
+            }
+        });
+        // Auto-detect presence toggle
+        const autoDetect = document.getElementById('auto-detect');
+        if (autoDetect) {
+            autoDetect.addEventListener('change', function () {
+                alert('Auto-detect presence is now ' + (autoDetect.checked ? 'enabled' : 'disabled') + '.');
+            });
+        }
+    
+document.querySelectorAll('button.bg-indigo-600').forEach(btn => {
+    if (btn.textContent.includes('View Full 3D Model')) {
+        btn.addEventListener('click', function () {
+            // Modal overlay
+            let modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = 0;
+            modal.style.left = 0;
+            modal.style.width = '100vw';
+            modal.style.height = '100vh';
+            modal.style.background = 'rgba(31, 41, 55, 0.7)';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.zIndex = 10000;
+
+            let content = document.createElement('div');
+            content.style.background = 'white';
+            content.style.borderRadius = '1rem';
+            content.style.boxShadow = '0 10px 40px rgba(0,0,0,0.2)';
+            content.style.padding = '2rem';
+            content.style.maxWidth = '95vw';
+            content.style.maxHeight = '95vh';
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.alignItems = 'center';
+
+            let title = document.createElement('h2');
+            title.textContent = '3D Home Model Viewer';
+            title.style.fontSize = '1.5rem';
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '1rem';
+            title.style.color = '#4F46E5';
+
+            // 3D Model Visualization (CSS 3D House)
+            let viewer = document.createElement('div');
+            viewer.className = 'house-3d-container';
+            viewer.style.width = '600px';
+            viewer.style.maxWidth = '90vw';
+            viewer.style.height = '350px';
+            viewer.style.position = 'relative';
+            viewer.style.overflow = 'hidden';
+            viewer.innerHTML = `
+                <div class="house-3d" style="width:100%;height:100%;transition:transform 0.7s cubic-bezier(.4,2,.6,1);">
+                    <div class="house-floor floor-1" style="z-index:2;">
+                        <div class="room-3d" style="flex-basis: 45%;">
+                            <h4 class="text-sm font-medium text-gray-700">Living Room</h4>
+                            <div class="device-dot online" style="top: 20%; left: 30%;" title="Smart Light"></div>
+                            <div class="device-dot online" style="top: 60%; left: 20%;" title="Smart Speaker"></div>
+                            <div class="device-dot online" style="top: 40%; left: 70%;" title="Smart Thermostat"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 25%;">
+                            <h4 class="text-sm font-medium text-gray-700">Kitchen</h4>
+                            <div class="device-dot online" style="top: 30%; left: 50%;" title="Smart Plug"></div>
+                            <div class="device-dot warning" style="top: 70%; left: 40%;" title="Smoke Detector"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 20%;">
+                            <h4 class="text-sm font-medium text-gray-700">Entrance</h4>
+                            <div class="device-dot online" style="top: 40%; left: 50%;" title="Smart Lock"></div>
+                            <div class="device-dot online" style="top: 70%; left: 30%;" title="Security Camera"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 45%;">
+                            <h4 class="text-sm font-medium text-gray-700">Bedroom</h4>
+                            <div class="device-dot online" style="top: 30%; left: 40%;" title="Smart Light"></div>
+                            <div class="device-dot offline" style="top: 60%; left: 70%;" title="Smart Plug"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 25%;">
+                            <h4 class="text-sm font-medium text-gray-700">Bathroom</h4>
+                            <div class="device-dot online" style="top: 50%; left: 50%;" title="Smart Light"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 20%;">
+                            <h4 class="text-sm font-medium text-gray-700">Office</h4>
+                            <div class="device-dot online" style="top: 40%; left: 60%;" title="Smart Light"></div>
+                            <div class="device-dot online" style="top: 70%; left: 30%;" title="Smart Plug"></div>
+                        </div>
+                    </div>
+                    <div class="house-floor floor-2" style="z-index:1; opacity:0.7;">
+                        <div class="room-3d" style="flex-basis: 45%;">
+                            <h4 class="text-sm font-medium text-gray-700">Guest Room</h4>
+                            <div class="device-dot online" style="top: 40%; left: 60%;" title="Smart Light"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 25%;">
+                            <h4 class="text-sm font-medium text-gray-700">Balcony</h4>
+                            <div class="device-dot offline" style="top: 50%; left: 50%;" title="Outdoor Camera"></div>
+                        </div>
+                        <div class="room-3d" style="flex-basis: 30%;">
+                            <h4 class="text-sm font-medium text-gray-700">Storage</h4>
+                        </div>
+                    </div>
+                </div>
+                <button id="magic-btn" style="position:absolute;top:10px;right:10px;background:#4F46E5;color:white;padding:0.5rem 1rem;border:none;border-radius:0.5rem;font-weight:600;box-shadow:0 2px 8px rgba(79,70,229,0.15);cursor:pointer;z-index:10;">
+                    Magic
+                </button>
+                <button id="rotate-btn" style="position:absolute;top:10px;left:10px;background:#6366F1;color:white;padding:0.5rem 1rem;border:none;border-radius:0.5rem;font-weight:600;box-shadow:0 2px 8px rgba(99,102,241,0.15);cursor:pointer;z-index:10;">
+                    Rotate
+                </button>
+            `;
+
+            let info = document.createElement('p');
+            info.innerHTML = `
+                <span style="color:#4B5563;font-size:1rem;text-align:center;display:block;">
+                    <b>Tip:</b> Hover over device dots to see device names.<br>
+                    <span style="color:#10B981;">Green</span> = Online, <span style="color:#F59E0B;">Yellow</span> = Warning, <span style="color:#6B7280;">Gray</span> = Offline.<br>
+                    <b>Try the <span style="color:#4F46E5;">Magic</span> and <span style="color:#6366F1;">Rotate</span> buttons!</b>
+                </span>
+            `;
+
+            let closeBtn = document.createElement('button');
+            closeBtn.textContent = 'Close';
+            closeBtn.style.marginTop = '2rem';
+            closeBtn.style.background = '#6366F1';
+            closeBtn.style.color = 'white';
+            closeBtn.style.padding = '0.5rem 1.5rem';
+            closeBtn.style.border = 'none';
+            closeBtn.style.borderRadius = '0.5rem';
+            closeBtn.style.fontWeight = '600';
+            closeBtn.style.fontSize = '1rem';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.addEventListener('click', () => document.body.removeChild(modal));
+
+            content.appendChild(title);
+            content.appendChild(viewer);
+            content.appendChild(info);
+            content.appendChild(closeBtn);
+            modal.appendChild(content);
+            document.body.appendChild(modal);
+
+            // --- Magic & Rotate functionality ---
+            const house3d = viewer.querySelector('.house-3d');
+            let rotated = false;
+            let magicActive = false;
+
+            // Rotate button
+            viewer.querySelector('#rotate-btn').onclick = () => {
+                rotated = !rotated;
+                house3d.style.transform = rotated
+                    ? 'rotateY(30deg) rotateX(10deg) scale(1.07)'
+                    : 'none';
+            };
+
+            // Magic button: animate device dots and rooms
+            viewer.querySelector('#magic-btn').onclick = () => {
+                magicActive = !magicActive;
+                viewer.querySelectorAll('.device-dot').forEach(dot => {
+                    dot.style.boxShadow = magicActive
+                        ? '0 0 16px 6px #F59E0B, 0 0 32px 12px #6366F1'
+                        : '';
+                    dot.style.transition = 'box-shadow 0.5s, transform 0.5s';
+                    dot.style.transform = magicActive ? 'scale(2) rotate(10deg)' : '';
+                });
+                viewer.querySelectorAll('.room-3d').forEach(room => {
+                    room.style.background = magicActive
+                        ? 'linear-gradient(135deg, #EEF2FF 60%, #C7D2FE 100%)'
+                        : 'rgba(255,255,255,0.8)';
+                    room.style.boxShadow = magicActive
+                        ? '0 0 24px 8px #6366F1'
+                        : '0 4px 6px rgba(0,0,0,0.1)';
+                });
+                house3d.style.transition = 'transform 1s cubic-bezier(.4,2,.6,1)';
+                house3d.style.transform = magicActive
+                    ? 'rotateY(0deg) rotateX(0deg) scale(1.15)'
+                    : (rotated ? 'rotateY(30deg) rotateX(10deg) scale(1.07)' : 'none');
+            };
+
+            // Tooltip for device dots
+            viewer.querySelectorAll('.device-dot').forEach(dot => {
+                dot.addEventListener('mouseenter', function (e) {
+                    let tooltip = document.createElement('div');
+                    tooltip.textContent = dot.title;
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.left = (dot.offsetLeft + 16) + 'px';
+                    tooltip.style.top = (dot.offsetTop - 8) + 'px';
+                    tooltip.style.background = '#4F46E5';
+                    tooltip.style.color = 'white';
+                    tooltip.style.padding = '2px 8px';
+                    tooltip.style.borderRadius = '6px';
+                    tooltip.style.fontSize = '0.85rem';
+                    tooltip.style.pointerEvents = 'none';
+                    tooltip.style.zIndex = 100;
+                    tooltip.className = 'dot-tooltip';
+                    dot.parentNode.appendChild(tooltip);
+                    dot._tooltip = tooltip;
+                });
+                dot.addEventListener('mouseleave', function () {
+                    if (dot._tooltip) {
+                        dot._tooltip.remove();
+                        dot._tooltip = null;
+                    }
+                });
+                dot.addEventListener('click', function () {
+                    alert(`Device: ${dot.title}\nStatus: ${
+                        dot.classList.contains('online') ? 'Online'
+                        : dot.classList.contains('offline') ? 'Offline'
+                        : 'Warning'
+                    }`);
+                });
+            });
+        });
+    }
+});
+document.getElementById('add-device-form')?.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const ip = form.ip.value.trim();
+  // Only add if IP is present and valid
+  if (!ip) {
+    alert('IP address is required.');
+    return;
+  }
+  const data = {
+    name: form.name.value,
+    type: form.type.value,
+    room: form.room.value,
+    ip: ip,
+    status: 'online',
+    value: form.type.value === 'thermostat' ? 22 : undefined // default value for thermostat
+  };
+  await fetch('/api/devices', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  document.getElementById('add-device-modal').classList.add('hidden');
+  loadDevices();
+  form.reset();
+});
+document.getElementById('add-device-btn')?.addEventListener('click', () => {
+  document.getElementById('add-device-modal').classList.remove('hidden');
+  startDeviceScan();
+});
+
+// Close modal
+document.getElementById('close-add-device-modal').onclick =
+document.getElementById('cancel-add-device').onclick = function() {
+  document.getElementById('add-device-modal').classList.add('hidden');
+};
+
+// Scan for devices and suggest
+async function startDeviceScan() {
+  const scanSection = document.getElementById('device-scan-section');
+  const spinner = document.getElementById('scan-spinner');
+  const list = document.getElementById('discovered-devices-list');
+  spinner.classList.remove('hidden');
+  list.innerHTML = '<span>Looking for devices...</span>';
+  try {
+    const res = await fetch('/api/network/scan');
+    const data = await res.json();
+    spinner.classList.add('hidden');
+    if (data.devices && data.devices.length > 0) {
+      list.innerHTML = `
+        <ul>
+          ${data.devices.map(dev => `
+            <li class="flex items-center justify-between py-1">
+              <span class="font-mono text-gray-700">${dev.ip || dev}</span>
+              <button class="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 transition" data-ip="${dev.ip || dev}">Use</button>
+            </li>
+          `).join('')}
+        </ul>
+        <div class="text-xs text-gray-500 mt-2">Click "Use" to auto-fill the IP address below.</div>
+      `;
+      // Attach event listeners to "Use" buttons
+      list.querySelectorAll('button[data-ip]').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelector('#add-device-form input[name="ip"]').value = btn.getAttribute('data-ip');
+        };
+      });
+    } else {
+      list.innerHTML = '<span class="text-gray-500">No new devices found on your network.</span>';
+    }
+  } catch (e) {
+    spinner.classList.add('hidden');
+    list.innerHTML = '<span class="text-red-500">Failed to scan network.</span>';
+  }
+}
+
+// Add Device form submit
+document.getElementById('add-device-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    name: form.name.value,
+    type: form.type.value,
+    room: form.room.value,
+    ip: form.ip.value,
+    status: form.status.value,
+    battery: parseInt(form.battery.value, 10),
+    value: form.type.value === 'thermostat' ? 22 : undefined // default value for thermostat
+  };
+  await fetch('/api/devices', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  document.getElementById('add-device-modal').classList.add('hidden');
+  loadDevices();
+  form.reset();
+});
+    </script>    
+</body>
+</html>

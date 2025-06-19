@@ -15,6 +15,8 @@
   - Enhanced security with password reset
 */
 
+#include <Arduino.h>
+#include <vector>
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DHT.h>
@@ -28,6 +30,7 @@
 #include <ESPmDNS.h>
 #include <TimeAlarms.h> 
 #include "esp_task_wdt.h"
+#include <lwip/sockets.h>
 
 
 // ----------- DEBUG SETTINGS -----------
@@ -185,8 +188,74 @@ void checkSchedules();
 void checkSchedules();
 void addLog(const String& entry);
 void saveSchedulesToEEPROM();
+void startNetworkScan();
 
 // ----------- Helper Functions -----------
+struct DeviceInfo {
+  int id;
+  String name;
+  String type;
+  String room;
+  String status; // "online", "offline", "warning"
+  int battery;   // percent
+  float value;   // e.g., temperature, power, etc.
+};
+
+DeviceInfo devices[] = {
+  {1, "Smart Thermostat", "thermostat", "living-room", "online", 80, 22.0},
+  {2, "Smart Plug", "plug", "kitchen", "online", 90, 0.8},
+  {3, "Smart Light", "light", "bedroom", "offline", 60, 0},
+  {4, "Security Camera", "camera", "entrance", "online", 70, 0},
+  {5, "Smart Speaker", "speaker", "living-room", "online", 100, 0},
+  {6, "Smoke Detector", "smoke", "kitchen", "warning", 50, 0},
+  {7, "Smart Lock", "lock", "entrance", "online", 95, 0},
+  {8, "Smart Light", "light", "bathroom", "online", 85, 0},
+  {9, "Smart Light", "light", "office", "online", 90, 0},
+  {10, "Smart Plug", "plug", "office", "online", 80, 0},
+  {11, "Smart Light", "light", "living-room", "online", 80, 0},
+  {12, "Smart Plug", "plug", "bedroom", "offline", 60, 0}
+};
+const int DEVICE_COUNT = sizeof(devices)/sizeof(devices[0]);
+
+
+
+bool isLoggedIn() {
+  return true;
+  // if (!server.hasHeader("Cookie")) return false;
+  // String cookie = server.header("Cookie");
+  // int idx = cookie.indexOf("ESPSESSIONID=");
+  // if (idx == -1) return false;
+  // int start = idx + strlen("ESPSESSIONID=");
+  // int end = cookie.indexOf(';', start);
+  // String token = (end == -1) ? cookie.substring(start) : cookie.substring(start, end);
+  // token.trim();
+  // sessionToken.trim();
+  // return token == sessionToken && sessionToken.length() > 0;
+}
+
+bool requireLogin() {
+  if (!isLoggedIn()) {
+    Serial.println("[DEBUG] requireLogin: not logged in, redirecting");
+    server.sendHeader("Location", "/login");
+    // DO NOT set the session cookie here!
+    server.send(302, "text/plain", "Redirecting to login...");
+    return true;
+  }
+  Serial.println("[DEBUG] requireLogin: user is logged in");
+  return false;
+}
+
+struct NetScanState {
+  bool active = false;
+  IPAddress baseIP;
+  IPAddress localIP;
+  int current = 1;
+  int max = 30;
+  std::vector<String> foundIPs;
+  unsigned long lastScan = 0;
+};
+NetScanState netScan;
+
 struct UserDevice {
   String name;
   String type;
@@ -230,25 +299,6 @@ bool removeRoutine(int idx) {
   return true;
 }
 
-// Check and execute routines (call in loop)
-void checkRoutines() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return;
-  char nowStr[6];
-  snprintf(nowStr, sizeof(nowStr), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
-
-  for (int i = 0; i < routineCount; i++) {
-    if (routines[i].active && routines[i].time == String(nowStr)) {
-      int relayIdx = routines[i].relayNum - 1;
-      if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
-        relayStates[relayIdx] = routines[i].state;
-        digitalWrite(relayPins[relayIdx], relayStates[relayIdx] ? HIGH : LOW);
-        addLog("Routine triggered: " + routines[i].name + " (Relay " + String(routines[i].relayNum) + (routines[i].state ? " ON" : " OFF") + ")");
-        routines[i].active = false; // One-time routine, deactivate after running
-      }
-    }
-  }
-}
 
 struct SensorDataPoint {
   time_t timestamp;
@@ -330,6 +380,48 @@ String generateSessionToken() {
   return token;
 }
 
+
+
+void scanLocalNetwork(std::vector<String>& foundIPs) {
+  foundIPs.clear();
+  IPAddress localIP = WiFi.localIP();
+  if (localIP[0] == 0) return;
+  IPAddress baseIP = localIP;
+  baseIP[3] = 1;
+  for (int i = 1; i <= 30; i++) {
+    IPAddress testIP = baseIP;
+    testIP[3] = i;
+    if (testIP == localIP) continue;
+    Serial.print("Scanning: ");
+    Serial.println(testIP);
+    WiFiClient client;
+    if (client.connect(testIP, 80)) {
+      Serial.print("Found device: ");
+      Serial.println(testIP);
+      foundIPs.push_back(testIP.toString());
+      client.stop();
+    }
+    delay(20); // Try a longer delay
+  }
+}
+void checkRoutines() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+  char nowStr[6];
+  snprintf(nowStr, sizeof(nowStr), "%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+
+  for (int i = 0; i < routineCount; i++) {
+    if (routines[i].active && routines[i].time == String(nowStr)) {
+      int relayIdx = routines[i].relayNum - 1;
+      if (relayIdx >= 0 && relayIdx < RELAY_COUNT) {
+        relayStates[relayIdx] = routines[i].state;
+        digitalWrite(relayPins[relayIdx], relayStates[relayIdx] ? HIGH : LOW);
+        addLog("Routine triggered: " + routines[i].name + " (Relay " + String(routines[i].relayNum) + (routines[i].state ? " ON" : " OFF") + ")");
+        routines[i].active = false; // One-time routine, deactivate after running
+      }
+    }
+  }
+}
 void addLog(const String& entry) {
   struct tm timeinfo;
   char timestamp[25] = "";
@@ -346,31 +438,6 @@ void addLog(const String& entry) {
   Serial.println(entry);
 }
 
-bool isLoggedIn() {
-  return true;
-  // if (!server.hasHeader("Cookie")) return false;
-  // String cookie = server.header("Cookie");
-  // int idx = cookie.indexOf("ESPSESSIONID=");
-  // if (idx == -1) return false;
-  // int start = idx + strlen("ESPSESSIONID=");
-  // int end = cookie.indexOf(';', start);
-  // String token = (end == -1) ? cookie.substring(start) : cookie.substring(start, end);
-  // token.trim();
-  // sessionToken.trim();
-  // return token == sessionToken && sessionToken.length() > 0;
-}
-
-bool requireLogin() {
-  if (!isLoggedIn()) {
-    Serial.println("[DEBUG] requireLogin: not logged in, redirecting");
-    server.sendHeader("Location", "/login");
-    // DO NOT set the session cookie here!
-    server.send(302, "text/plain", "Redirecting to login...");
-    return true;
-  }
-  Serial.println("[DEBUG] requireLogin: user is logged in");
-  return false;
-}
 
 String getContentType(String filename) {
   if (filename.endsWith(".html")) return "text/html";
@@ -2769,7 +2836,6 @@ void handleEnergyData() {
   server.send(200, "application/json", json);
 }
 // --- Energy Dashboard API Endpoints for energy.html ---
-
 // Returns main energy chart data (labels, electricity, solar, net usage)
 void handleEnergyChartData() {
   if (requireLogin()) return;
@@ -2920,7 +2986,252 @@ void handleEnergyTips() {
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
+// ...existing code...
+struct Device {
+  int id;
+  String name;
+  String type;
+  String room;
+  String ip;
+  String status;
+  int value; // for thermostat, etc.
+};
+std::vector<Device> dev;
+int nextId = 1;
+String devicesToJson() {
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.createNestedArray("devices");
+  for (const auto& d : dev) {
+    JsonObject obj = arr.createNestedObject();
+    obj["id"] = d.id;
+    obj["name"] = d.name;
+    obj["type"] = d.type;
+    obj["room"] = d.room;
+    obj["ip"] = d.ip;
+    obj["status"] = d.status;
+    obj["value"] = d.value;
+  }
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
 
+
+// Example device structure for API
+
+
+
+
+void handleMaintenance() {
+  DynamicJsonDocument doc(512);
+  doc["camera_battery_days"] = 25;
+  doc["insight"] = "Security Camera battery is predicted to reach critical level in 25 days. Schedule a replacement.";
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+void handleDevicesList() {
+  String room = server.hasArg("room") ? server.arg("room") : "";
+  String status = server.hasArg("status") ? server.arg("status") : "";
+  DynamicJsonDocument doc(4096);
+  JsonArray arr = doc.createNestedArray("devices");
+  for (int i = 0; i < DEVICE_COUNT; i++) {
+    if ((room == "" || devices[i].room == room) &&
+        (status == "" || devices[i].status == status)) {
+      JsonObject d = arr.createNestedObject();
+      d["id"] = devices[i].id;
+      d["name"] = devices[i].name;
+      d["type"] = devices[i].type;
+      d["room"] = devices[i].room;
+      d["status"] = devices[i].status;
+      d["battery"] = devices[i].battery;
+      d["value"] = devices[i].value;
+    }
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// --- API: Device Control ---
+void handleDeviceControl() {
+  if (!server.hasArg("id") || !server.hasArg("action")) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing parameters\"}");
+    return;
+  }
+  int id = server.arg("id").toInt();
+  String action = server.arg("action");
+  for (int i = 0; i < DEVICE_COUNT; i++) {
+    if (devices[i].id == id) {
+      if (action == "toggle") {
+        devices[i].status = (devices[i].status == "online") ? "offline" : "online";
+      }
+      if (action == "set" && server.hasArg("value")) {
+        devices[i].value = server.arg("value").toFloat();
+      }
+      server.send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+  server.send(404, "application/json", "{\"success\":false,\"error\":\"Device not found\"}");
+}
+
+// --- API: Dashboard Summary ---
+void handleDevicesSummary() {
+  int total = DEVICE_COUNT, online = 0, offline = 0, automations = 5;
+  float energy = 2.4;
+  for (int i = 0; i < DEVICE_COUNT; i++) {
+    if (devices[i].status == "online") online++;
+    if (devices[i].status == "offline") offline++;
+  }
+  DynamicJsonDocument doc(256);
+  doc["total"] = total;
+  doc["online"] = online;
+  doc["offline"] = offline;
+  doc["energy"] = energy;
+  doc["automations"] = automations;
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// --- API: Energy Prediction ---
+void handleEnergyPrediction() {
+  DynamicJsonDocument doc(256);
+  doc["today"] = 2.4;
+  doc["tomorrow"] = 2.8;
+  doc["insight"] = "Your energy usage is predicted to increase by 15% tomorrow. Consider optimizing your thermostat schedule.";
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// --- API: Device Usage Patterns ---
+void handleDevicePatterns() {
+  DynamicJsonDocument doc(512);
+  JsonArray times = doc.createNestedArray("times");
+  JsonArray values = doc.createNestedArray("values");
+  String t[] = {"6am","8am","10am","12pm","2pm","4pm","6pm","8pm","10pm","12am"};
+  int v[] = {30,60,40,20,30,80,90,70,50,20};
+  for (int i=0;i<10;i++) { times.add(t[i]); values.add(v[i]); }
+  doc["insight"] = "We've detected a pattern of lights being left on in the kitchen after 10pm. Would you like to create an automation?";
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// --- API: AI Assistant (simulate) ---
+void handleAICommand() {
+  String cmd = server.hasArg("cmd") ? server.arg("cmd") : "";
+  DynamicJsonDocument doc(256);
+  doc["response"] = "This is a simulated AI response to: " + cmd;
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// POST /api/devices - add a device
+void handleApiDevicesPost() {
+  if (requireLogin()) return;
+  DynamicJsonDocument doc(512);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  Device d;
+  d.id = nextId++;
+  d.name = doc["name"] | "";
+  d.type = doc["type"] | "";
+  d.room = doc["room"] | "";
+  d.ip = doc["ip"] | "";
+  d.status = doc["status"] | "online";
+  d.value = doc["value"] | 0;
+  if (d.ip.length() == 0) {
+    server.send(400, "application/json", "{\"error\":\"IP required\"}");
+    return;
+  }
+  dev.push_back(d);
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
+// POST /api/device/control - toggle device (dummy)
+void handleDeviceControlPost() {
+  if (requireLogin()) return;
+  if (!server.hasArg("id")) {
+    server.send(400, "application/json", "{\"error\":\"Missing id\"}");
+    return;
+  }
+  int id = server.arg("id").toInt();
+  for (auto& d : dev) {
+    if (d.id == id) {
+      d.status = (d.status == "online") ? "offline" : "online";
+      server.send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+  server.send(404, "application/json", "{\"error\":\"Device not found\"}");
+}
+
+void handleNetworkScan() {
+  if (requireLogin()) return;
+  server.sendHeader("Access-Control-Allow-Origin", "*"); // Add this line
+  if (!netScan.active && netScan.current == 1) {
+    startNetworkScan();
+    server.send(200, "application/json", "{\"status\":\"started\"}");
+    return;
+  }
+  // If scan is running, return progress
+  DynamicJsonDocument doc(1024);
+  doc["status"] = netScan.active ? "scanning" : "done";
+  JsonArray arr = doc.createNestedArray("devices");
+  for (auto& ip : netScan.foundIPs) {
+    JsonObject obj = arr.createNestedObject();
+    obj["ip"] = ip;
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+void startNetworkScan() {
+  netScan.active = true;
+  netScan.localIP = WiFi.localIP();
+  netScan.baseIP = netScan.localIP;
+  netScan.baseIP[3] = 1;
+  netScan.current = 1;
+  netScan.foundIPs.clear();
+  netScan.lastScan = millis();
+}
+
+// --- Call this in loop() ---
+void processNetworkScan() {
+  if (!netScan.active) return;
+  if (millis() - netScan.lastScan < 50) return; // scan every 50ms
+  netScan.lastScan = millis();
+
+  if (netScan.current > netScan.max) {
+    netScan.active = false;
+    Serial.println("Network scan complete.");
+    return;
+  }
+
+  IPAddress testIP = netScan.baseIP;
+  testIP[3] = netScan.current;
+  netScan.current++;
+  if (testIP == netScan.localIP) return;
+
+  Serial.print("Scanning: ");
+  Serial.println(testIP);
+  WiFiClient client;
+  client.setTimeout(200); // 200ms timeout
+  if (client.connect(testIP, 80)) {
+    Serial.print("Found device: ");
+    Serial.println(testIP);
+    netScan.foundIPs.push_back(testIP.toString());
+    client.stop();
+  }
+  esp_task_wdt_reset();
+}
 
 void setup() {
   Serial.begin(115200);
@@ -3020,6 +3331,23 @@ void setup() {
   server.on("/energy/peak_hours", HTTP_GET, handleEnergyPeakHours);
   server.on("/energy/summary", HTTP_GET, handleEnergySummary);
   server.on("/energy/tips", HTTP_GET, handleEnergyTips);
+  server.on("/api/devices", HTTP_GET, handleDevicesList);
+  server.on("/api/device/control", HTTP_POST, handleDeviceControl);
+  server.on("/api/devices/maintenance", HTTP_GET, handleMaintenance);
+  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
+  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
+  server.on("/api/devices/patterns", HTTP_GET, handleDevicePatterns);
+  server.on("/api/energy/prediction", HTTP_GET, handleEnergyPrediction);
+  server.on("/api/devices", HTTP_GET, handleDevicesList);
+  server.on("/api/device/control", HTTP_POST, handleDeviceControl);
+  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
+  server.on("/api/energy/prediction", HTTP_GET, handleEnergyPrediction);
+  server.on("/api/devices/patterns", HTTP_GET, handleDevicePatterns);
+  server.on("/api/devices/maintenance", HTTP_GET, handleMaintenance);
+  server.on("/api/ai", HTTP_POST, handleAICommand);
+  server.on("/api/devices", HTTP_POST, handleApiDevicesPost);
+  server.on("/api/device/control", HTTP_POST, handleDeviceControlPost);
+  server.on("/api/network/scan", HTTP_GET, handleNetworkScan);
   
   server.onNotFound(handleNotFound);
   server.on("/energy.html", HTTP_GET, []() {
@@ -3027,6 +3355,14 @@ void setup() {
       server.send(404, "text/plain", "energy.html not found");
     }
   });
+server.on("/devices.html", HTTP_GET, []() {
+  if (!handleFileRead("/devices.html")) {
+    server.send(404, "text/plain", "devices.html not found");
+  }
+});
+  // POST /api/devices - add a device
+ 
+
   server.begin();
   
   // Set up mDNS for easy access
@@ -3054,7 +3390,7 @@ void loop() {
 
   server.handleClient();
   handleButtonPress();
-
+  processNetworkScan(); 
   unsigned long currentMillis = millis();
   if (currentMillis - lastSensorRead > SENSOR_READ_INTERVAL) {
     lastSensorRead = currentMillis;
