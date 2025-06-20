@@ -198,26 +198,11 @@ struct DeviceInfo {
   String room;
   String status; // "online", "offline", "warning"
   int battery;   // percent
-  float value;   // e.g., temperature, power, etc.
+  float value;
+  String ip;
 };
-
-DeviceInfo devices[] = {
-  {1, "Smart Thermostat", "thermostat", "living-room", "online", 80, 22.0},
-  {2, "Smart Plug", "plug", "kitchen", "online", 90, 0.8},
-  {3, "Smart Light", "light", "bedroom", "offline", 60, 0},
-  {4, "Security Camera", "camera", "entrance", "online", 70, 0},
-  {5, "Smart Speaker", "speaker", "living-room", "online", 100, 0},
-  {6, "Smoke Detector", "smoke", "kitchen", "warning", 50, 0},
-  {7, "Smart Lock", "lock", "entrance", "online", 95, 0},
-  {8, "Smart Light", "light", "bathroom", "online", 85, 0},
-  {9, "Smart Light", "light", "office", "online", 90, 0},
-  {10, "Smart Plug", "plug", "office", "online", 80, 0},
-  {11, "Smart Light", "light", "living-room", "online", 80, 0},
-  {12, "Smart Plug", "plug", "bedroom", "offline", 60, 0}
-};
-const int DEVICE_COUNT = sizeof(devices)/sizeof(devices[0]);
-
-
+std::vector<DeviceInfo> devices;
+int nextDeviceId = 1;
 
 bool isLoggedIn() {
   return true;
@@ -2124,11 +2109,13 @@ void updateDailyTemperature() {
     }
     // Store the true daily average (mean of all readings)
     if (sampleCount > 0) {
-      dailyTempAverage[0] = tempSum / sampleCount;
-      dailyHumAverage[0] = humSum / sampleCount;
+      dailyTempAverage[0] = dailyTempAverage[1] = tempSum / sampleCount;
+      dailyHumAverage[0] = dailyHumAverage[1] = humSum / sampleCount;
     } else {
       dailyTempAverage[0] = currentTemp;
       dailyHumAverage[0] = currentHum;
+      dailyTempAverage[1] = currentTemp;
+      dailyHumAverage[1] = currentHum;
     }
     // Reset for next day
     tempSum = 0;
@@ -2676,9 +2663,10 @@ void checkSchedules() {
 void handleSchedulesList() {
   if (requireLogin()) return;
   DynamicJsonDocument doc(2048);
-  JsonArray arr = doc.to<JsonArray>();
+  JsonArray arr = doc.createNestedArray();
   for (int i = 0; i < scheduleCount; i++) {
     JsonObject s = arr.createNestedObject();
+    s["id"] = schedules[i].id;
     s["name"] = schedules[i].name;
     s["startHour"] = schedules[i].startHour;
     s["startMinute"] = schedules[i].startMinute;
@@ -2920,12 +2908,12 @@ void handleEnergyComparison() {
   if (requireLogin()) return;
   StaticJsonDocument<512> doc;
   JsonArray labels = doc.createNestedArray("labels");
-  labels.add("Jan"); labels.add("Feb"); labels.add("Mar");
   JsonArray your_home = doc.createNestedArray("your_home");
-  your_home.add(120); your_home.add(110); your_home.add(130);
   JsonArray neighborhood = doc.createNestedArray("neighborhood");
-  neighborhood.add(140); neighborhood.add(135); neighborhood.add(138);
   JsonArray efficient = doc.createNestedArray("efficient");
+  labels.add("Jan"); labels.add("Feb"); labels.add("Mar");
+  your_home.add(120); your_home.add(110); your_home.add(130);
+  neighborhood.add(140); neighborhood.add(135); neighborhood.add(138);
   efficient.add(90); efficient.add(85); efficient.add(88);
   String json;
   serializeJson(doc, json);
@@ -2987,34 +2975,6 @@ void handleEnergyTips() {
   server.send(200, "application/json", json);
 }
 // ...existing code...
-struct Device {
-  int id;
-  String name;
-  String type;
-  String room;
-  String ip;
-  String status;
-  int value; // for thermostat, etc.
-};
-std::vector<Device> dev;
-int nextId = 1;
-String devicesToJson() {
-  DynamicJsonDocument doc(2048);
-  JsonArray arr = doc.createNestedArray("devices");
-  for (const auto& d : dev) {
-    JsonObject obj = arr.createNestedObject();
-    obj["id"] = d.id;
-    obj["name"] = d.name;
-    obj["type"] = d.type;
-    obj["room"] = d.room;
-    obj["ip"] = d.ip;
-    obj["status"] = d.status;
-    obj["value"] = d.value;
-  }
-  String out;
-  serializeJson(doc, out);
-  return out;
-}
 
 
 // Example device structure for API
@@ -3033,27 +2993,58 @@ void handleMaintenance() {
 void handleDevicesList() {
   String room = server.hasArg("room") ? server.arg("room") : "";
   String status = server.hasArg("status") ? server.arg("status") : "";
+  String search = server.hasArg("search") ? server.arg("search") : "";
   DynamicJsonDocument doc(4096);
   JsonArray arr = doc.createNestedArray("devices");
-  for (int i = 0; i < DEVICE_COUNT; i++) {
-    if ((room == "" || devices[i].room == room) &&
-        (status == "" || devices[i].status == status)) {
-      JsonObject d = arr.createNestedObject();
-      d["id"] = devices[i].id;
-      d["name"] = devices[i].name;
-      d["type"] = devices[i].type;
-      d["room"] = devices[i].room;
-      d["status"] = devices[i].status;
-      d["battery"] = devices[i].battery;
-      d["value"] = devices[i].value;
+  for (const auto& d : devices) {
+    if ((room == "" || d.room == room) &&
+        (status == "" || d.status == status) &&
+        (search == "" || d.name.indexOf(search) != -1)) {
+      JsonObject obj = arr.createNestedObject();
+      obj["id"] = d.id;
+      obj["name"] = d.name;
+      obj["type"] = d.type;
+      obj["room"] = d.room;
+      obj["status"] = d.status;
+      obj["battery"] = d.battery;
+      obj["value"] = d.value;
+      obj["ip"] = d.ip;
     }
   }
   String json;
   serializeJson(doc, json);
   server.send(200, "application/json", json);
 }
-
 // --- API: Device Control ---
+void handleDeviceUpdate() {
+  if (server.method() != HTTP_PUT) {
+    server.send(405, "application/json", "{\"error\":\"Method Not Allowed\"}");
+    return;
+  }
+  DynamicJsonDocument doc(512);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  int id = doc["id"] | 0;
+  for (auto& d : devices) {
+    if (d.id == id) {
+      if (doc.containsKey("name")) d.name = doc["name"].as<String>();
+      if (doc.containsKey("type")) d.type = doc["type"].as<String>();
+      if (doc.containsKey("room")) d.room = doc["room"].as<String>();
+      if (doc.containsKey("status")) d.status = doc["status"].as<String>();
+      if (doc.containsKey("battery")) d.battery = doc["battery"];
+      if (doc.containsKey("value")) d.value = doc["value"];
+      if (doc.containsKey("ip")) d.ip = doc["ip"].as<String>();
+      server.send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+  server.send(404, "application/json", "{\"success\":false,\"error\":\"Device not found\"}");
+}
+
+// --- Device API: Control (toggle/set value) ---
 void handleDeviceControl() {
   if (!server.hasArg("id") || !server.hasArg("action")) {
     server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing parameters\"}");
@@ -3061,13 +3052,13 @@ void handleDeviceControl() {
   }
   int id = server.arg("id").toInt();
   String action = server.arg("action");
-  for (int i = 0; i < DEVICE_COUNT; i++) {
-    if (devices[i].id == id) {
+  for (auto& d : devices) {
+    if (d.id == id) {
       if (action == "toggle") {
-        devices[i].status = (devices[i].status == "online") ? "offline" : "online";
+        d.status = (d.status == "online") ? "offline" : "online";
       }
       if (action == "set" && server.hasArg("value")) {
-        devices[i].value = server.arg("value").toFloat();
+        d.value = server.arg("value").toFloat();
       }
       server.send(200, "application/json", "{\"success\":true}");
       return;
@@ -3076,13 +3067,13 @@ void handleDeviceControl() {
   server.send(404, "application/json", "{\"success\":false,\"error\":\"Device not found\"}");
 }
 
-// --- API: Dashboard Summary ---
+// --- Device API: Dashboard Summary ---
 void handleDevicesSummary() {
-  int total = DEVICE_COUNT, online = 0, offline = 0, automations = 5;
+  int total = devices.size(), online = 0, offline = 0, automations = 5;
   float energy = 2.4;
-  for (int i = 0; i < DEVICE_COUNT; i++) {
-    if (devices[i].status == "online") online++;
-    if (devices[i].status == "offline") offline++;
+  for (const auto& d : devices) {
+    if (d.status == "online") online++;
+    if (d.status == "offline") offline++;
   }
   DynamicJsonDocument doc(256);
   doc["total"] = total;
@@ -3095,6 +3086,26 @@ void handleDevicesSummary() {
   server.send(200, "application/json", json);
 }
 
+// --- Device API: Network Scan ---
+void handleNetworkScan() {
+  if (requireLogin()) return;
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (!netScan.active && netScan.current == 1) {
+    startNetworkScan();
+    server.send(200, "application/json", "{\"status\":\"started\"}");
+    return;
+  }
+  DynamicJsonDocument doc(1024);
+  doc["status"] = netScan.active ? "scanning" : "done";
+  JsonArray arr = doc.createNestedArray("devices");
+  for (auto& ip : netScan.foundIPs) {
+    JsonObject obj = arr.createNestedObject();
+    obj["ip"] = ip;
+  }
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
 // --- API: Energy Prediction ---
 void handleEnergyPrediction() {
   DynamicJsonDocument doc(256);
@@ -3131,29 +3142,6 @@ void handleAICommand() {
 }
 
 // POST /api/devices - add a device
-void handleApiDevicesPost() {
-  if (requireLogin()) return;
-  DynamicJsonDocument doc(512);
-  DeserializationError err = deserializeJson(doc, server.arg("plain"));
-  if (err) {
-    server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-    return;
-  }
-  Device d;
-  d.id = nextId++;
-  d.name = doc["name"] | "";
-  d.type = doc["type"] | "";
-  d.room = doc["room"] | "";
-  d.ip = doc["ip"] | "";
-  d.status = doc["status"] | "online";
-  d.value = doc["value"] | 0;
-  if (d.ip.length() == 0) {
-    server.send(400, "application/json", "{\"error\":\"IP required\"}");
-    return;
-  }
-  dev.push_back(d);
-  server.send(200, "application/json", "{\"success\":true}");
-}
 
 // POST /api/device/control - toggle device (dummy)
 void handleDeviceControlPost() {
@@ -3163,7 +3151,7 @@ void handleDeviceControlPost() {
     return;
   }
   int id = server.arg("id").toInt();
-  for (auto& d : dev) {
+  for (auto& d : devices) {
     if (d.id == id) {
       d.status = (d.status == "online") ? "offline" : "online";
       server.send(200, "application/json", "{\"success\":true}");
@@ -3173,26 +3161,6 @@ void handleDeviceControlPost() {
   server.send(404, "application/json", "{\"error\":\"Device not found\"}");
 }
 
-void handleNetworkScan() {
-  if (requireLogin()) return;
-  server.sendHeader("Access-Control-Allow-Origin", "*"); // Add this line
-  if (!netScan.active && netScan.current == 1) {
-    startNetworkScan();
-    server.send(200, "application/json", "{\"status\":\"started\"}");
-    return;
-  }
-  // If scan is running, return progress
-  DynamicJsonDocument doc(1024);
-  doc["status"] = netScan.active ? "scanning" : "done";
-  JsonArray arr = doc.createNestedArray("devices");
-  for (auto& ip : netScan.foundIPs) {
-    JsonObject obj = arr.createNestedObject();
-    obj["ip"] = ip;
-  }
-  String json;
-  serializeJson(doc, json);
-  server.send(200, "application/json", json);
-}
 void startNetworkScan() {
   netScan.active = true;
   netScan.localIP = WiFi.localIP();
@@ -3206,7 +3174,7 @@ void startNetworkScan() {
 // --- Call this in loop() ---
 void processNetworkScan() {
   if (!netScan.active) return;
-  if (millis() - netScan.lastScan < 50) return; // scan every 50ms
+  if (millis() - netScan.lastScan < 500) return; // scan every 50ms
   netScan.lastScan = millis();
 
   if (netScan.current > netScan.max) {
@@ -3232,160 +3200,220 @@ void processNetworkScan() {
   }
   esp_task_wdt_reset();
 }
-
-void setup() {
-  Serial.begin(115200);
-  
-  delay(1000);
-  esp_task_wdt_init(10, true); // 10 second WDT
-  esp_task_wdt_add(NULL); 
-  // Initialize pins
-  for (int i = 0; i < RELAY_COUNT; i++) {
-    pinMode(relayPins[i], OUTPUT);
-    digitalWrite(relayPins[i], LOW);
+void handleApiDevicesPost() {
+  if (server.method() != HTTP_POST) {
+    server.send(405, "application/json", "{\"error\":\"Method Not Allowed\"}");
+    return;
   }
-  
-  pinMode(STATUS_LED, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  
-  // Initialize file system
-  if (!SPIFFS.begin(true)) {
-    Serial.println("Failed to mount SPIFFS. Formatting...");
-    if (!SPIFFS.format()) {
-      Serial.println("SPIFFS formatting failed");
-    } else {
-      Serial.println("SPIFFS formatted successfully");
-      if (!SPIFFS.begin(true)) {
-        Serial.println("Failed to mount SPIFFS after formatting");
-      } else {
-        Serial.println("SPIFFS mounted successfully after formatting");
-      }
+  DynamicJsonDocument doc(512);
+  DeserializationError err = deserializeJson(doc, server.arg("plain"));
+  if (err) {
+    server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  String name = doc["name"] | "";
+  String type = doc["type"] | "";
+  String room = doc["room"] | "";
+  String status = doc["status"] | "online";
+  int battery = doc["battery"] | 100;
+  float value = doc["value"] | 0;
+  String ip = doc["ip"] | "";
+  if (name == "" || type == "" || room == "") {
+    server.send(400, "application/json", "{\"error\":\"Missing required fields\"}");
+    return;
+  }
+  DeviceInfo dev;
+  dev.id = nextDeviceId++;
+  dev.name = name;
+  dev.type = type;
+  dev.room = room;
+  dev.status = status;
+  dev.battery = battery;
+  dev.value = value;
+  dev.ip = ip;
+  devices.push_back(dev);
+  server.send(200, "application/json", "{\"success\":true}");
+}
+void handleDeviceDelete() {
+  if (!server.hasArg("id")) {
+    server.send(400, "application/json", "{\"success\":false,\"error\":\"Missing id\"}");
+    return;
+  }
+  int id = server.arg("id").toInt();
+  for (auto it = devices.begin(); it != devices.end(); ++it) {
+    if (it->id == id) {
+      devices.erase(it);
+      server.send(200, "application/json", "{\"success\":true}");
+      return;
     }
   }
-  
-  Serial.println("Listing SPIFFS files:");
-  File root = SPIFFS.open("/");
-  if (!root) {
-    Serial.println("Failed to open root directory");
-  } else {
-    File file = root.openNextFile();
-    while (file) {
-      Serial.print("  FILE: ");
-      Serial.println(file.name());
-      file = root.openNextFile();
-    }
-  }
-  esp_log_level_set("*", ESP_LOG_ERROR); 
-  // Load configuration
-  loadCredentials();
-  loadRelayStates();
-  loadSceneStates();
-  
-  // Connect to WiFi
-  connectWiFiStatic();
-  
-  // Initialize time
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  
-  // Initialize sensors
-  dht.begin();
-  
-  // Set up web server routes
-  server.on("/", HTTP_GET, handleRoot);
-  server.on("/login", HTTP_GET, handleLogin);
-  server.on("/login", HTTP_POST, handleLogin);
-  server.on("/logout", HTTP_GET, handleLogout);
-  server.on("/settings", HTTP_GET, handleSettings);
-  server.on("/settings/credentials", HTTP_POST, handleSettingsCredentials);
-  server.on("/settings/scenes", HTTP_POST, handleSettingsScenes);
-  server.on("/system/restart", HTTP_GET, handleSystemRestart);
-  server.on("/sensor/data", HTTP_GET, handleSensorData);
-  server.on("/resetpass", HTTP_GET, handleResetPass);
-  server.on("/resetpass", HTTP_POST, handleResetPassPost);
-  server.on("/relay", HTTP_GET, handleRelayToggle);
-  server.on("/relayStatus", HTTP_GET, handleRelayStatus);
-  server.on("/scene", HTTP_GET, handleScene);
-  server.on("/sensor", HTTP_GET, handleSensor);
-  server.on("/logs", HTTP_GET, handleSimpleLogs);
-  server.on("/api/jarvis/relay", HTTP_GET, handleJarvisRelay);
-  server.on("/ota", HTTP_GET, handleOTAWeb);
-  server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
-  server.on("/systeminfo", HTTP_GET, handleSystemInfo);
-  server.on("/deviceStatus", HTTP_GET, handleDeviceStatus);
-  server.on("/schedules", HTTP_GET, handleSchedules);
-  server.on("/schedules", HTTP_POST, handleSchedules);
-  server.on("/wifiStatus", HTTP_GET, handleWiFiStatus);
-  server.on("/routines", HTTP_GET, handleRoutinesGet);
-  server.on("/routines", HTTP_POST, handleRoutinesPost);
-  server.on("/schedules/list", HTTP_GET, handleSchedulesList);
-  server.on("/schedules/delete", HTTP_POST, handleScheduleDelete);
-  server.on("/addDevice", HTTP_POST, handleAddDevice);
-  server.on("/wifi/scan", HTTP_GET, handleWiFiScan);
-  server.on("/wifi/change", HTTP_POST, handleWiFiChange);
-  server.on("/energy/data", HTTP_GET, handleEnergyData);
-   server.on("/energy/data", HTTP_GET, handleEnergyChartData);
-  server.on("/energy/distribution", HTTP_GET, handleEnergyDistribution);
-  server.on("/energy/devices", HTTP_GET, handleEnergyDevices);
-  server.on("/energy/rates", HTTP_GET, handleEnergyRates);
-  server.on("/energy/comparison", HTTP_GET, handleEnergyComparison);
-  server.on("/energy/peak_hours", HTTP_GET, handleEnergyPeakHours);
-  server.on("/energy/summary", HTTP_GET, handleEnergySummary);
-  server.on("/energy/tips", HTTP_GET, handleEnergyTips);
-  server.on("/api/devices", HTTP_GET, handleDevicesList);
-  server.on("/api/device/control", HTTP_POST, handleDeviceControl);
-  server.on("/api/devices/maintenance", HTTP_GET, handleMaintenance);
-  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
-  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
-  server.on("/api/devices/patterns", HTTP_GET, handleDevicePatterns);
-  server.on("/api/energy/prediction", HTTP_GET, handleEnergyPrediction);
-  server.on("/api/devices", HTTP_GET, handleDevicesList);
-  server.on("/api/device/control", HTTP_POST, handleDeviceControl);
-  server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
-  server.on("/api/energy/prediction", HTTP_GET, handleEnergyPrediction);
-  server.on("/api/devices/patterns", HTTP_GET, handleDevicePatterns);
-  server.on("/api/devices/maintenance", HTTP_GET, handleMaintenance);
-  server.on("/api/ai", HTTP_POST, handleAICommand);
-  server.on("/api/devices", HTTP_POST, handleApiDevicesPost);
-  server.on("/api/device/control", HTTP_POST, handleDeviceControlPost);
-  server.on("/api/network/scan", HTTP_GET, handleNetworkScan);
-  
-  server.onNotFound(handleNotFound);
-  server.on("/energy.html", HTTP_GET, []() {
-    if (!handleFileRead("/energy.html")) {
-      server.send(404, "text/plain", "energy.html not found");
-    }
-  });
-server.on("/devices.html", HTTP_GET, []() {
-  if (!handleFileRead("/devices.html")) {
-    server.send(404, "text/plain", "devices.html not found");
-  }
-});
-  // POST /api/devices - add a device
- 
-
-  server.begin();
-  
-  // Set up mDNS for easy access
-  if (MDNS.begin("home")) {
-    DEBUG_INFO(WIFI, "mDNS responder started");
-  }
-loadSchedulesFromEEPROM();
-  // Check for birthday
-  checkBirthday();
-  
-  // Set up schedules
-  setupSchedules();
-    currentTemp = dht.readTemperature();
-  currentHum = dht.readHumidity();
-  dailyTempAverage[0] = currentTemp;
-  dailyHumAverage[0] = currentHum;
-  dailyTempAverage[1] = currentTemp; // For demo: yesterday = today
-  dailyHumAverage[1] = currentHum;   // For demo: yesterday = today
-  
-  addRoutine("Wake Up Lights", "07:00", 1, true);
-  addLog("System initialized");
+  server.send(404, "application/json", "{\"success\":false,\"error\":\"Device not found\"}");
 }
 
+void setup() {
+    Serial.begin(115200);
+    delay(1000);
+
+    // Watchdog Timer
+    esp_task_wdt_init(10, true);
+    esp_task_wdt_add(NULL);
+
+    // Initialize relay pins
+    for (int i = 0; i < RELAY_COUNT; i++) {
+        pinMode(relayPins[i], OUTPUT);
+        digitalWrite(relayPins[i], LOW);
+    }
+    pinMode(STATUS_LED, OUTPUT);
+    pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+    // SPIFFS Filesystem
+    if (!SPIFFS.begin(true)) {
+        Serial.println("Failed to mount SPIFFS. Formatting...");
+        if (!SPIFFS.format()) {
+            Serial.println("SPIFFS formatting failed");
+        } else {
+            Serial.println("SPIFFS formatted successfully");
+            if (!SPIFFS.begin(true)) {
+                Serial.println("Failed to mount SPIFFS after formatting");
+            } else {
+                Serial.println("SPIFFS mounted successfully after formatting");
+            }
+        }
+    }
+
+    // List SPIFFS files
+    Serial.println("Listing SPIFFS files:");
+    File root = SPIFFS.open("/");
+    if (!root) {
+        Serial.println("Failed to open root directory");
+    } else {
+        File file = root.openNextFile();
+        while (file) {
+            Serial.print("  FILE: ");
+            Serial.println(file.name());
+            file = root.openNextFile();
+        }
+    }
+
+    esp_log_level_set("*", ESP_LOG_ERROR);
+
+    // Load configuration and states
+    loadCredentials();
+    loadRelayStates();
+    loadSceneStates();
+
+    // WiFi and Time
+    connectWiFiStatic();
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+    // Sensors
+    dht.begin();
+
+    // --- Web Server Routes ---
+    server.on("/", HTTP_GET, handleRoot);
+    server.on("/login", HTTP_GET, handleLogin);
+    server.on("/login", HTTP_POST, handleLogin);
+    server.on("/logout", HTTP_GET, handleLogout);
+    server.on("/settings", HTTP_GET, handleSettings);
+    server.on("/settings/credentials", HTTP_POST, handleSettingsCredentials);
+    server.on("/settings/scenes", HTTP_POST, handleSettingsScenes);
+    server.on("/system/restart", HTTP_GET, handleSystemRestart);
+    server.on("/sensor/data", HTTP_GET, handleSensorData);
+    server.on("/resetpass", HTTP_GET, handleResetPass);
+    server.on("/resetpass", HTTP_POST, handleResetPassPost);
+    server.on("/relay", HTTP_GET, handleRelayToggle);
+    server.on("/relayStatus", HTTP_GET, handleRelayStatus);
+    server.on("/scene", HTTP_GET, handleScene);
+    server.on("/sensor", HTTP_GET, handleSensor);
+    server.on("/logs", HTTP_GET, handleSimpleLogs);
+    server.on("/api/jarvis/relay", HTTP_GET, handleJarvisRelay);
+    server.on("/ota", HTTP_GET, handleOTAWeb);
+    server.on("/update", HTTP_POST, handleOTAFinish, handleOTAUpdate);
+    server.on("/systeminfo", HTTP_GET, handleSystemInfo);
+    server.on("/deviceStatus", HTTP_GET, handleDeviceStatus);
+    server.on("/schedules", HTTP_GET, handleSchedules);
+    server.on("/schedules", HTTP_POST, handleSchedules);
+    server.on("/wifiStatus", HTTP_GET, handleWiFiStatus);
+    server.on("/routines", HTTP_GET, handleRoutinesGet);
+    server.on("/routines", HTTP_POST, handleRoutinesPost);
+    server.on("/schedules/list", HTTP_GET, handleSchedulesList);
+    server.on("/schedules/delete", HTTP_POST, handleScheduleDelete);
+    server.on("/addDevice", HTTP_POST, handleAddDevice);
+    server.on("/wifi/scan", HTTP_GET, handleWiFiScan);
+    server.on("/wifi/change", HTTP_POST, handleWiFiChange);
+
+    // --- Energy APIs ---
+    server.on("/energy/data", HTTP_GET, handleEnergyData);
+    server.on("/energy/data", HTTP_GET, handleEnergyChartData);
+    server.on("/energy/distribution", HTTP_GET, handleEnergyDistribution);
+    server.on("/energy/devices", HTTP_GET, handleEnergyDevices);
+    server.on("/energy/rates", HTTP_GET, handleEnergyRates);
+    server.on("/energy/comparison", HTTP_GET, handleEnergyComparison);
+    server.on("/energy/peak_hours", HTTP_GET, handleEnergyPeakHours);
+    server.on("/energy/summary", HTTP_GET, handleEnergySummary);
+    server.on("/energy/tips", HTTP_GET, handleEnergyTips);
+
+    // --- Device APIs ---
+    server.on("/api/devices", HTTP_GET, handleDevicesList);
+    server.on("/api/devices", HTTP_POST, handleApiDevicesPost);
+    server.on("/api/devices", HTTP_DELETE, handleDeviceDelete);
+    server.on("/api/devices", HTTP_PUT, handleDeviceUpdate);
+    server.on("/api/device/control", HTTP_POST, handleDeviceControl);
+    server.on("/api/devices/summary", HTTP_GET, handleDevicesSummary);
+    server.on("/api/network/scan", HTTP_GET, handleNetworkScan);
+    server.on("/api/devices/maintenance", HTTP_GET, handleMaintenance);
+    server.on("/api/devices/patterns", HTTP_GET, handleDevicePatterns);
+    server.on("/api/energy/prediction", HTTP_GET, handleEnergyPrediction);
+    server.on("/api/ai", HTTP_POST, handleAICommand);
+    server.on("/api/device/control", HTTP_POST, handleDeviceControlPost);
+
+    // --- Static Files ---
+    server.onNotFound(handleNotFound);
+    server.on("/energy.html", HTTP_GET, []() {
+        if (!handleFileRead("/energy.html")) {
+            server.send(404, "text/plain", "energy.html not found");
+        }
+    });
+    server.on("/devices.html", HTTP_GET, []() {
+        if (!handleFileRead("/devices.html")) {
+            server.send(404, "text/plain", "devices.html not found");
+        }
+    });
+
+    // --- Demo Devices ---
+    devices.clear();
+    devices.push_back({1, "Smart Thermostat", "thermostat", "living-room", "online", 80, 22.0, "192.168.1.10"});
+    devices.push_back({2, "Smart Plug", "plug", "kitchen", "online", 90, 0.8, "192.168.1.11"});
+    devices.push_back({3, "Smart Light", "light", "bedroom", "offline", 60, 0, "192.168.1.12"});
+    // ...add more as needed...
+    nextDeviceId = devices.size() + 1;
+
+    // --- Start Server ---
+    server.begin();
+
+    // --- mDNS ---
+    if (MDNS.begin("home")) {
+        DEBUG_INFO(WIFI, "mDNS responder started");
+    }
+
+    // --- Load Schedules, Birthday, and Initial States ---
+    loadSchedulesFromEEPROM();
+    checkBirthday();
+    setupSchedules();
+
+    // --- Initial Sensor Readings ---
+    currentTemp = dht.readTemperature();
+    currentHum = dht.readHumidity();
+    dailyTempAverage[0] = currentTemp;
+    dailyHumAverage[0] = currentHum;
+    dailyTempAverage[1] = currentTemp;
+    dailyHumAverage[1] = currentHum;
+
+    // --- Demo Routine ---
+    addRoutine("Wake Up Lights", "07:00", 1, true);
+
+    addLog("System initialized");
+}
 void loop() {
 
   server.handleClient();

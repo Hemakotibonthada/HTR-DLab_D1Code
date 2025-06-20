@@ -8,6 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+                body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f9fafb;
@@ -1229,6 +1231,235 @@
         </div>
     <script>
         // ...existing code...
+        let currentRoom = 'all-rooms';
+let currentStatus = 'all';
+let currentSearch = '';
+document.addEventListener('DOMContentLoaded', function () {
+    // Add Scan Network button
+    const headerActions = document.querySelector('.flex.space-x-3');
+    if (headerActions && !document.getElementById('scan-network-btn')) {
+        const scanBtn = document.createElement('button');
+        scanBtn.id = 'scan-network-btn';
+        scanBtn.className = 'bg-white border border-indigo-300 hover:bg-indigo-50 text-indigo-700 font-medium py-2 px-4 rounded-lg transition duration-150 ease-in-out flex items-center shadow-sm hover:shadow-md';
+        scanBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V4a2 2 0 10-4 0v1.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>Scan Network`;
+        headerActions.appendChild(scanBtn);
+
+        scanBtn.addEventListener('click', async () => {
+            scanBtn.disabled = true;
+            scanBtn.textContent = 'Scanning...';
+            try {
+                const res = await fetch('/api/network/scan');
+                const data = await res.json();
+                showDiscoveredDevices(data.devices || []);
+            } catch (e) {
+                alert('Network scan failed.');
+            }
+            scanBtn.disabled = false;
+            scanBtn.textContent = 'Scan Network';
+        });
+    }
+
+    // Room filter
+    document.querySelectorAll('.room-selector').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.room-selector').forEach(b => b.classList.remove('active', 'border-indigo-500', 'text-indigo-700'));
+            this.classList.add('active', 'border-indigo-500', 'text-indigo-700');
+            currentRoom = this.textContent.trim().toLowerCase().replace(/\s/g, '-');
+            loadDevices();
+        });
+    });
+
+    // Status filter
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active-filter', 'bg-indigo-100', 'text-indigo-800'));
+            this.classList.add('active-filter', 'bg-indigo-100', 'text-indigo-800');
+            currentStatus = this.textContent.trim().toLowerCase();
+            loadDevices();
+        });
+    });
+
+    // Search devices
+    const searchInput = document.getElementById('search-devices');
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            currentSearch = this.value.toLowerCase();
+            loadDevices();
+        });
+    }
+
+    // Add Device Modal logic
+    document.getElementById('add-device-btn')?.addEventListener('click', () => {
+        document.getElementById('add-device-modal').classList.remove('hidden');
+        startDeviceScan();
+    });
+    document.getElementById('close-add-device-modal').onclick =
+    document.getElementById('cancel-add-device').onclick = function() {
+        document.getElementById('add-device-modal').classList.add('hidden');
+    };
+    document.getElementById('add-device-modal').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.add('hidden');
+    });
+
+    // Add Device form submit
+    document.getElementById('add-device-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const ip = form.ip.value.trim();
+        if (!ip) {
+            alert('IP address is required.');
+            return;
+        }
+        const data = {
+            name: form.name.value,
+            type: form.type.value,
+            room: form.room.value,
+            ip: ip,
+            status: form.status.value,
+            battery: parseInt(form.battery.value, 10),
+            value: form.type.value === 'thermostat' ? 22 : undefined
+        };
+        await fetch('/api/devices', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        document.getElementById('add-device-modal').classList.add('hidden');
+        loadDevices();
+        form.reset();
+    });
+
+    loadDevices();
+});
+
+// Show discovered devices in a modal
+function showDiscoveredDevices(devices) {
+    let modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+            <h2 class="text-lg font-semibold mb-4 text-gray-800">Discovered Devices on Network</h2>
+            <div class="mb-4">
+                ${devices.length === 0 ? '<p class="text-gray-500">No devices found.</p>' : `
+                <ul class="divide-y divide-gray-200">
+                    ${devices.map(dev => `
+                    <li class="py-2 flex items-center justify-between">
+                        <span class="font-mono text-sm text-gray-700">${dev.ip || dev}</span>
+                        <button class="px-3 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 transition" data-ip="${dev.ip || dev}">Add</button>
+                    </li>
+                    `).join('')}
+                </ul>
+                `}
+            </div>
+            <div class="flex justify-end">
+                <button class="px-4 py-2 bg-gray-200 rounded text-gray-700" id="close-discover-modal">Close</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelectorAll('button[data-ip]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('add-device-modal').classList.remove('hidden');
+            document.querySelector('input[name="ip"]').value = btn.getAttribute('data-ip');
+            document.body.removeChild(modal);
+        });
+    });
+    modal.querySelector('#close-discover-modal').onclick = () => document.body.removeChild(modal);
+}
+
+// Scan for devices and suggest
+async function startDeviceScan() {
+    const spinner = document.getElementById('scan-spinner');
+    const list = document.getElementById('discovered-devices-list');
+    spinner.classList.remove('hidden');
+    list.innerHTML = '<span>Looking for devices...</span>';
+    try {
+        const res = await fetch('/api/network/scan');
+        const data = await res.json();
+        spinner.classList.add('hidden');
+        if (data.devices && data.devices.length > 0) {
+            list.innerHTML = `
+                <ul>
+                    ${data.devices.map(dev => `
+                        <li class="flex items-center justify-between py-1">
+                            <span class="font-mono text-gray-700">${dev.ip || dev}</span>
+                            <button class="px-2 py-1 bg-indigo-600 text-white rounded text-xs font-medium hover:bg-indigo-700 transition" data-ip="${dev.ip || dev}">Use</button>
+                        </li>
+                    `).join('')}
+                </ul>
+                <div class="text-xs text-gray-500 mt-2">Click "Use" to auto-fill the IP address below.</div>
+            `;
+            list.querySelectorAll('button[data-ip]').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelector('#add-device-form input[name="ip"]').value = btn.getAttribute('data-ip');
+                };
+            });
+        } else {
+            list.innerHTML = '<span class="text-gray-500">No new devices found on your network.</span>';
+        }
+    } catch (e) {
+        spinner.classList.add('hidden');
+        list.innerHTML = '<span class="text-red-500">Failed to scan network.</span>';
+    }
+}
+
+// Device grid loader
+async function loadDevices() {
+    let query = [];
+    if (currentRoom && currentRoom !== 'all-rooms') query.push('room=' + encodeURIComponent(currentRoom));
+    if (currentStatus && currentStatus !== 'all') query.push('status=' + encodeURIComponent(currentStatus));
+    const res = await fetch('/api/devices' + (query.length ? '?' + query.join('&') : ''));
+    const data = await res.json();
+    const container = document.getElementById('devices-container');
+    container.innerHTML = '';
+    data.devices.forEach(dev => {
+        if (currentSearch && !dev.name.toLowerCase().includes(currentSearch)) return;
+        const card = document.createElement('div');
+        card.className = `device-card bg-white rounded-xl shadow-md overflow-hidden slide-in`;
+        card.dataset.status = dev.status;
+        card.dataset.type = dev.type;
+        card.dataset.room = dev.room;
+        card.innerHTML = `
+            <div class="p-5">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center">
+                        <div class="bg-indigo-100 p-3 rounded-lg mr-4">
+                            <svg class="h-8 w-8 text-indigo-600 device-icon"></svg>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-800">${dev.name}</h4>
+                            <p class="text-xs text-gray-600">${dev.room.replace('-', ' ')}</p>
+                            <p class="text-xs text-gray-400">IP: ${dev.ip || '-'}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs ${dev.status === 'online' ? 'text-green-600' : dev.status === 'offline' ? 'text-gray-500' : 'text-yellow-600'} font-medium">${dev.status.charAt(0).toUpperCase() + dev.status.slice(1)}</span>
+                        <button class="px-2 py-1 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 transition duration-150 ease-in-out" onclick="controlDevice(${dev.id})">Control</button>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-600 mb-4">
+                    ${dev.type === 'thermostat' ? `Current Temperature: <span class="font-semibold">${dev.value}°C</span>` : ''}
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="battery-indicator bg-gray-200 w-24">
+                        <div class="battery-level bg-green-400" style="width: ${dev.battery}%"></div>
+                    </div>
+                    <span class="text-xs text-gray-500">Battery: ${dev.battery}%</span>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+window.loadDevices = loadDevices;
+
+function controlDevice(id) {
+    fetch('/api/device/control', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: `id=${id}&action=toggle`
+    }).then(() => loadDevices());
+}
 const headerActions = document.querySelector('.flex.space-x-3');
 if (headerActions) {
   const scanBtn = document.createElement('button');
@@ -1418,11 +1649,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // ...
   loadDevices();
 });
-</script>
-<script>
-let currentRoom = 'all-rooms';
-let currentStatus = 'all';
-let currentSearch = '';
 
 async function loadDevices() {
   // Build query string for backend filtering
@@ -1518,8 +1744,7 @@ document.addEventListener('DOMContentLoaded', function () {
   // ...
   loadDevices();
 });
-</script>
-<script>
+
 async function loadDevices() {
   // Build query string for backend filtering
   let query = [];
@@ -2082,6 +2307,34 @@ document.getElementById('add-device-form').addEventListener('submit', async func
   loadDevices();
   form.reset();
 });
+// ...existing code...
+document.getElementById('add-device-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = e.target;
+  const ip = form.ip.value.trim();
+  if (!ip) {
+    alert('IP address is required.');
+    return;
+  }
+  const data = {
+    name: form.name.value,
+    type: form.type.value,
+    room: form.room.value,
+    ip: ip,
+    status: form.status.value,
+    battery: parseInt(form.battery.value, 10),
+    value: form.type.value === 'thermostat' ? 22 : undefined // default value for thermostat
+  };
+  await fetch('/api/devices', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data)
+  });
+  document.getElementById('add-device-modal').classList.add('hidden');
+  loadDevices();
+  form.reset();
+});
+// ...existing code...
     </script>    
 </body>
 </html>
