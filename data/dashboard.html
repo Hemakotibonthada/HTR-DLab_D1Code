@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Home Dashboard - ESP32 Advanced</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --primary-dark: #5a67d8;
+            --secondary-color: #764ba2;
+            --accent-color: #f093fb;
+            --success-color: #48bb78;
+            --warning-color: #ed8936;
+            --error-color: #f56565;
+            --dark-bg: #1a202c;
+            --dark-surface: #2d3748;
+            --dark-border: #4a5568;
+            --light-bg: #f7fafc;
+            --light-surface: #ffffff;
+            --light-border: #e2e8f0;
+            --text-primary: #2d3748;
+            --text-secondary: #718096;
+            --text-primary-dark: #f7fafc;
+            --text-secondary-dark: #a0aec0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .dark-theme {
+            --light-bg: var(--dark-bg);
+            --light-surface: var(--dark-surface);
+            --light-border: var(--dark-border);
+            --text-primary: var(--text-primary-dark);
+            --text-secondary: var(--text-secondary-dark);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            color: white;
+            font-weight: 700;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-icon {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+        }
+
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+        }
+
+        .device-item {
+            background: var(--light-bg);
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid var(--light-border);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .device-item:hover {
+            transform: scale(1.05);
+            border-color: var(--primary-color);
+        }
+
+        .device-item.active {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .device-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            opacity: 0.8;
+        }
+
+        .device-name {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .sensor-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            background: var(--light-bg);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 1px solid var(--light-border);
+        }
+
+        .sensor-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sensor-value {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+        }
+
+        .sensor-unit {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success-color);
+        }
+
+        .status-indicator.warning {
+            background: var(--warning-color);
+        }
+
+        .status-indicator.error {
+            background: var(--error-color);
+        }
+
+        .chart-container {
+            height: 200px;
+            margin-top: 15px;
+        }
+
+        .ai-insights {
+            grid-column: 1 / -1;
+        }
+
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .insight-item {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .insight-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--primary-color);
+        }
+
+        .insight-description {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .scene-button {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 15px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 140px;
+        }
+
+        .scene-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .energy-meter {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .energy-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .energy-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--light-border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success-color), var(--primary-color));
+            transition: width 0.3s ease;
+        }
+
+        .weather-card {
+            text-align: center;
+        }
+
+        .weather-temp {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+
+        .weather-description {
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+
+        .weather-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .weather-detail {
+            background: var(--light-bg);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .voice-control {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .voice-control:hover {
+            transform: scale(1.1);
+        }
+
+        .voice-control.listening {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+            50% { box-shadow: 0 6px 30px rgba(102, 126, 234, 0.8); }
+            100% { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.15);
+            border-left: 4px solid var(--primary-color);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            border-left-color: var(--error-color);
+        }
+
+        .notification.warning {
+            border-left-color: var(--warning-color);
+        }
+
+        .notification.success {
+            border-left-color: var(--success-color);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .device-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .insights-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid var(--light-border);
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: var(--light-border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: var(--primary-color);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>
+                <i class="fas fa-home"></i>
+                Smart Home Dashboard
+                <span id="connectionStatus" class="status-indicator"></span>
+            </h1>
+            <div class="header-controls">
+                <button class="btn btn-primary" onclick="toggleTheme()">
+                    <i class="fas fa-moon" id="themeIcon"></i>
+                    <span id="themeText">Dark Mode</span>
+                </button>
+                <button class="btn btn-primary" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i>
+                    Refresh
+                </button>
+                <button class="btn btn-primary" onclick="showSettings()">
+                    <i class="fas fa-cog"></i>
+                    Settings
+                </button>
+            </div>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Room Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-lightbulb"></i></div>
+                        Room Controls
+                    </div>
+                </div>
+                <div class="device-grid" id="deviceGrid">
+                    <!-- Devices will be populated here -->
+                </div>
+            </div>
+
+            <!-- Sensors -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-thermometer-half"></i></div>
+                        Environmental Sensors
+                    </div>
+                </div>
+                <div id="sensorData">
+                    <!-- Sensor data will be populated here -->
+                </div>
+            </div>
+
+            <!-- Energy Monitoring -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-bolt"></i></div>
+                        Energy Monitoring
+                    </div>
+                </div>
+                <div class="energy-meter">
+                    <div class="energy-value" id="currentPower">0.0</div>
+                    <div class="energy-label">kW Current Usage</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="energyProgress" style="width: 0%"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <span>Daily: <strong id="dailyUsage">0.0 kWh</strong></span>
+                        <span>Cost: <strong id="dailyCost">$0.00</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weather -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-cloud-sun"></i></div>
+                        Weather
+                    </div>
+                </div>
+                <div class="weather-card">
+                    <div class="weather-temp" id="weatherTemp">--°</div>
+                    <div class="weather-description" id="weatherDescription">Loading...</div>
+                    <div class="weather-details">
+                        <div class="weather-detail">
+                            <i class="fas fa-tint"></i> Humidity: <span id="weatherHumidity">--%</span>
+                        </div>
+                        <div class="weather-detail">
+                            <i class="fas fa-eye"></i> Visibility: <span id="weatherVisibility">-- km</span>
+                        </div>
+                        <div class="weather-detail">
+                            <i class="fas fa-wind"></i> Wind: <span id="weatherWind">-- km/h</span>
+                        </div>
+                        <div class="weather-detail">
+                            <i class="fas fa-compress-arrows-alt"></i> Pressure: <span id="weatherPressure">-- hPa</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scene Controls -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-magic"></i></div>
+                        Smart Scenes
+                    </div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <button class="scene-button" onclick="activateScene('good_morning')">
+                        <i class="fas fa-sun"></i>
+                        Good Morning
+                    </button>
+                    <button class="scene-button" onclick="activateScene('good_night')">
+                        <i class="fas fa-moon"></i>
+                        Good Night
+                    </button>
+                    <button class="scene-button" onclick="activateScene('movie_mode')">
+                        <i class="fas fa-film"></i>
+                        Movie Mode
+                    </button>
+                    <button class="scene-button" onclick="activateScene('party_mode')">
+                        <i class="fas fa-music"></i>
+                        Party Mode
+                    </button>
+                    <button class="scene-button" onclick="activateScene('energy_save')">
+                        <i class="fas fa-leaf"></i>
+                        Energy Save
+                    </button>
+                    <button class="scene-button" onclick="activateScene('away_mode')">
+                        <i class="fas fa-lock"></i>
+                        Away Mode
+                    </button>
+                </div>
+            </div>
+
+            <!-- Security -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-shield-alt"></i></div>
+                        Security Status
+                    </div>
+                </div>
+                <div id="securityStatus">
+                    <div class="sensor-item">
+                        <div class="sensor-info">
+                            <i class="fas fa-video"></i>
+                            <span>Security Cameras</span>
+                        </div>
+                        <div class="toggle-switch" id="cameraToggle" onclick="toggleSecurity('camera')"></div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-info">
+                            <i class="fas fa-door-open"></i>
+                            <span>Door Sensors</span>
+                        </div>
+                        <div class="status-indicator" id="doorStatus"></div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-info">
+                            <i class="fas fa-running"></i>
+                            <span>Motion Detection</span>
+                        </div>
+                        <div class="status-indicator" id="motionStatus"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Insights -->
+            <div class="card ai-insights">
+                <div class="card-header">
+                    <div class="card-title">
+                        <div class="card-icon"><i class="fas fa-brain"></i></div>
+                        AI Insights & Predictions
+                    </div>
+                </div>
+                <div class="insights-grid" id="aiInsights">
+                    <!-- AI insights will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Control Button -->
+    <button class="voice-control" id="voiceButton" onclick="toggleVoiceControl()">
+        <i class="fas fa-microphone" id="voiceIcon"></i>
+    </button>
+
+    <!-- Notification Container -->
+    <div class="notification" id="notification">
+        <div id="notificationMessage"></div>
+    </div>
+
+    <script>
+        // Global variables
+        let isVoiceListening = false;
+        let isDarkTheme = false;
+        let wsConnection = null;
+        let refreshInterval = null;
+
+        // Initialize the dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            connectWebSocket();
+            startDataRefresh();
+        });
+
+        function initializeDashboard() {
+            loadThemePreference();
+            refreshData();
+            showNotification('Dashboard initialized', 'success');
+        }
+
+        function connectWebSocket() {
+            const wsUrl = `ws://${window.location.hostname}/ws`;
+            wsConnection = new WebSocket(wsUrl);
+
+            wsConnection.onopen = function() {
+                updateConnectionStatus(true);
+                showNotification('Connected to ESP32', 'success');
+            };
+
+            wsConnection.onclose = function() {
+                updateConnectionStatus(false);
+                showNotification('Connection lost, retrying...', 'error');
+                // Attempt to reconnect
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            wsConnection.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'sensor_update':
+                    updateSensorData(data.sensors);
+                    break;
+                case 'device_update':
+                    updateDeviceStatus(data.devices);
+                    break;
+                case 'energy_update':
+                    updateEnergyData(data.energy);
+                    break;
+                case 'ai_insights':
+                    updateAIInsights(data.insights);
+                    break;
+                case 'notification':
+                    showNotification(data.message, data.level);
+                    break;
+            }
+        }
+
+        function startDataRefresh() {
+            refreshInterval = setInterval(refreshData, 10000); // Refresh every 10 seconds
+        }
+
+        async function refreshData() {
+            try {
+                // Fetch all data from ESP32
+                const [devices, sensors, energy, weather, ai] = await Promise.all([
+                    fetchData('/api/devices'),
+                    fetchData('/api/sensors'),
+                    fetchData('/api/energy'),
+                    fetchData('/api/weather'),
+                    fetchData('/api/ai/insights')
+                ]);
+
+                updateDeviceGrid(devices);
+                updateSensorData(sensors);
+                updateEnergyData(energy);
+                updateWeatherData(weather);
+                updateAIInsights(ai);
+                
+                updateConnectionStatus(true);
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                updateConnectionStatus(false);
+            }
+        }
+
+        async function fetchData(endpoint) {
+            const response = await fetch(endpoint);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        }
+
+        function updateDeviceGrid(devicesData) {
+            const grid = document.getElementById('deviceGrid');
+            grid.innerHTML = '';
+
+            if (devicesData && devicesData.devices) {
+                devicesData.devices.forEach(device => {
+                    const deviceElement = createDeviceElement(device);
+                    grid.appendChild(deviceElement);
+                });
+            }
+        }
+
+        function createDeviceElement(device) {
+            const element = document.createElement('div');
+            element.className = `device-item ${device.state ? 'active' : ''}`;
+            element.onclick = () => toggleDevice(device.id, !device.state);
+            
+            const icon = getDeviceIcon(device.type);
+            element.innerHTML = `
+                <div class="device-icon">${icon}</div>
+                <div class="device-name">${device.name}</div>
+            `;
+            
+            return element;
+        }
+
+        function getDeviceIcon(deviceType) {
+            const icons = {
+                'Relay': '<i class="fas fa-lightbulb"></i>',
+                'PWM LED': '<i class="fas fa-adjust"></i>',
+                'RGB LED': '<i class="fas fa-palette"></i>',
+                'Servo': '<i class="fas fa-cog"></i>',
+                'Motor': '<i class="fas fa-fan"></i>',
+                'Buzzer': '<i class="fas fa-volume-up"></i>'
+            };
+            return icons[deviceType] || '<i class="fas fa-plug"></i>';
+        }
+
+        function updateSensorData(sensorsData) {
+            const container = document.getElementById('sensorData');
+            container.innerHTML = '';
+
+            if (sensorsData && sensorsData.sensors) {
+                sensorsData.sensors.forEach(sensor => {
+                    const sensorElement = createSensorElement(sensor);
+                    container.appendChild(sensorElement);
+                });
+            }
+        }
+
+        function createSensorElement(sensor) {
+            const element = document.createElement('div');
+            element.className = 'sensor-item';
+            
+            const status = sensor.threshold_exceeded ? 'warning' : 'normal';
+            const statusClass = sensor.threshold_exceeded ? 'warning' : '';
+            
+            element.innerHTML = `
+                <div class="sensor-info">
+                    <i class="${getSensorIcon(sensor.type)}"></i>
+                    <span>${sensor.location} ${sensor.type}</span>
+                </div>
+                <div>
+                    <span class="sensor-value">${sensor.value.toFixed(1)}</span>
+                    <span class="sensor-unit">${sensor.unit}</span>
+                    <div class="status-indicator ${statusClass}"></div>
+                </div>
+            `;
+            
+            return element;
+        }
+
+        function getSensorIcon(sensorType) {
+            const icons = {
+                'Temperature': 'fas fa-thermometer-half',
+                'Humidity': 'fas fa-tint',
+                'Pressure': 'fas fa-compress-arrows-alt',
+                'Air Quality': 'fas fa-wind',
+                'Motion': 'fas fa-running',
+                'Light': 'fas fa-sun',
+                'Sound': 'fas fa-volume-down'
+            };
+            return icons[sensorType] || 'fas fa-chart-line';
+        }
+
+        function updateEnergyData(energyData) {
+            if (!energyData) return;
+
+            document.getElementById('currentPower').textContent = energyData.current_power?.toFixed(1) || '0.0';
+            document.getElementById('dailyUsage').textContent = `${energyData.daily_usage?.toFixed(1) || '0.0'} kWh`;
+            document.getElementById('dailyCost').textContent = `$${energyData.daily_cost?.toFixed(2) || '0.00'}`;
+            
+            const maxPower = 5.0; // 5kW max
+            const percentage = Math.min((energyData.current_power || 0) / maxPower * 100, 100);
+            document.getElementById('energyProgress').style.width = `${percentage}%`;
+        }
+
+        function updateWeatherData(weatherData) {
+            if (!weatherData) return;
+
+            document.getElementById('weatherTemp').textContent = `${weatherData.temperature?.toFixed(0) || '--'}°C`;
+            document.getElementById('weatherDescription').textContent = weatherData.description || 'No data';
+            document.getElementById('weatherHumidity').textContent = `${weatherData.humidity?.toFixed(0) || '--'}%`;
+            document.getElementById('weatherVisibility').textContent = `${weatherData.visibility || '--'} km`;
+            document.getElementById('weatherWind').textContent = `${weatherData.wind_speed?.toFixed(1) || '--'} km/h`;
+            document.getElementById('weatherPressure').textContent = `${weatherData.pressure || '--'} hPa`;
+        }
+
+        function updateAIInsights(aiData) {
+            const container = document.getElementById('aiInsights');
+            container.innerHTML = '';
+
+            if (aiData && aiData.suggestions) {
+                aiData.suggestions.forEach(suggestion => {
+                    const insightElement = document.createElement('div');
+                    insightElement.className = 'insight-item';
+                    insightElement.innerHTML = `
+                        <div class="insight-title">
+                            <i class="fas fa-lightbulb"></i>
+                            AI Suggestion
+                        </div>
+                        <div class="insight-description">${suggestion}</div>
+                    `;
+                    container.appendChild(insightElement);
+                });
+            }
+
+            if (aiData && aiData.predictions) {
+                aiData.predictions.forEach(prediction => {
+                    const predictionElement = document.createElement('div');
+                    predictionElement.className = 'insight-item';
+                    predictionElement.innerHTML = `
+                        <div class="insight-title">
+                            <i class="fas fa-chart-line"></i>
+                            ${prediction.feature} Prediction
+                        </div>
+                        <div class="insight-description">
+                            Predicted value: ${prediction.predicted_value?.toFixed(2)} 
+                            (Confidence: ${(prediction.confidence * 100)?.toFixed(0)}%)
+                        </div>
+                    `;
+                    container.appendChild(predictionElement);
+                });
+            }
+        }
+
+        async function toggleDevice(deviceId, state) {
+            try {
+                const response = await fetch('/api/control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device: deviceId, state: state })
+                });
+
+                if (response.ok) {
+                    showNotification(`${deviceId} ${state ? 'turned on' : 'turned off'}`, 'success');
+                    // Update UI immediately for better responsiveness
+                    updateDeviceUI(deviceId, state);
+                } else {
+                    showNotification('Failed to control device', 'error');
+                }
+            } catch (error) {
+                showNotification('Network error', 'error');
+            }
+        }
+
+        function updateDeviceUI(deviceId, state) {
+            const deviceElements = document.querySelectorAll('.device-item');
+            deviceElements.forEach(element => {
+                if (element.querySelector('.device-name').textContent.includes(deviceId)) {
+                    element.className = `device-item ${state ? 'active' : ''}`;
+                }
+            });
+        }
+
+        async function activateScene(sceneName) {
+            try {
+                const response = await fetch('/api/scene', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scene: sceneName })
+                });
+
+                if (response.ok) {
+                    showNotification(`Scene "${sceneName}" activated`, 'success');
+                    setTimeout(refreshData, 1000); // Refresh after scene activation
+                } else {
+                    showNotification('Failed to activate scene', 'error');
+                }
+            } catch (error) {
+                showNotification('Network error', 'error');
+            }
+        }
+
+        function toggleVoiceControl() {
+            isVoiceListening = !isVoiceListening;
+            const button = document.getElementById('voiceButton');
+            const icon = document.getElementById('voiceIcon');
+
+            if (isVoiceListening) {
+                button.classList.add('listening');
+                icon.className = 'fas fa-stop';
+                startVoiceRecognition();
+            } else {
+                button.classList.remove('listening');
+                icon.className = 'fas fa-microphone';
+                stopVoiceRecognition();
+            }
+        }
+
+        function startVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                showNotification('Voice recognition not supported', 'error');
+                return;
+            }
+
+            const recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                if (event.results[event.results.length - 1].isFinal) {
+                    processVoiceCommand(transcript);
+                }
+            };
+
+            recognition.onerror = function(event) {
+                showNotification('Voice recognition error', 'error');
+                toggleVoiceControl();
+            };
+
+            recognition.start();
+            window.currentRecognition = recognition;
+        }
+
+        function stopVoiceRecognition() {
+            if (window.currentRecognition) {
+                window.currentRecognition.stop();
+            }
+        }
+
+        function processVoiceCommand(command) {
+            const lowerCommand = command.toLowerCase();
+            
+            if (lowerCommand.includes('turn on') || lowerCommand.includes('switch on')) {
+                if (lowerCommand.includes('lights') || lowerCommand.includes('light')) {
+                    toggleDevice('living_room_light', true);
+                }
+                if (lowerCommand.includes('fan')) {
+                    toggleDevice('cooling_fan', true);
+                }
+            } else if (lowerCommand.includes('turn off') || lowerCommand.includes('switch off')) {
+                if (lowerCommand.includes('lights') || lowerCommand.includes('light')) {
+                    toggleDevice('living_room_light', false);
+                }
+                if (lowerCommand.includes('fan')) {
+                    toggleDevice('cooling_fan', false);
+                }
+            } else if (lowerCommand.includes('good night')) {
+                activateScene('good_night');
+            } else if (lowerCommand.includes('good morning')) {
+                activateScene('good_morning');
+            } else if (lowerCommand.includes('movie mode')) {
+                activateScene('movie_mode');
+            }
+
+            showNotification(`Voice command: "${command}"`, 'info');
+        }
+
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            document.body.classList.toggle('dark-theme', isDarkTheme);
+            
+            const themeIcon = document.getElementById('themeIcon');
+            const themeText = document.getElementById('themeText');
+            
+            if (isDarkTheme) {
+                themeIcon.className = 'fas fa-sun';
+                themeText.textContent = 'Light Mode';
+            } else {
+                themeIcon.className = 'fas fa-moon';
+                themeText.textContent = 'Dark Mode';
+            }
+            
+            localStorage.setItem('darkTheme', isDarkTheme);
+        }
+
+        function loadThemePreference() {
+            const savedTheme = localStorage.getItem('darkTheme') === 'true';
+            if (savedTheme !== isDarkTheme) {
+                toggleTheme();
+            }
+        }
+
+        function toggleSecurity(type) {
+            const toggle = document.getElementById(type + 'Toggle');
+            toggle.classList.toggle('active');
+            
+            const isActive = toggle.classList.contains('active');
+            showNotification(`Security ${type} ${isActive ? 'enabled' : 'disabled'}`, 'info');
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            status.className = `status-indicator ${connected ? '' : 'error'}`;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const messageElement = document.getElementById('notificationMessage');
+            
+            notification.className = `notification ${type}`;
+            messageElement.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        function showSettings() {
+            // This would open a settings modal or page
+            showNotification('Settings panel coming soon!', 'info');
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            if (wsConnection) wsConnection.close();
+        });
+    </script>
+</body>
+</html>

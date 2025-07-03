@@ -866,194 +866,21 @@ void handleLogin() {
       sessionToken = generateSessionToken();
       Serial.println("[DEBUG] New sessionToken: " + sessionToken);
 
-      // Set the session cookie here!
+      // Set the session cookie
       server.sendHeader("Set-Cookie", "ESPSESSIONID=" + sessionToken + "; Path=/; HttpOnly");
-      server.sendHeader("Location", "/");
-      server.send(302, "text/plain", "Redirecting to dashboard...");
-      delay(100);
+      
+      // Send JSON response for AJAX request
+      server.send(200, "application/json", "{\"success\":true}");
+      
       addLog("User logged in");
       recordLoginAttempt(clientIP, true);
-      Serial.println("[DEBUG] Login success, JS redirect to /");
+      Serial.println("[DEBUG] Login success, JSON response sent");
     } else {
-      String html = R"rawliteral(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>IoT Dashboard Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    :root {
-      --bg-color: #f4f7fb;
-      --card-bg: #fff;
-      --text-color: #222;
-      --text-secondary: #888;
-      --primary-color: #0072ff;
-      --secondary-color: #00c6ff;
-      --border-color: #eee;
-      --shadow-color: rgba(0,0,0,0.07);
-    }
-
-    .dark-mode {
-      --bg-color: #121212;
-      --card-bg: #1e1e1e;
-      --text-color: #e0e0e0;
-      --text-secondary: #aaa;
-      --primary-color: #0099ff;
-      --secondary-color: #00c6ff;
-      --border-color: #333;
-      --shadow-color: rgba(0,0,0,0.3);
-    }
-
-    body {
-      background: var(--bg-color);
-      color: var(--text-color);
-      transition: background 0.3s ease;
-    }
-
-    .login-container {
-      background: var(--card-bg);
-      border-radius: 24px;
-      box-shadow: 0 12px 32px 0 rgba(0,0,0,0.18);
-      padding: 2.8rem 2.2rem 2.2rem 2.2rem;
-      width: 100%;
-      max-width: 370px;
-    }
-
-    .login-title {
-      font-size: 2.2rem;
-      font-weight: 800;
-      color: var(--primary-color);
-      margin-bottom: 1.7rem;
-      letter-spacing: 1.5px;
-      text-align: center;
-    }
-
-    .input-group {
-      margin-bottom: 1.3rem;
-    }
-
-    .input-group label {
-      display: block;
-      margin-bottom: 0.5rem;
-      color: var(--primary-color);
-      font-weight: 600;
-    }
-
-    .input-group input {
-      width: 100%;
-      padding: 0.8rem 1.1rem;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.08rem;
-      background: #f0f7fa;
-    }
-
-    .login-btn {
-      width: 100%;
-      padding: 0.9rem;
-      background: linear-gradient(90deg, #00c6ff 60%, #0072ff 100%);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 1.15rem;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 0.7rem;
-    }
-
-    .footer {
-      margin-top: 2.2rem;
-      text-align: center;
-      color: #aaa;
-      font-size: 1rem;
-    }
-
-    .forgot-link {
-      color: var(--primary-color);
-      text-decoration: underline;
-      font-size: 1rem;
-      font-weight: 500;
-      margin-top: 1.2rem;
-      display: inline-block;
-    }
-
-    .error-message {
-      color: #e74c3c;
-      background: #fff0f0;
-      border-radius: 6px;
-      padding: 0.6rem 1.1rem;
-      margin-top: 1.1rem;
-      text-align: center;
-      font-weight: 600;
-      display: block;
-    }
-
-    .dark-toggle {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: var(--primary-color);
-      color: #fff;
-      border: none;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-      transition: all 0.3s ease;
-    }
-  </style>
-</head>
-<body>
-  <div class="login-container">
-    <div class="login-title">IoT Dashboard</div>
-    <form id="loginForm" method="POST" action="/login" autocomplete="on">
-      <div class="input-group">
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username" autocomplete="username" required>
-      </div>
-      <div class="input-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" autocomplete="current-password" required>
-      </div>
-      <button class="login-btn" type="submit">Login</button>
-    </form>
-    <div class="error-message">Invalid username or password</div>
-    <div style="margin-top:1.2rem; text-align:center;">
-      <a href="/resetpass" class="forgot-link">Forgot password?</a>
-    </div>
-    <div class="footer">©️ 2024 IoT Dashboard</div>
-  </div>
-  <script>
-    // Dark mode toggle
-    const toggleDarkMode = () => {
-      document.body.classList.toggle('dark-mode');
-      const isDark = document.body.classList.contains('dark-mode');
-      localStorage.setItem('dark-mode', isDark);
-    }
-
-    // Load dark mode preference
-    const loadDarkMode = () => {
-      const isDark = JSON.parse(localStorage.getItem('dark-mode'));
-      if (isDark) {
-        document.body.classList.add('dark-mode');
-      }
-    }
-
-    // Initialize dark mode
-    loadDarkMode();
-  </script>
-</body>
-</html>
-)rawliteral";
-      server.send(200, "text/html", html);
+      // Send JSON response for failed login
+      server.send(200, "application/json", "{\"success\":false,\"message\":\"Invalid username or password\"}");
       recordLoginAttempt(clientIP, false);
       addLog("Failed login attempt");
-      Serial.println("[DEBUG] Login failed");
+      Serial.println("[DEBUG] Login failed, JSON response sent");
     }
   }
 }
